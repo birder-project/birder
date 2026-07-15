@@ -36,6 +36,7 @@ from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import stochastic_depth_rates
 from birder.net.vit import Attention
 from birder.net.vit import EncoderBlock as ViTEncoderBlock
 from birder.net.vit import PatchEmbed
@@ -730,7 +731,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         self.hidden_dim = hidden_dim
         self.num_reg_tokens = num_reg_tokens
         self.mlp_head = mlp_head
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers)
 
         self.conv_proj = nn.Conv2d(
             self.input_channels,

@@ -147,16 +147,12 @@ def decode_detection_target(item: tuple[Any, ...], label_remap: Optional[dict[in
             raw_labels = [label_remap[label] for label in raw_labels]
 
         boxes = tv_tensors.BoundingBoxes(
-            target["boxes"],
-            format=tv_tensors.BoundingBoxFormat.XYXY,
-            canvas_size=canvas_size,
+            target["boxes"], format=tv_tensors.BoundingBoxFormat.XYXY, canvas_size=canvas_size
         )
         labels = torch.tensor(raw_labels, dtype=torch.int64)
     else:
         boxes = tv_tensors.BoundingBoxes(
-            torch.zeros((0, 4), dtype=torch.float32),
-            format=tv_tensors.BoundingBoxFormat.XYXY,
-            canvas_size=canvas_size,
+            torch.zeros((0, 4), dtype=torch.float32), format=tv_tensors.BoundingBoxFormat.XYXY, canvas_size=canvas_size
         )
         labels = torch.zeros((0,), dtype=torch.int64)
 

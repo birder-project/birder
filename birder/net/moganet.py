@@ -30,6 +30,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import stochastic_depth_rates
 
 logger = logging.getLogger(__name__)
 
@@ -269,7 +270,7 @@ class MogaNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         )
 
         total_depth = sum(depths)
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, total_depth)]
+        dpr = stochastic_depth_rates(drop_path_rate, total_depth)
 
         cur_block_idx = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()

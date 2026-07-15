@@ -317,7 +317,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     # Data loaders and samplers
     virtual_epoch_mode = args.steps_per_epoch is not None
     train_sampler, _ = training_utils.get_samplers(
-        args, training_dataset, validation_dataset=None, infinite=virtual_epoch_mode
+        args, training_dataset, validation_dataset=None, device=device, infinite=virtual_epoch_mode
     )
 
     if args.wds is True:
@@ -422,7 +422,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         wd_schedule = None
 
     # Gradient scaler and AMP related tasks
-    scaler, amp_dtype = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
+    scaler, amp_dtype = training_utils.get_amp_scaler(device, args.amp, args.amp_dtype)
 
     # Load states
     if args.load_states is True:
@@ -462,7 +462,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     if args.distributed is True:
         student = torch.nn.parallel.DistributedDataParallel(
             student,
-            device_ids=[args.local_rank],
+            device_ids=training_utils.get_ddp_device_ids(device, device_id),
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
@@ -624,7 +624,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
             # Forward and backward
             with sync_context():
-                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
                     with torch.no_grad():
                         # Teacher
                         teacher_embedding_after_head, teacher_masked_patch_tokens_after_head = teacher(

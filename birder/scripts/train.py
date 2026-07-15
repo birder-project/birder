@@ -191,7 +191,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     # Data loaders and samplers
     virtual_epoch_mode = args.steps_per_epoch is not None
     train_sampler, validation_sampler = training_utils.get_samplers(
-        args, training_dataset, validation_dataset, infinite=virtual_epoch_mode
+        args, training_dataset, validation_dataset, device=device, infinite=virtual_epoch_mode
     )
 
     if args.wds is True:
@@ -398,7 +398,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         optimizer.step = torch.compile(optimizer.step, fullgraph=False)
 
     # Gradient scaler and AMP related tasks
-    scaler, amp_dtype = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
+    scaler, amp_dtype = training_utils.get_amp_scaler(device, args.amp, args.amp_dtype)
 
     # Load states
     if args.load_states is True:
@@ -448,7 +448,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     if args.distributed is True:
         net = torch.nn.parallel.DistributedDataParallel(
             net,
-            device_ids=[args.local_rank],
+            device_ids=training_utils.get_ddp_device_ids(device, device_id),
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
@@ -620,7 +620,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
             # Forward and backward
             with sync_context():
-                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
                     if args.moe_aux_loss is True:
                         outputs, aux_losses = net(inputs)
                         moe_aux_loss = aux_losses["auxiliary_loss"]
@@ -794,7 +794,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)  # pylint: disable=not-callable
                     loss_targets = loss_targets.to(dtype=inputs.dtype)
 
-                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
                     outputs = eval_model(inputs)
                     val_loss = criterion(outputs, loss_targets)
 

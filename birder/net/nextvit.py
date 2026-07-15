@@ -26,6 +26,7 @@ from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
 from birder.net.base import make_divisible
+from birder.net.base import stochastic_depth_rates
 
 
 class PatchEmbed(nn.Module):
@@ -290,7 +291,7 @@ class NextViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         idx = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+        dpr = stochastic_depth_rates(drop_path_rate, sum(depths))
         for stage_id, repeats in enumerate(depths):
             layers = []
             output_channels = self.stage_out_channels[stage_id]

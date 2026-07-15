@@ -50,10 +50,7 @@ def _build_default_rotary_pos_embed(
 
 
 def _build_axial_rotary_pos_embed(
-    dim: int,
-    temperature: float,
-    grid_size: tuple[int, int],
-    device: Optional[torch.device] = None,
+    dim: int, temperature: float, grid_size: tuple[int, int], device: Optional[torch.device] = None
 ) -> tuple[torch.Tensor, torch.Tensor]:
     assert dim % 4 == 0
     num_bands = dim // 4
@@ -71,10 +68,7 @@ def _build_axial_rotary_pos_embed(
 
 
 def _build_centered_separate_rotary_pos_embed(
-    dim: int,
-    temperature: float,
-    grid_size: tuple[int, int],
-    device: Optional[torch.device] = None,
+    dim: int, temperature: float, grid_size: tuple[int, int], device: Optional[torch.device] = None
 ) -> tuple[torch.Tensor, torch.Tensor]:
     assert dim % 4 == 0
     num_bands = dim // 4

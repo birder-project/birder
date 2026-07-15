@@ -32,6 +32,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import stochastic_depth_rates
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +238,7 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.pos_embed_win = nn.Parameter(torch.zeros(1, embed_dim, window_spec[0], window_spec[0]))
 
         depth = sum(depths)
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, depth)  # Stochastic depth decay rule
 
         cur_stage = 1
         layers = []

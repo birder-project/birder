@@ -30,6 +30,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.nn.utils.fusion import fuse_conv_bn_weights
 from torchvision.ops import SqueezeExcitation
 from torchvision.ops import StochasticDepth
 
@@ -41,6 +42,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import staged_stochastic_depth_rates
 from birder.net.mobileone import MobileOneBlock
 
 
@@ -143,7 +145,7 @@ class ReparamLargeKernelConv(nn.Module):
         if self.reparameterized is True:
             return
 
-        eq_k, eq_b = self._get_kernel_bias()
+        kernel, bias = self._get_kernel_bias()
         self.lkb_reparam = nn.Conv2d(
             self.in_channels,
             self.out_channels,
@@ -151,12 +153,14 @@ class ReparamLargeKernelConv(nn.Module):
             stride=self.stride,
             padding=self.padding,
             groups=self.groups,
+            device=kernel.device,
+            dtype=kernel.dtype,
         )
 
-        self.lkb_reparam.weight.data = eq_k
-        self.lkb_reparam.bias.data = eq_b
+        self.lkb_reparam.weight.data.copy_(kernel)
+        self.lkb_reparam.bias.data.copy_(bias)
 
-        # Delete un-used branches
+        # Delete unused branches
         for param in self.parameters():
             param.detach_()
 
@@ -166,27 +170,21 @@ class ReparamLargeKernelConv(nn.Module):
         self.reparameterized = True
 
     def _get_kernel_bias(self) -> tuple[torch.Tensor, torch.Tensor]:
-        eq_k, eq_b = self._fuse_bn_tensor(self.lkb_origin.conv, self.lkb_origin.bn)
+        conv = self.lkb_origin.conv
+        bn = self.lkb_origin.bn
+        kernel, bias = fuse_conv_bn_weights(
+            conv.weight, conv.bias, bn.running_mean, bn.running_var, bn.eps, bn.weight, bn.bias
+        )
 
-        small_k, small_b = self._fuse_bn_tensor(self.small_conv.conv, self.small_conv.bn)
-        eq_b += small_b
-        eq_k += F.pad(small_k, [(self.kernel_size - self.small_kernel) // 2] * 4)
+        conv = self.small_conv.conv
+        bn = self.small_conv.bn
+        kernel_small, bias_small = fuse_conv_bn_weights(
+            conv.weight, conv.bias, bn.running_mean, bn.running_var, bn.eps, bn.weight, bn.bias
+        )
+        bias = bias + bias_small
+        kernel = kernel + F.pad(kernel_small, [(self.kernel_size - self.small_kernel) // 2] * 4)
 
-        return (eq_k, eq_b)
-
-    @staticmethod
-    def _fuse_bn_tensor(conv: torch.Tensor, bn: nn.BatchNorm2d) -> tuple[torch.Tensor, torch.Tensor]:
-        kernel_value = conv.weight
-        running_mean = bn.running_mean
-        running_var = bn.running_var
-        gamma = bn.weight
-        beta = bn.bias
-        eps = bn.eps
-
-        std = (running_var + eps).sqrt()
-        t = (gamma / std).reshape(-1, 1, 1, 1)
-
-        return (kernel_value * t, beta - running_mean * gamma / std)
+        return (kernel, bias)
 
 
 class MHSA(nn.Module):
@@ -342,17 +340,20 @@ class RepMixer(nn.Module):
 
         self.mixer.reparameterize()
         self.norm.reparameterize()
+        assert self.mixer.reparam_conv is not None
+        assert self.norm.reparam_conv is not None
+        assert self.mixer.reparam_conv.bias is not None
+        assert self.norm.reparam_conv.bias is not None
+        assert self.mixer.id_tensor is not None
 
-        if isinstance(self.layer_scale, LayerScale2d):
-            w = self.mixer.id_tensor + self.layer_scale.gamma.unsqueeze(-1) * (
+        if isinstance(self.layer_scale, LayerScale2d):  # type: ignore[unreachable]
+            kernel = self.mixer.id_tensor + self.layer_scale.gamma.unsqueeze(-1) * (
                 self.mixer.reparam_conv.weight - self.norm.reparam_conv.weight
             )
-            b = torch.squeeze(self.layer_scale.gamma) * (self.mixer.reparam_conv.bias - self.norm.reparam_conv.bias)
+            bias = torch.squeeze(self.layer_scale.gamma) * (self.mixer.reparam_conv.bias - self.norm.reparam_conv.bias)
         else:
-            w = (  # type: ignore[unreachable]
-                self.mixer.id_tensor + self.mixer.reparam_conv.weight - self.norm.reparam_conv.weight
-            )
-            b = self.mixer.reparam_conv.bias - self.norm.reparam_conv.bias
+            kernel = self.mixer.id_tensor + self.mixer.reparam_conv.weight - self.norm.reparam_conv.weight
+            bias = self.mixer.reparam_conv.bias - self.norm.reparam_conv.bias
 
         self.reparam_conv = nn.Conv2d(
             self.dim,
@@ -361,11 +362,13 @@ class RepMixer(nn.Module):
             stride=(1, 1),
             padding=self.kernel_size // 2,
             groups=self.dim,
+            device=kernel.device,
+            dtype=kernel.dtype,
         )
-        self.reparam_conv.weight.data = w
-        self.reparam_conv.bias.data = b
+        self.reparam_conv.weight.data.copy_(kernel)
+        self.reparam_conv.bias.data.copy_(bias)
 
-        # Delete un-used branches
+        # Delete unused branches
         for param in self.parameters():
             param.detach_()
 
@@ -479,7 +482,7 @@ class RepCPE(nn.Module):
 
         # Build equivalent Id tensor
         input_dim = self.in_channels // self.groups
-        kernel_value = torch.zeros(
+        kernel_identity = torch.zeros(
             (
                 self.in_channels,
                 input_dim,
@@ -490,20 +493,17 @@ class RepCPE(nn.Module):
             device=self.pe.weight.device,
         )
         for i in range(self.in_channels):
-            kernel_value[
+            kernel_identity[
                 i,
                 i % input_dim,
                 self.spatial_shape[0] // 2,
                 self.spatial_shape[1] // 2,
             ] = 1
 
-        id_tensor = kernel_value
+        assert self.pe.bias is not None
+        kernel = kernel_identity + self.pe.weight
+        bias = self.pe.bias
 
-        # Reparameterize Id tensor and conv
-        w_final = id_tensor + self.pe.weight
-        b_final = self.pe.bias
-
-        # Introduce reparam conv
         self.reparam_conv = nn.Conv2d(
             self.in_channels,
             self.embed_dim,
@@ -511,11 +511,13 @@ class RepCPE(nn.Module):
             stride=(1, 1),
             padding=self.spatial_shape[0] // 2,
             groups=self.embed_dim,
+            device=kernel.device,
+            dtype=kernel.dtype,
         )
-        self.reparam_conv.weight.data = w_final
-        self.reparam_conv.bias.data = b_final
+        self.reparam_conv.weight.data.copy_(kernel)
+        self.reparam_conv.bias.data.copy_(bias)
 
-        # Delete un-used branches
+        # Delete unused branches
         for param in self.parameters():
             param.detach_()
 
@@ -758,7 +760,7 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         num_stages = len(layers)
         prev_dim = embed_dims[0]
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(layers)).split(layers)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, layers)
         downsamples = (False,) + (True,) * (num_stages - 1)
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
@@ -871,6 +873,9 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:
+        if self.reparameterized is True:
+            return
+
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:
                 module.reparameterize()

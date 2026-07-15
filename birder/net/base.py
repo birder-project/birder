@@ -1,6 +1,7 @@
 import copy
 import logging
 from collections.abc import Callable
+from collections.abc import Sequence
 from typing import Any
 from typing import ClassVar
 from typing import Literal
@@ -63,6 +64,32 @@ def make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> i
         new_v += divisor
 
     return new_v
+
+
+def stochastic_depth_rates(drop_path_rate: float, num_blocks: int, endpoint: bool = True) -> list[float]:
+    if num_blocks == 0:
+        return []
+
+    num_steps = num_blocks if endpoint is True else num_blocks + 1
+    rates: list[float] = torch.linspace(0.0, drop_path_rate, steps=num_steps, device="cpu").tolist()
+    if endpoint is False:
+        rates.pop()
+
+    return rates
+
+
+def staged_stochastic_depth_rates(
+    drop_path_rate: float, depths: Sequence[int], endpoint: bool = True
+) -> list[list[float]]:
+    rates = stochastic_depth_rates(drop_path_rate, sum(depths), endpoint=endpoint)
+
+    staged_rates = []
+    offset = 0
+    for depth in depths:
+        staged_rates.append(rates[offset : offset + depth])
+        offset += depth
+
+    return staged_rates
 
 
 @overload
@@ -354,12 +381,20 @@ class DetectorBackbone(BaseNet):
 
 
 def pos_embedding_sin_cos_2d(
-    h: int, w: int, dim: int, num_special_tokens: int, temperature: int = 10000, device: Optional[torch.device] = None
+    h: int,
+    w: int,
+    dim: int,
+    num_special_tokens: int,
+    temperature: int = 10000,
+    include_frequency_endpoint: bool = True,
+    device: Optional[torch.device] = None,
 ) -> torch.Tensor:
     # assert (dim % 4) == 0, "feature dimension must be multiple of 4 for sin-cos emb"
 
     y, x = torch.meshgrid(torch.arange(h, device=device), torch.arange(w, device=device), indexing="ij")
-    omega = torch.arange(dim // 4, device=device) / (dim // 4 - 1)
+    pos_dim = dim // 4
+    denominator = pos_dim - 1 if include_frequency_endpoint is True else pos_dim
+    omega = torch.arange(pos_dim, device=device) / denominator
     omega = 1.0 / (temperature**omega)
 
     y = y.flatten()[:, None] * omega[None, :]

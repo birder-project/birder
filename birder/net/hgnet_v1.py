@@ -18,6 +18,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class LearnableAffineBlock(nn.Module):
@@ -301,6 +302,8 @@ class HighPerfGPUStage(nn.Module):
 
 
 class HGNet_v1(DetectorBackbone):
+    block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,
@@ -328,7 +331,7 @@ class HGNet_v1(DetectorBackbone):
         self.stem = Stem([self.input_channels] + stem_channels)
 
         # Stochastic depth decay rule
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(block_depths)).split(block_depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, block_depths)
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []

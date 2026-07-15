@@ -12,13 +12,7 @@ class MultiHeadAttentionPool(nn.Module):
     """
 
     def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        mlp_dim: int,
-        qkv_bias: bool,
-        latent_len: int = 1,
-        norm_eps: float = 1e-5,
+        self, dim: int, num_heads: int, mlp_dim: int, qkv_bias: bool, latent_len: int = 1, norm_eps: float = 1e-5
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0

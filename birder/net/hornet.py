@@ -20,6 +20,7 @@ from torchvision.ops import StochasticDepth
 from birder.layers import LayerScale2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class ChannelsFirstLayerNorm(nn.Module):
@@ -237,7 +238,7 @@ class HorNet(DetectorBackbone):
         gf_layer: list[bool] = self.config["gf_layer"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         num_stages = len(depths)
         dims = [base_dim, base_dim * 2, base_dim * 4, base_dim * 8]
         gn_conv_h = [self.size[0] // 4, self.size[0] // 8, self.size[0] // 16, self.size[0] // 32]

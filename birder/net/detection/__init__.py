@@ -1,3 +1,4 @@
+from birder.net.detection.d_fine import D_FINE
 from birder.net.detection.deformable_detr import Deformable_DETR
 from birder.net.detection.detr import DETR
 from birder.net.detection.efficientdet import EfficientDet
@@ -18,6 +19,7 @@ from birder.net.detection.yolo_v4 import YOLO_v4
 from birder.net.detection.yolo_v4_tiny import YOLO_v4_Tiny
 
 __all__ = [
+    "D_FINE",
     "Deformable_DETR",
     "DETR",
     "EfficientDet",

@@ -198,10 +198,9 @@ class CaiT(BaseNet):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
 
-        dpr = [drop_path_rate for _ in range(depth)]  # Uniform stochastic depth
-
+        # Uniform stochastic depth
         layers1 = []
-        for i in range(depth):
+        for _ in range(depth):
             layers1.append(
                 LayerScaleBlock(
                     dim=embed_dim,
@@ -210,7 +209,7 @@ class CaiT(BaseNet):
                     qkv_bias=qkv_bias,
                     proj_drop=proj_drop,
                     attn_drop=attn_drop,
-                    drop_path=dpr[i],
+                    drop_path=drop_path_rate,
                     init_values=init_values,
                 )
             )

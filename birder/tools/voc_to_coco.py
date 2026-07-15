@@ -48,6 +48,7 @@ def voc_to_coco(args: argparse.Namespace) -> None:
     target_path = Path(args.ann_dir).parent.joinpath(f"{Path(args.class_file).stem}_coco.json")
     if target_path.exists() is True:
         logger.warning(f"{target_path} already exists, aborting...")
+        return
 
     class_to_idx = fs_ops.read_class_file(args.class_file)
     class_to_idx = lib.detection_class_to_idx(class_to_idx)

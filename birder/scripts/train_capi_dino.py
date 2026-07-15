@@ -235,14 +235,14 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         )
 
     if fsdp_mode is True:
-        fsdp_mesh = init_device_mesh("cuda", (args.world_size,), mesh_dim_names=("dp",))
+        fsdp_mesh = init_device_mesh(device.type, (args.world_size,), mesh_dim_names=("dp",))
 
         student_wrap_modules = _capi_dino_fsdp_wrap_modules(student, args)
-        student = fsdp_utils.setup_fsdp(student, args, wrap_modules=student_wrap_modules, mesh=fsdp_mesh)
+        student = fsdp_utils.setup_fsdp(student, args, device, wrap_modules=student_wrap_modules, mesh=fsdp_mesh)
 
         teacher_wrap_modules = _capi_dino_fsdp_wrap_modules(teacher, args)
         teacher = fsdp_utils.setup_fsdp(
-            teacher, args, wrap_modules=teacher_wrap_modules, mesh=fsdp_mesh, reshard_after_forward=True
+            teacher, args, device, wrap_modules=teacher_wrap_modules, mesh=fsdp_mesh, reshard_after_forward=True
         )
 
         net["student"] = student
@@ -337,7 +337,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     # Data loaders and samplers
     virtual_epoch_mode = args.steps_per_epoch is not None
     train_sampler, _ = training_utils.get_samplers(
-        args, training_dataset, validation_dataset=None, infinite=virtual_epoch_mode
+        args, training_dataset, validation_dataset=None, device=device, infinite=virtual_epoch_mode
     )
 
     if args.wds is True:
@@ -459,8 +459,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     )
 
     # Gradient scaler and AMP related tasks
-    scaler, amp_dtype = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
-    clustering_scaler, _ = training_utils.get_amp_scaler(args.amp, args.amp_dtype)
+    scaler, amp_dtype = training_utils.get_amp_scaler(device, args.amp, args.amp_dtype)
+    clustering_scaler, _ = training_utils.get_amp_scaler(device, args.amp, args.amp_dtype)
 
     # Load states
     if args.load_states is True:
@@ -510,12 +510,14 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     if args.distributed is True and fsdp_mode is False:
         student = torch.nn.parallel.DistributedDataParallel(
             student,
-            device_ids=[args.local_rank],
+            device_ids=training_utils.get_ddp_device_ids(device, device_id),
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
         teacher = torch.nn.parallel.DistributedDataParallel(
-            teacher, device_ids=[args.local_rank], broadcast_buffers=not args.no_broadcast_buffers
+            teacher,
+            device_ids=training_utils.get_ddp_device_ids(device, device_id),
+            broadcast_buffers=not args.no_broadcast_buffers,
         )
         student_no_sync_cm = student.no_sync
         teacher_no_sync_cm = teacher.no_sync
@@ -658,7 +660,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
             # Teacher forward and backward
             with teacher_sync_context():
-                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
                     selected_assignments, raw_clustering_loss, teacher_global_logits = teacher(
                         images, None, predict_indices
                     )
@@ -685,7 +687,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
             # Student forward and backward
             with student_sync_context():
-                with torch.amp.autocast("cuda", enabled=args.amp, dtype=amp_dtype):
+                with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
                     pred, student_global_logits = student(images, ids_keep, predict_indices)
                     raw_capi_loss = -torch.sum(
                         selected_assignments * F.log_softmax(pred / student_temp, dim=-1), dim=-1

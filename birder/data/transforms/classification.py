@@ -174,6 +174,31 @@ class RandomResizedCropWithRandomInterpolation(nn.Module):
         return t(x)
 
 
+def get_resize_to_cover_size(image_size: tuple[int, int], target_size: tuple[int, int]) -> tuple[int, int]:
+    image_h, image_w = image_size
+    target_h, target_w = target_size
+    if image_w * target_h >= image_h * target_w:
+        resized_h = target_h
+        resized_w = max(target_w, target_h * image_w // image_h)
+    else:
+        resized_h = max(target_h, target_w * image_h // image_w)
+        resized_w = target_w
+
+    return (resized_h, resized_w)
+
+
+class ResizeToCover(nn.Module):
+    def __init__(self, size: tuple[int, int], interpolation: v2.InterpolationMode) -> None:
+        super().__init__()
+        self.size = size
+        self.interpolation = interpolation
+
+    def forward(self, x: Any) -> Any:
+        image_size = F.get_size(x)
+        resize_size = get_resize_to_cover_size((image_size[0], image_size[1]), self.size)
+        return F.resize(x, resize_size, interpolation=self.interpolation, antialias=True)
+
+
 class SimpleRandomCropWithRandomInterpolation(nn.Module):
     def __init__(self, size: tuple[int, int], interpolation: list[v2.InterpolationMode]) -> None:
         super().__init__()
@@ -182,7 +207,7 @@ class SimpleRandomCropWithRandomInterpolation(nn.Module):
             self.transform.append(
                 v2.Compose(
                     [
-                        v2.Resize(min(size), interpolation=interp),
+                        ResizeToCover(size, interpolation=interp),
                         v2.RandomCrop(size, padding=4, padding_mode="reflect"),
                     ]
                 )
@@ -453,14 +478,15 @@ def inference_preset(
     mean = rgv_values["mean"]
     std = rgv_values["std"]
 
+    base_size = (int(size[0] / center_crop), int(size[1] / center_crop))
     if simple_crop is True:
-        base_size: int | tuple[int, int] = int(min(size) / center_crop)
+        resize_transform = ResizeToCover(base_size, interpolation=v2.InterpolationMode.BICUBIC)
     else:
-        base_size = (int(size[0] / center_crop), int(size[1] / center_crop))
+        resize_transform = v2.Resize(base_size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True)
 
     return v2.Compose(  # type: ignore
         [
-            v2.Resize(base_size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+            resize_transform,
             v2.CenterCrop(size),
             v2.PILToTensor(),
             v2.ToDtype(torch.float32, scale=True),

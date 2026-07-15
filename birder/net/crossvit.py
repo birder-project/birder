@@ -22,6 +22,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import BaseNet
+from birder.net.base import stochastic_depth_rates
 from birder.net.vit import EncoderBlock
 from birder.net.vit import adjust_position_embedding
 
@@ -286,7 +287,7 @@ class CrossViT(BaseNet):
         self.pos_drop = nn.Dropout(p=pos_drop_rate)
 
         total_depth = sum([sum(x[-2:]) for x in depths])  # pylint: disable=consider-using-generator
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, total_depth)]  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, total_depth)  # Stochastic depth decay rule
         dpr_ptr = 0
         self.blocks = nn.ModuleList()
         for depth in depths:

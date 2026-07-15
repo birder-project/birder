@@ -56,9 +56,7 @@ def _rescale_boxes(boxes: torch.Tensor, from_size: tuple[int, int], to_size: tup
 
 
 def _rescale_detections(
-    detections: list[dict[str, torch.Tensor]],
-    from_sizes: list[tuple[int, int]],
-    to_sizes: list[tuple[int, int]],
+    detections: list[dict[str, torch.Tensor]], from_sizes: list[tuple[int, int]], to_sizes: list[tuple[int, int]]
 ) -> list[dict[str, torch.Tensor]]:
     for idx, (detection, from_size, to_size) in enumerate(zip(detections, from_sizes, to_sizes)):
         boxes = detection["boxes"]

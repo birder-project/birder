@@ -27,6 +27,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import staged_stochastic_depth_rates
 
 
 def window_partition(x: torch.Tensor, window_size: tuple[int, int]) -> torch.Tensor:
@@ -440,7 +441,7 @@ class GC_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.stem = Stem(self.input_channels, embed_dim)
 
         feat_size = (math.ceil(img_size[0] / 4), math.ceil(img_size[1] / 4))
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
 
         in_dim = embed_dim
         stages: OrderedDict[str, nn.Module] = OrderedDict()

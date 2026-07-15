@@ -24,6 +24,7 @@ from birder.layers import LayerNorm2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import interpolate_attention_bias
+from birder.net.base import stochastic_depth_rates
 
 
 class PatchEmbed(nn.Module):
@@ -229,7 +230,7 @@ class TinyVitBlock(nn.Module):
         window_size: tuple[int, int],
         mlp_ratio: float,
         drop: float,
-        drop_path: list[float],
+        drop_path: float,
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0, "dim must be divisible by num_heads"
@@ -306,7 +307,7 @@ class TinyVitStage(nn.Module):
         window_size: tuple[int, int],
         mlp_ratio: float,
         drop: float,
-        drop_path: list[list[float]],
+        drop_path: list[float],
         downsample: bool,
     ) -> None:
         super().__init__()
@@ -370,7 +371,7 @@ class Tiny_ViT(DetectorBackbone):
         self.stem = PatchEmbed(in_channels=self.input_channels, out_channels=embed_dims[0])
 
         num_stages = len(depths)
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+        dpr = stochastic_depth_rates(drop_path_rate, sum(depths))
         prev_dim = embed_dims[0]
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []

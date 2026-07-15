@@ -15,6 +15,7 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.data.datasets.directory import pil_rgb_loader
+from birder.data.transforms.classification import get_resize_to_cover_size
 from birder.data.transforms.classification import inference_preset
 
 logger = logging.getLogger(__name__)
@@ -77,33 +78,19 @@ def _match_features(
     return (idx1[order], idx2[order], scores[order], threshold_similarity)
 
 
-def _resize_size(image_size: tuple[int, int], size: int | tuple[int, int]) -> tuple[int, int]:
-    image_w, image_h = image_size
-    if isinstance(size, int):
-        short = min(image_w, image_h)
-        long = max(image_w, image_h)
-        new_short = size
-        new_long = int(size * long / short)
-        if image_w <= image_h:
-            return (new_short, new_long)
-
-        return (new_long, new_short)
-
-    return (size[1], size[0])
-
-
 def _feature_region(
     image_size: tuple[int, int],
     size: tuple[int, int],
     center_crop: float,
     simple_crop: bool,
 ) -> tuple[float, float, float, float]:
+    image_w, image_h = image_size
+    base_size = (int(size[0] / center_crop), int(size[1] / center_crop))
     if simple_crop is True:
-        base_size: int | tuple[int, int] = int(min(size) / center_crop)
+        resized_h, resized_w = get_resize_to_cover_size((image_h, image_w), base_size)
     else:
-        base_size = (int(size[0] / center_crop), int(size[1] / center_crop))
+        resized_h, resized_w = base_size
 
-    resized_w, resized_h = _resize_size(image_size, base_size)
     crop_top = round((resized_h - size[0]) / 2.0)
     crop_left = round((resized_w - size[1]) / 2.0)
     scale_x = resized_w / image_size[0]

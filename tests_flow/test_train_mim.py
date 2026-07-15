@@ -25,7 +25,7 @@ class TestTrainMIMFlow(unittest.TestCase):
             epochs=2,
             stop_epoch=1,
             size=64,
-            cpu=True,
+            device="cpu",
             data_path=[training_dataset.root],
         )
         train_mim.train(args)
@@ -43,7 +43,7 @@ class TestTrainMIMFlow(unittest.TestCase):
             resume_epoch=1,
             load_states=True,
             size=64,
-            cpu=True,
+            device="cpu",
             data_path=[training_dataset.root],
         )
         train_mim.train(args)

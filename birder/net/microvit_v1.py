@@ -20,7 +20,6 @@ from typing import Any
 from typing import Optional
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 
 from birder.model_registry import registry
@@ -32,8 +31,16 @@ from birder.net.shvit import NormLinear
 class Residual(nn.Module):
     def __init__(self, module: nn.Module, reparameterized: bool = False) -> None:
         super().__init__()
-        self.m = module
-        self.reparameterized = reparameterized and isinstance(module, Conv2dBN)
+        reparam_conv = getattr(module, "reparam_conv", None)
+        if reparameterized is True and isinstance(module, Conv2dBN):
+            self.m: nn.Module = module.c
+            self.reparameterized = True
+        elif reparameterized is True and isinstance(reparam_conv, nn.Conv2d):
+            self.m = reparam_conv
+            self.reparameterized = True
+        else:
+            self.m = module
+            self.reparameterized = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.reparameterized is True:
@@ -46,42 +53,38 @@ class Residual(nn.Module):
             return
 
         if hasattr(self.m, "reparameterize") is True:
-            reparameterized_module = self.m.reparameterize()
-            if isinstance(reparameterized_module, nn.Module):
-                self.m = reparameterized_module
+            self.m.reparameterize()
 
         if isinstance(self.m, Conv2dBN):
             conv = self.m.c
-            assert isinstance(conv, nn.Conv2d)
         elif isinstance(self.m, nn.Conv2d):
             conv = self.m
         else:
-            return
+            reparam_conv = getattr(self.m, "reparam_conv", None)
+            if isinstance(reparam_conv, nn.Conv2d):
+                conv = reparam_conv
+            else:
+                return
 
-        if isinstance(conv, nn.Conv2d):
-            assert conv.groups == conv.in_channels
-            assert conv.in_channels == conv.out_channels
+        conv.weight.data.add_(self._get_identity_kernel(conv))
 
-            identity = torch.ones(
-                conv.weight.shape[0], conv.weight.shape[1], 1, 1, device=conv.weight.device, dtype=conv.weight.dtype
-            )
-            identity = F.pad(
-                identity,
-                [
-                    conv.kernel_size[1] // 2,
-                    conv.kernel_size[1] // 2,
-                    conv.kernel_size[0] // 2,
-                    conv.kernel_size[0] // 2,
-                ],
-            )
-            conv.weight.data.add_(identity)
+        # Delete unused branches
+        for param in self.parameters():
+            param.detach_()
 
-            # Delete un-used branches
-            for param in self.parameters():
-                param.detach_()
+        self.m = conv
+        self.reparameterized = True
 
-            self.m = conv
-            self.reparameterized = True
+    @staticmethod
+    def _get_identity_kernel(conv: nn.Conv2d) -> torch.Tensor:
+        assert conv.in_channels == conv.out_channels
+        assert conv.stride == (1, 1)
+        input_dim = conv.in_channels // conv.groups
+        kernel = torch.zeros_like(conv.weight)
+        for channel_idx in range(conv.in_channels):
+            kernel[channel_idx, channel_idx % input_dim, conv.kernel_size[0] // 2, conv.kernel_size[1] // 2] = 1
+
+        return kernel
 
 
 class FFN(nn.Module):
@@ -446,6 +449,9 @@ class MicroViT_v1(DetectorBackbone):
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:
+        if self.reparameterized is True:
+            return
+
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:
                 module.reparameterize()

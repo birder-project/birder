@@ -82,10 +82,7 @@ def _pairwise_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
 
 
 def _soft_nms(
-    boxes: torch.Tensor,
-    scores: torch.Tensor,
-    sigma: float = 0.5,
-    score_threshold: float = 0.1,
+    boxes: torch.Tensor, scores: torch.Tensor, sigma: float = 0.5, score_threshold: float = 0.1
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Soft non-max suppression algorithm
@@ -126,11 +123,7 @@ def _soft_nms(
 
 
 def batched_soft_nms(
-    boxes: torch.Tensor,
-    scores: torch.Tensor,
-    idxs: torch.Tensor,
-    sigma: float = 0.5,
-    score_threshold: float = 0.1,
+    boxes: torch.Tensor, scores: torch.Tensor, idxs: torch.Tensor, sigma: float = 0.5, score_threshold: float = 0.1
 ) -> tuple[torch.Tensor, torch.Tensor]:
     if boxes.numel() == 0:
         return (
@@ -142,9 +135,4 @@ def batched_soft_nms(
     offsets = idxs.to(boxes) * (max_coordinate + 1)
     boxes_for_nms = boxes + offsets[:, None]
 
-    return _soft_nms(
-        boxes_for_nms,
-        scores,
-        sigma=sigma,
-        score_threshold=score_threshold,
-    )
+    return _soft_nms(boxes_for_nms, scores, sigma=sigma, score_threshold=score_threshold)

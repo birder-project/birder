@@ -175,14 +175,7 @@ def weighted_boxes_fusion(
         label_scores = scores_tensor[start:end]
         label_weights = weights_tensor[start:end]
         boxes, scores = _fuse_label_boxes(
-            label_boxes,
-            label_scores,
-            label_weights,
-            iou_thr,
-            conf_type,
-            total_weight,
-            num_models,
-            allows_overflow,
+            label_boxes, label_scores, label_weights, iou_thr, conf_type, total_weight, num_models, allows_overflow
         )
         fused_boxes.append(boxes)
         fused_scores.append(scores)

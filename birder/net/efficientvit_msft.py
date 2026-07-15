@@ -166,7 +166,9 @@ class CascadedGroupAttention(nn.Module):
                 idxs.append(attention_offsets[offset])
 
         self.attention_biases = nn.Parameter(torch.zeros(num_heads, len(attention_offsets)))
-        self.attention_bias_idxs = nn.Buffer(torch.LongTensor(idxs).view(N, N), persistent=False)
+        self.attention_bias_idxs = nn.Buffer(
+            torch.tensor(idxs, device=self.attention_biases.device, dtype=torch.long).view(N, N), persistent=False
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, _, H, W = x.size()

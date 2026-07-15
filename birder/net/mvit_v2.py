@@ -31,6 +31,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import staged_stochastic_depth_rates
 
 
 def pre_pool(
@@ -472,7 +473,7 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         else:
             self.cls_token = None
 
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         input_size = (img_size[0] // 4, img_size[1] // 4)

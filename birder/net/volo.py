@@ -25,6 +25,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import BaseNet
+from birder.net.base import stochastic_depth_rates
 
 
 class OutlookAttention(nn.Module):
@@ -244,7 +245,7 @@ class VOLO(BaseNet):
         self.pos_embed = nn.Parameter(torch.zeros(1, self.post_patch_h, self.post_patch_w, embed_dims[1]))
 
         total_blocks = sum(layers)
-        dpr = torch.linspace(0, drop_path_rate, total_blocks).tolist()
+        dpr = stochastic_depth_rates(drop_path_rate, total_blocks)
 
         # Outlooker stage
         outlook_padding = outlook_kernel // 2

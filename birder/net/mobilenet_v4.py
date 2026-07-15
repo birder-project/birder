@@ -27,6 +27,7 @@ from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
 from birder.net.base import make_divisible
+from birder.net.base import stochastic_depth_rates
 
 
 class ConvNormActConfig:
@@ -384,12 +385,12 @@ class MobileNet_v4(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin)
 
         layers: list[nn.Module] = []
         total_stage_blocks = len(net_settings) + len(last_stage_settings)
+        dpr = stochastic_depth_rates(drop_path_rate, total_stage_blocks, endpoint=False)
         i = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         for idx, block_settings in enumerate(net_settings):
-            # Adjust stochastic depth probability based on the depth of the stage block
-            sd_prob = drop_path_rate * float(idx) / total_stage_blocks
+            sd_prob = dpr[idx]
 
             if idx > 0 and (block_settings.stride[0] > 1 or block_settings.stride[1] > 1):
                 stages[f"stage{i+1}"] = nn.Sequential(*layers)

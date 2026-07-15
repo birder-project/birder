@@ -23,6 +23,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import BaseNet
+from birder.net.base import stochastic_depth_rates
 
 
 class LSTM2d(nn.Module):
@@ -193,9 +194,8 @@ class Sequencer2d(BaseNet):
 
         stages = []
         prev_dim = embed_dims[0]
+        dpr = stochastic_depth_rates(drop_path_rate, len(layers), endpoint=False)
         for idx, embed_dim in enumerate(embed_dims):
-            sd_prob = drop_path_rate * float(idx) / len(layers)
-
             stages += [
                 Sequencer2dStage(
                     prev_dim,
@@ -207,7 +207,7 @@ class Sequencer2d(BaseNet):
                     downsample=idx > 0,
                     num_layers=num_rnn_layers,
                     drop=drop_rate,
-                    drop_path=sd_prob,
+                    drop_path=dpr[idx],
                 )
             ]
             prev_dim = embed_dim

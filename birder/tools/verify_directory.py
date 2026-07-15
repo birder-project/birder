@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 def verify_directory(args: argparse.Namespace) -> None:
     batch_size = 32
+    has_errors = False
     transform = v2.Compose(
         [
             v2.ToImage(),
@@ -50,6 +51,7 @@ def verify_directory(args: argparse.Namespace) -> None:
                         f"File at batch no. {idx} (batch size = {batch_size}, "
                         f"{(idx-1) * batch_size + args.start}) failed to load {e}"
                     )
+                    raise
 
             else:
                 for img_path, _ in dataset.samples:
@@ -57,14 +59,19 @@ def verify_directory(args: argparse.Namespace) -> None:
                         img = dataset.loader(img_path)
                         img = transform(img)
                         if img.size(0) != args.channels:
+                            has_errors = True
                             logger.warning(f"File {img_path} failed to load {img.size()}")
 
                     except (OSError, RuntimeError) as e:
+                        has_errors = True
                         logger.warning(f"File {img_path} failed to load {e}")
 
                     progress.update(1)
 
         logger.info(f"Finished {data_path}")
+
+    if has_errors is True:
+        raise RuntimeError("Directory verification failed")
 
 
 def set_parser(subparsers: Any) -> None:
@@ -81,7 +88,9 @@ def set_parser(subparsers: Any) -> None:
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
-    subparser.add_argument("--fast", default=False, action="store_true", help="use parallel dataloader")
+    subparser.add_argument(
+        "--fast", default=False, action="store_true", help="use parallel loading and stop at the first error"
+    )
     subparser.add_argument("--start", type=int, default=0, help="start at sample number (skip the beginning)")
     subparser.add_argument(
         "--img-loader",

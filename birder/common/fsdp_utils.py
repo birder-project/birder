@@ -118,6 +118,7 @@ def modules_from_min_num_params(module: torch.nn.Module, min_num_params: int) ->
 def setup_fsdp(
     net: torch.nn.Module,
     args: argparse.Namespace,
+    device: torch.device,
     wrap_modules: Optional[Sequence[torch.nn.Module]] = None,
     mesh: Optional[DeviceMesh] = None,
     reshard_after_forward: Optional[bool] = None,
@@ -137,7 +138,7 @@ def setup_fsdp(
     if reshard_after_forward is None:
         reshard_after_forward = _reshard_after_forward(args.fsdp_sharding_strategy)
     if mesh is None:
-        mesh = init_device_mesh("cuda", (args.world_size,), mesh_dim_names=("dp",))
+        mesh = init_device_mesh(device.type, (args.world_size,), mesh_dim_names=("dp",))
 
     if wrap_modules is None:
         modules_to_wrap: Sequence[torch.nn.Module] = ()

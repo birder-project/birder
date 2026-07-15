@@ -19,6 +19,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class InceptionDWConv2d(nn.Module):
@@ -195,7 +196,7 @@ class Inception_NeXt(DetectorBackbone):
         )
 
         num_stage = len(num_layers)
-        dp_rates = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(num_layers)).split(num_layers)]
+        dp_rates = staged_stochastic_depth_rates(drop_path_rate, num_layers)
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []

@@ -4,6 +4,7 @@
 
 Before running any training scripts, set the `OMP_NUM_THREADS` environment variable appropriately for your system.
 
+- [D-FINE](#d-fine)
 - [Deformable DETR](#deformable-detr)
 - [Deformable DETR BoxRef](#deformable-detr-boxref)
 - [DETR](#detr)
@@ -23,6 +24,28 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 - [YOLO v3](#yolo-v3)
 - [YOLO v4](#yolo-v4)
 - [YOLO v4 Tiny](#yolo-v4-tiny)
+
+### D-FINE
+
+#### D-FINE L: HGNet v2 B4
+
+Intermediate training (Objects365-2020)
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_detection --network d_fine_l --tag objects365 --backbone hgnet_v2_b4 --backbone-tag pp-imagenet22k --backbone-epoch 0 --freeze-backbone-stages 0 --batch-size 16 --opt adamw --clip-grad-norm 0.1 --lr 0.00025 --backbone-lr 0.0000125 --wd 0.000125 --norm-wd 0 --lr-scheduler-update step --lr-scheduler constant --lr-warmup-decay 0.002 --epochs 24 --warmup-steps 500 --model-ema --model-ema-decay 0.9999 --freeze-backbone-bn --size 640 --batch-multiscale --multiscale-min-size 480 --multiscale-max-size 800 --aug-type deim --rgb-mode neutral --amp --data-path ~/Datasets/Objects365-2020/train --val-path ~/Datasets/Objects365-2020/val --coco-json-path ~/Datasets/Objects365-2020/train/zhiyuan_objv2_train.json --coco-val-json-path ~/Datasets/Objects365-2020/val/zhiyuan_objv2_val.json --ignore-file public_datasets_metadata/objects365_ignore.txt
+```
+
+Intermediate training (COCO) - first stage
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_detection --network d_fine_l --tag coco --backbone hgnet_v2_b4 --backbone-tag pp-imagenet22k --backbone-epoch 0 --freeze-backbone-stages 0 --batch-size 16 --opt adamw --clip-grad-norm 0.1 --lr 0.00025 --backbone-lr 0.0000125 --wd 0.000125 --norm-wd 0 --lr-scheduler-update step --lr-scheduler constant --lr-warmup-decay 0.002 --epochs 80 --stop-epoch 72 --warmup-steps 500 --model-ema --model-ema-decay 0.9999 --freeze-backbone-bn --size 640 --batch-multiscale --multiscale-min-size 480 --multiscale-max-size 800 --aug-type deim --rgb-mode neutral --amp --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json
+```
+
+Intermediate training (COCO) - second stage
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_detection --network d_fine_l --tag coco --backbone hgnet_v2_b4 --backbone-tag pp-imagenet22k --batch-size 16 --opt adamw --clip-grad-norm 0.1 --lr 0.00025 --backbone-lr 0.0000125 --wd 0.000125 --norm-wd 0 --lr-scheduler-update step --lr-scheduler constant --lr-warmup-decay 0.002 --epochs 80 --warmup-steps 500 --model-ema --model-ema-decay 0.9999 --freeze-backbone-bn --size 640 --aug-level 0 --rgb-mode neutral --amp --resume-epoch 72 --load-states --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json
+```
 
 ### Deformable DETR
 

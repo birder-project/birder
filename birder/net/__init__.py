@@ -35,6 +35,7 @@ from birder.net.focalnet import FocalNet
 from birder.net.gc_vit import GC_ViT
 from birder.net.ghostnet_v1 import GhostNet_v1
 from birder.net.ghostnet_v2 import GhostNet_v2
+from birder.net.ghostnet_v3 import GhostNet_v3
 from birder.net.groupmixformer import GroupMixFormer
 from birder.net.hgnet_v1 import HGNet_v1
 from birder.net.hgnet_v2 import HGNet_v2
@@ -158,6 +159,7 @@ __all__ = [
     "GC_ViT",
     "GhostNet_v1",
     "GhostNet_v2",
+    "GhostNet_v3",
     "GroupMixFormer",
     "HGNet_v1",
     "HGNet_v2",

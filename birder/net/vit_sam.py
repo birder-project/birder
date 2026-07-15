@@ -34,6 +34,7 @@ from birder.net._vit_configs import MEDIUM
 from birder.net._vit_configs import SMALL
 from birder.net.base import DetectorBackbone
 from birder.net.base import normalize_out_indices
+from birder.net.base import stochastic_depth_rates
 from birder.net.vit import EncoderBlock as MAEDecoderBlock
 from birder.net.vit_windowed import window_partition
 from birder.net.vit_windowed import window_unpartition
@@ -271,7 +272,7 @@ class ViT_SAM(DetectorBackbone):
         self.grad_checkpointing_segments: Optional[int] = None
         self.grad_checkpointing_preserve_rng_state = True
         self.grad_checkpointing_use_reentrant = False
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
 
         self.patch_embed = PatchEmbed(
             in_channels=self.input_channels,

@@ -468,12 +468,8 @@ class RollBlockMasking(Masking):
     # Adapted from: https://github.com/facebookresearch/capi/blob/main/data.py
 
     def __init__(
-        self,
-        input_size: tuple[int, int],
-        num_masking_patches: int,
-        min_aspect: float = 0.5,
-        max_aspect: float = 2.0,
-    ):
+        self, input_size: tuple[int, int], num_masking_patches: int, min_aspect: float = 0.5, max_aspect: float = 2.0
+    ) -> None:
         self.height = input_size[0]
         self.width = input_size[1]
         self.num_masking_patches = num_masking_patches
@@ -491,10 +487,7 @@ class RollBlockMasking(Masking):
 
             # Sample aspect ratio, not too large or too small for image
             min_lar = max(self.log_aspect_ratio[0], np.log(self.num_masking_patches / (self.width**2)))
-            max_lar = min(
-                self.log_aspect_ratio[1],
-                np.log(self.height**2 / (self.num_masking_patches + 1e-5)),
-            )
+            max_lar = min(self.log_aspect_ratio[1], np.log(self.height**2 / (self.num_masking_patches + 1e-5)))
             aspect_ratio = math.exp(random.uniform(min_lar, max_lar))
 
             # Use ceil so mask is >= num_masking_patches
@@ -522,12 +515,8 @@ class RollBlockMasking(Masking):
 
 class InverseRollBlockMasking(RollBlockMasking):
     def __init__(
-        self,
-        input_size: tuple[int, int],
-        num_masking_patches: int,
-        min_aspect: float = 0.5,
-        max_aspect: float = 2.0,
-    ):
+        self, input_size: tuple[int, int], num_masking_patches: int, min_aspect: float = 0.5, max_aspect: float = 2.0
+    ) -> None:
         num_masking_patches = input_size[0] * input_size[1] - num_masking_patches
         super().__init__(input_size, num_masking_patches, min_aspect, max_aspect)
 

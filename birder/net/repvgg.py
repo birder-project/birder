@@ -15,6 +15,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.nn.utils.fusion import fuse_conv_bn_weights
 from torchvision.ops import SqueezeExcitation
 
 from birder.model_registry import registry
@@ -121,11 +122,13 @@ class RepVggBlock(nn.Module):
             padding=self.conv_kxk.conv.padding,
             dilation=self.conv_kxk.conv.dilation,
             groups=self.conv_kxk.conv.groups,
+            device=kernel.device,
+            dtype=kernel.dtype,
         )
-        self.reparam_conv.weight.data = kernel
-        self.reparam_conv.bias.data = bias
+        self.reparam_conv.weight.data.copy_(kernel)
+        self.reparam_conv.bias.data.copy_(bias)
 
-        # Delete un-used branches
+        # Delete unused branches
         for param in self.parameters():
             param.detach_()
 
@@ -159,17 +162,13 @@ class RepVggBlock(nn.Module):
 
         return (kernel_final, bias_final)
 
-    def _fuse_bn_tensor(self, branch: nn.Module) -> tuple[torch.Tensor, torch.Tensor]:
+    def _fuse_bn_tensor(self, branch: nn.Sequential | nn.BatchNorm2d) -> tuple[torch.Tensor, torch.Tensor]:
         if isinstance(branch, nn.Sequential):
             kernel = branch.conv.weight
-            running_mean = branch.bn.running_mean
-            running_var = branch.bn.running_var
-            gamma = branch.bn.weight
-            beta = branch.bn.bias
-            eps = branch.bn.eps
+            bias = branch.conv.bias
+            bn = branch.bn
 
         else:
-            assert isinstance(branch, nn.BatchNorm2d)
             input_dim = self.in_channels // self.groups
             kernel_value = torch.zeros(
                 (self.in_channels, input_dim, self.kernel_size, self.kernel_size),
@@ -180,16 +179,18 @@ class RepVggBlock(nn.Module):
                 kernel_value[i, i % input_dim, self.kernel_size // 2, self.kernel_size // 2] = 1
 
             kernel = kernel_value
-            running_mean = branch.running_mean
-            running_var = branch.running_var
-            gamma = branch.weight
-            beta = branch.bias
-            eps = branch.eps
+            bias = None
+            bn = branch
 
-        std = (running_var + eps).sqrt()
-        t = (gamma / std).reshape(-1, 1, 1, 1)
-
-        return (kernel * t, beta - running_mean * gamma / std)
+        return fuse_conv_bn_weights(  # type: ignore[no-any-return]
+            kernel,
+            bias,
+            bn.running_mean,
+            bn.running_var,
+            bn.eps,
+            bn.weight,
+            bn.bias,
+        )
 
 
 class RepVggStage(nn.Sequential):
@@ -319,6 +320,9 @@ class RepVgg(DetectorBackbone):
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:
+        if self.reparameterized is True:
+            return
+
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:
                 module.reparameterize()

@@ -43,7 +43,7 @@ class TestTrainEvaluateFlow(unittest.TestCase):
             lr=0.1,
             epochs=2,
             size=64,
-            cpu=True,
+            device="cpu",
             save_frequency=1,
             data_path=training_dataset.root,
             val_path=validation_dataset.root,

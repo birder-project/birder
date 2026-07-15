@@ -21,6 +21,7 @@ from torchvision.ops import StochasticDepth
 from birder.layers import LayerScale
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class PatchEmbed(nn.Module):
@@ -269,7 +270,7 @@ class EfficientMod(DetectorBackbone):
         )
 
         block_depths = [depth + attention for depth, attention in zip(depths, attention_depth, strict=True)]
-        dpr = [segment.tolist() for segment in torch.linspace(0, drop_path_rate, sum(block_depths)).split(block_depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, block_depths)
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         prev_dim = embed_dims[0]

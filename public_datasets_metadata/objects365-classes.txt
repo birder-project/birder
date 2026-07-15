@@ -194,7 +194,7 @@ Wheelchair
 Golf Club
 Briefcase
 Cucumber
-Cigar/Cigarette 
+Cigar/Cigarette
 Paint Brush
 Pear
 Heavy Truck
@@ -306,7 +306,7 @@ Steak
 Crosswalk Sign
 Stapler
 Campel
-Formula 1 
+Formula 1
 Pomegranate
 Dishwasher
 Crab

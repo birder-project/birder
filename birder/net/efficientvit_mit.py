@@ -22,6 +22,7 @@ from torchvision.ops import StochasticDepth
 from birder.layers.activations import get_activation_module
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class ResidualBlock(nn.Module):
@@ -560,7 +561,7 @@ class EfficientViT_MIT(DetectorBackbone):
             self.input_channels, widths[0], depths[0], norm_layer=norm_layer, act_layer=act_layer, stem_block=stem_block
         )
 
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths[1:])).split(depths[1:])]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths[1:])
         in_channels = widths[0]
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []

@@ -28,6 +28,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import stochastic_depth_rates
 
 logger = logging.getLogger(__name__)
 
@@ -349,7 +350,7 @@ class FocalNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         )
 
         in_dim = embed_dims[0]
-        dpr: list[float] = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+        dpr = stochastic_depth_rates(drop_path_rate, sum(depths))
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []

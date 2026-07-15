@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.6.6 - 2026-07-15
+
+### Added
+
+- **D-FINE Detection**: Added [D-FINE](https://arxiv.org/abs/2410.13842) object detection model.
+- **GhostNet v3**: Added [GhostNet v3](https://arxiv.org/abs/2404.11202) image classification model variants.
+- **Meta Device Initialization**: Added broad meta-device initialization support.
+- **Beyond CUDA**: As an initial step toward broader training-device support, removed several CUDA-only assumptions and added basic CPU DistributedDataParallel (DDP) support, primarily for development and testing.
+
+### Changed
+
+- **Dataset Packing**: Reworked the classification and object-detection packing pipelines for improved multiprocessing stability.
+- **RT-DETR Positional Embeddings (Breaking)**: Changed AIFI sinusoidal frequency spacing in RT-DETR v1 and v2 to exclude the frequency endpoint, matching upstream behavior.
+
+### Fixed
+
+- **Simple Crop**: Fixed rectangular crops to preserve aspect ratio and cover the target size before cropping.
+- **Tooling Reliability**:
+    - **Model Downloads**: Honor forced downloads when checksum verification is disabled.
+    - **VOC-to-COCO Conversion**: Abort when the target already exists instead of overwriting it.
+    - **Model Conversion**: Protect reparameterized checkpoints from unintended overwrites.
+
 ## 0.6.5 - 2026-07-11
 
 ### Added

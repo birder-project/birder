@@ -29,6 +29,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import stochastic_depth_rates
 
 logger = logging.getLogger(__name__)
 
@@ -323,6 +324,7 @@ class Swin_Transformer_v1(DetectorBackbone):
         )
 
         total_stage_blocks = sum(depths)
+        dpr = stochastic_depth_rates(drop_path_rate, total_stage_blocks)
         stage_block_id = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
@@ -330,8 +332,6 @@ class Swin_Transformer_v1(DetectorBackbone):
         for i_stage, depth in enumerate(depths):
             dim = embed_dim * 2**i_stage
             for i_layer in range(depth):
-                # Adjust stochastic depth probability based on the depth of the stage block
-                sd_prob = drop_path_rate * float(stage_block_id) / (total_stage_blocks - 1)
                 if i_layer % 2 == 0:
                     shift_size = (0, 0)
                 else:
@@ -344,7 +344,7 @@ class Swin_Transformer_v1(DetectorBackbone):
                         window_size=window_size,
                         shift_size=shift_size,
                         mlp_ratio=mlp_ratio,
-                        stochastic_depth_prob=sd_prob,
+                        stochastic_depth_prob=dpr[stage_block_id],
                     )
                 )
                 stage_block_id += 1

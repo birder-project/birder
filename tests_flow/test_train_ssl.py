@@ -24,7 +24,7 @@ class TestSSLTrainFlow(unittest.TestCase):
             epochs=2,
             stop_epoch=1,
             size=64,
-            cpu=True,
+            device="cpu",
             data_path=[training_dataset.root],
         )
         train_vicreg.train(args)

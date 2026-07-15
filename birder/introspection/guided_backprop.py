@@ -194,11 +194,7 @@ def restore_activations_recursive(replaced: list[ActivationReplacement]) -> None
 
 class GuidedBackprop:
     def __init__(
-        self,
-        net: nn.Module,
-        device: torch.device,
-        transform: Callable[..., torch.Tensor],
-        rgb_stats: RGBType,
+        self, net: nn.Module, device: torch.device, transform: Callable[..., torch.Tensor], rgb_stats: RGBType
     ) -> None:
         self.net = net.eval()
         self.device = device

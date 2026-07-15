@@ -135,9 +135,7 @@ def _sample_to_image_key(sample: str, images_dir: Path) -> str:
 
 
 def _load_snakeclef_metadata(dataset: SnakeCLEF2023) -> pl.DataFrame:
-    train_frames = [
-        pl.read_csv(dataset.train_metadata_path).with_columns(pl.lit("train").alias("split")),
-    ]
+    train_frames = [pl.read_csv(dataset.train_metadata_path).with_columns(pl.lit("train").alias("split"))]
 
     hmp_dir = dataset.images_dir.joinpath("HMP")
     if hmp_dir.exists() is True and dataset.train_hm_metadata_path.exists() is True:
@@ -194,9 +192,7 @@ def _load_snakeclef_embeddings(embeddings_path: str, images_dir: Path) -> pl.Dat
     return emb_df
 
 
-def _aggregate_observations(
-    joined_df: pl.DataFrame,
-) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.int_]]:
+def _aggregate_observations(joined_df: pl.DataFrame) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.int_]]:
     if joined_df.is_empty() is True:
         return (
             np.empty((0, 0), dtype=np.float32),
@@ -223,12 +219,9 @@ def _aggregate_observations(
     return (obs_embeddings, obs_labels)
 
 
-def _load_embeddings_with_split(embeddings_path: str, dataset: SnakeCLEF2023, metadata_df: pl.DataFrame) -> tuple[
-    npt.NDArray[np.float32],
-    npt.NDArray[np.int_],
-    npt.NDArray[np.float32],
-    npt.NDArray[np.int_],
-]:
+def _load_embeddings_with_split(
+    embeddings_path: str, dataset: SnakeCLEF2023, metadata_df: pl.DataFrame
+) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.int_], npt.NDArray[np.float32], npt.NDArray[np.int_]]:
     emb_df = _load_snakeclef_embeddings(embeddings_path, dataset.images_dir)
 
     train_meta = metadata_df.filter(pl.col("split") == "train").select(["image_key", "observation_id", "label"])

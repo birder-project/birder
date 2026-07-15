@@ -31,6 +31,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import stochastic_depth_rates
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +118,7 @@ class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         )
 
         total_stage_blocks = sum(num_layers)
+        dpr = stochastic_depth_rates(drop_path_rate, total_stage_blocks)
         stage_block_id = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
@@ -124,9 +126,7 @@ class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         for idx, (i, out, n) in enumerate(zip(in_channels, out_channels, num_layers)):
             # Bottlenecks
             for _ in range(n):
-                # Adjust stochastic depth probability based on the depth of the stage block
-                sd_prob = drop_path_rate * stage_block_id / (total_stage_blocks - 1.0)
-                layers.append(ConvNeXtBlock(i, sd_prob))
+                layers.append(ConvNeXtBlock(i, dpr[stage_block_id]))
                 stage_block_id += 1
 
             stages[f"stage{idx+1}"] = nn.Sequential(*layers)

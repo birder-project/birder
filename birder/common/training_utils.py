@@ -51,7 +51,6 @@ SchedulerType = Literal["constant", "step", "multistep", "cosine", "polynomial",
 
 def set_random_seeds(seed: int) -> None:
     torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     random.seed(seed)
 
@@ -283,11 +282,11 @@ def ema_model(args: argparse.Namespace, net: torch.nn.Module, device: torch.devi
     # Decay adjustment that aims to keep the decay independent of other hyper-parameters originally
     # proposed at: https://github.com/facebookresearch/pycls/blob/f8cd9627/pycls/core/net.py#L123
     #
-    # total_ema_updates = (Dataset_size / n_GPUs) * epochs / (batch_size_per_gpu * EMA_steps)
+    # total_ema_updates = (Dataset_size / n_GPUs) * epochs / (batch_size_per_gpu * grad_accum_steps * EMA_steps)
     # We consider constant = Dataset_size for a given dataset/setup and omit it. Thus:
-    # adjust = 1 / total_ema_updates ~= n_GPUs * batch_size_per_gpu * EMA_steps / epochs
+    # adjust = 1 / total_ema_updates ~= n_GPUs * batch_size_per_gpu * grad_accum_steps * EMA_steps / epochs
 
-    adjust = args.world_size * args.batch_size * args.model_ema_steps / args.epochs
+    adjust = args.world_size * args.batch_size * args.grad_accum_steps * args.model_ema_steps / args.epochs
     alpha = 1.0 - args.model_ema_decay
     alpha = min(1.0, alpha * adjust)
     model_ema = ExponentialMovingAverage(net, device=device, decay=1.0 - alpha)
@@ -798,6 +797,9 @@ def get_scheduler(
     # Warmup steps is given in absolute number from 0
     remaining_warmup = max(0, warmup_steps - begin_step)
 
+    # Absolute step at which the freshly constructed main scheduler begins
+    main_start_step = begin_step + remaining_warmup
+
     # Cooldown steps is given in absolute number from the end
     remaining_cooldown = min(cooldown_steps, steps - begin_step)
 
@@ -817,26 +819,27 @@ def get_scheduler(
     if args.lr_scheduler == "constant":
         main_scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer, factor=1.0, total_iters=1)
     elif args.lr_scheduler == "step":
-        # Note: StepLR step_size is relative to when the main scheduler starts (after warmup)
-        # This means drops occur relative to the end of warmup, not at absolute epoch numbers
+        # StepLR step_size is relative to when the freshly constructed main scheduler starts:
+        # after warmup for a new run, or at begin_step for a weight-only resume after warmup
         main_scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer, step_size=args.lr_step_size, gamma=args.lr_step_gamma
         )
     elif args.lr_scheduler == "multistep":
-        # For MultiStepLR, milestones should be absolute step numbers
-        # Adjust them to be relative to when the main scheduler starts (after warmup)
-        # This ensures drops occur at the specified absolute steps, not relative to after warmup
-        adjusted_milestones = [m - warmup_steps for m in args.lr_steps if m >= warmup_steps]
+        # MultiStepLR milestones are local to the main scheduler, while args.lr_steps
+        # contains absolute training steps
+        adjusted_milestones = [
+            milestone - main_start_step for milestone in args.lr_steps if milestone >= main_start_step
+        ]
         if len(adjusted_milestones) == 0:
             logger.debug(
-                f"All MultiStepLR milestones {args.lr_steps} are before warmup "
-                f"(warmup ends at step {warmup_steps}). Using empty milestone list."
+                f"No MultiStepLR milestones remain at or after absolute step {main_start_step}. "
+                "Using an empty milestone list."
             )
             adjusted_milestones = []
 
         logger.debug(
             f"MultiStepLR milestones adjusted from {args.lr_steps} to {adjusted_milestones} "
-            f"(relative to main scheduler start after {warmup_steps} warmup steps)"
+            f"(main scheduler starts at absolute step {main_start_step})"
         )
         main_scheduler = torch.optim.lr_scheduler.MultiStepLR(
             optimizer, milestones=adjusted_milestones, gamma=args.lr_step_gamma
@@ -848,6 +851,18 @@ def get_scheduler(
             logger.debug(
                 f"Adjusted cosine T_max from {main_steps} to {cosine_t_max} using cosine_fraction={cosine_fraction}"
             )
+
+        has_layer_decay = (
+            getattr(args, "layer_decay", None) is not None or getattr(args, "backbone_layer_decay", None) is not None
+        )
+        if args.lr_cosine_min != 0.0 and has_layer_decay:
+            logger.warning(
+                f"Cosine eta_min={args.lr_cosine_min} is an absolute minimum shared by all optimizer parameter "
+                "groups, so it will not preserve layer-decay learning-rate ratios. Consider using "
+                "--lr-cosine-min 0, or --layer-decay-no-opt-scale to freeze layers below a chosen learning-rate "
+                "scale."
+            )
+
         main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=cosine_t_max, eta_min=args.lr_cosine_min
         )
@@ -878,11 +893,7 @@ def get_scheduler(
             schedulers.append(cooldown_lr_scheduler)
             milestones.append(remaining_warmup + main_steps + 1)
 
-        scheduler = torch.optim.lr_scheduler.SequentialLR(
-            optimizer,
-            schedulers=schedulers,
-            milestones=milestones,
-        )
+        scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=schedulers, milestones=milestones)
 
     else:
         scheduler = main_scheduler
@@ -890,11 +901,12 @@ def get_scheduler(
     return scheduler
 
 
-def get_amp_scaler(amp: bool, amp_dtype_str: str) -> tuple[Optional[torch.amp.GradScaler], Optional[torch.dtype]]:
+def get_amp_scaler(
+    device: torch.device, amp: bool, amp_dtype_str: str
+) -> tuple[Optional[torch.amp.GradScaler], Optional[torch.dtype]]:
     if amp is True:
-        scaler = torch.amp.GradScaler("cuda")
+        scaler = torch.amp.GradScaler(device.type)
         amp_dtype = getattr(torch, amp_dtype_str)
-
     else:
         scaler = None
         amp_dtype = None
@@ -906,30 +918,33 @@ def get_amp_scaler(amp: bool, amp_dtype_str: str) -> tuple[Optional[torch.amp.Gr
 def get_samplers(
     args: argparse.Namespace,
     training_dataset: torch.utils.data.Dataset,
-    validation_dataset: torch.utils.data.Dataset,
+    validation_dataset: None,
+    device: torch.device,
     infinite: bool = False,
-) -> tuple[torch.utils.data.Sampler, torch.utils.data.Sampler]: ...
+) -> tuple[torch.utils.data.Sampler, None]: ...
 
 
 @overload
 def get_samplers(
     args: argparse.Namespace,
     training_dataset: torch.utils.data.Dataset,
-    validation_dataset: None = None,
+    validation_dataset: torch.utils.data.Dataset,
+    device: torch.device,
     infinite: bool = False,
-) -> tuple[torch.utils.data.Sampler, None]: ...
+) -> tuple[torch.utils.data.Sampler, torch.utils.data.Sampler]: ...
 
 
 def get_samplers(
     args: argparse.Namespace,
     training_dataset: torch.utils.data.Dataset,
-    validation_dataset: Optional[torch.utils.data.Dataset] = None,
+    validation_dataset: Optional[torch.utils.data.Dataset],
+    device: torch.device,
     infinite: bool = False,
 ) -> tuple[torch.utils.data.Sampler, Optional[torch.utils.data.Sampler]]:
     if args.seed is None:
         seed = int(torch.empty((), dtype=torch.int64).random_().item())
         if is_dist_available_and_initialized() is True:
-            seed_tensor = torch.tensor(seed, dtype=torch.int64).cuda()
+            seed_tensor = torch.tensor(seed, dtype=torch.int64, device=device)
             dist.broadcast(seed_tensor, src=0, async_op=False)
             seed = int(seed_tensor.item())
     else:
@@ -1107,14 +1122,21 @@ def topk_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor, topk: Sequence[int
 ###############################################################################
 
 
-def _maybe_set_device(args: argparse.Namespace) -> None:
-    if args.cpu is True or torch.cuda.is_available() is False:
+def _maybe_set_device(args: argparse.Namespace, device: torch.device) -> None:
+    if device.type != "cuda" or torch.cuda.is_available() is False:
         return
 
     torch.cuda.set_device(args.local_rank)
 
 
-def init_distributed_mode(args: argparse.Namespace) -> None:
+def get_ddp_device_ids(device: torch.device, device_id: int) -> Optional[list[int]]:
+    if device.type == "cuda":
+        return [device_id]
+
+    return None
+
+
+def init_distributed_mode(args: argparse.Namespace, device: torch.device) -> None:
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         # torch.distributed.run, torchrun
         logger.debug("Detected PyTorch distributed environment (torchrun / torch.distributed.launch)")
@@ -1136,6 +1158,8 @@ def init_distributed_mode(args: argparse.Namespace) -> None:
     elif args.world_size > 1:
         # Other, by CLI
         logger.debug("Using distributed mode with CLI-provided parameters")
+        if args.local_rank is None:
+            raise RuntimeError("--local-rank is required for CLI-provided distributed launches")
     else:
         logger.debug("No distributed environment detected, running in single-process mode")
         args.rank = 0
@@ -1143,10 +1167,10 @@ def init_distributed_mode(args: argparse.Namespace) -> None:
         if args.local_rank is None:
             args.local_rank = 0
 
-        _maybe_set_device(args)
+        _maybe_set_device(args, device)
         return
 
-    _maybe_set_device(args)
+    _maybe_set_device(args, device)
 
     args.distributed = args.world_size > 1
     if args.distributed is False:
@@ -1161,7 +1185,7 @@ def init_distributed_mode(args: argparse.Namespace) -> None:
         init_method=args.dist_url,
         world_size=args.world_size,
         rank=args.rank,
-        device_id=torch.device(f"cuda:{args.local_rank}"),
+        device_id=torch.device("cuda", args.local_rank) if device.type == "cuda" else None,
     )
 
     # Synchronize all processes
@@ -1307,34 +1331,33 @@ def save_training_checkpoint(
 
 
 def init_training(
-    args: argparse.Namespace,
-    log: logging.Logger,
-    *,
-    cudnn_dynamic_size: bool = False,
+    args: argparse.Namespace, log: logging.Logger, *, cudnn_dynamic_size: bool = False
 ) -> tuple[torch.device, int, bool]:
-    init_distributed_mode(args)
+    device = torch.device(args.device)
+
+    init_distributed_mode(args, device)
 
     log.info(f"Starting training, birder version: {birder_version}, pytorch version: {torch.__version__}")
 
     log_git_info()
 
-    if args.cpu is True:
-        device = torch.device("cpu")
-        device_id = 0
-    else:
-        device = torch.device("cuda")
+    if device.type == "cuda":
         device_id = torch.cuda.current_device()
+    else:
+        device_id = device.index or 0
 
     if args.use_deterministic_algorithms is True:
         log.debug("Turning on deterministic algorithms")
-        torch.backends.cudnn.benchmark = False
+        if device.type == "cuda":
+            torch.backends.cudnn.benchmark = False
+
         torch.use_deterministic_algorithms(True)
-    elif cudnn_dynamic_size is True:
+    elif device.type == "cuda" and cudnn_dynamic_size is True:
         # Dynamic sizes: avoid per-size algorithm selection overhead.
         log.debug("Turning off cudnn")
         torch.backends.cudnn.enabled = False
         torch.backends.cudnn.benchmark = False
-    else:
+    elif device.type == "cuda":
         log.debug("Turning on cudnn")
         torch.backends.cudnn.enabled = True
         torch.backends.cudnn.benchmark = True
@@ -1513,7 +1536,7 @@ def training_log_path(network_name: str, device: torch.device, experiment: Optio
     log_name = training_log_name(network_name, device)
     if experiment is not None:
         log_dir = settings.TRAINING_RUNS_PATH.joinpath(experiment)
-        log_dir.mkdir(exist_ok=True)
+        log_dir.mkdir(parents=True, exist_ok=True)
     else:
         log_dir = settings.TRAINING_RUNS_PATH
 
@@ -1557,10 +1580,7 @@ def write_training_data_json(path: Path, payload: dict[str, Any]) -> None:
 
 def setup_file_logging(log_file_path: str | Path) -> logging.Handler:
     file_handler = logging.FileHandler(log_file_path)
-    formatter = logging.Formatter(
-        fmt="{message}",
-        style="{",
-    )
+    formatter = logging.Formatter(fmt="{message}", style="{")
     file_handler.setFormatter(formatter)
     file_handler.setLevel(settings.LOG_LEVEL)
 

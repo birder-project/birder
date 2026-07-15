@@ -23,6 +23,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class PatchEmbed(nn.Module):
@@ -335,7 +336,7 @@ class CrossFormer(DetectorBackbone):
         self.patch_embed = PatchEmbed(patch_sizes=patch_sizes, in_channels=self.input_channels, embed_dim=embed_dim)
         patch_resolution = (self.size[0] // patch_sizes[0], self.size[1] // patch_sizes[0])
 
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         num_stages = len(depths)
         prev_dim = embed_dim
         stages: OrderedDict[str, nn.Module] = OrderedDict()

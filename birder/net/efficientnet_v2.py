@@ -31,6 +31,7 @@ from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
 from birder.net.base import make_divisible
+from birder.net.base import stochastic_depth_rates
 from birder.net.efficientnet_v1 import MBConv
 
 logger = logging.getLogger(__name__)
@@ -168,11 +169,11 @@ class EfficientNet_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMix
         return_channels: list[int] = []
         stage_id = 0
         total_stage_blocks = sum(repeats)
+        dpr = stochastic_depth_rates(drop_path_rate, total_stage_blocks, endpoint=False)
         stage_block_id = 0
         for i, repeat in enumerate(repeats):
             for r in range(repeat):
-                # Adjust stochastic depth probability based on the depth of the stage block
-                sd_prob = drop_path_rate * float(stage_block_id) / total_stage_blocks
+                sd_prob = dpr[stage_block_id]
 
                 if r > 0:
                     in_ch = out_channels[i]

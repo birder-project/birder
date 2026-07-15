@@ -166,19 +166,25 @@ def add_lr_scheduler_args(parser: argparse.ArgumentParser, default_cosine_fracti
         type=int,
         default=40,
         metavar="N",
-        help="decrease lr every N epochs/steps (relative to after warmup, step scheduler only)",
+        help=(
+            "number of scheduler updates between lr decreases, counted from when StepLR becomes active "
+            "(--lr-scheduler step only)"
+        ),
     )
     group.add_argument(
         "--lr-steps",
         type=int,
         nargs="+",
-        help="absolute epoch/step milestones when to decrease lr (multistep scheduler only)",
+        help=(
+            "absolute training epochs/optimizer steps, counted from training start, at which to decrease lr "
+            "(--lr-scheduler multistep only)"
+        ),
     )
     group.add_argument(
         "--lr-step-gamma",
         type=float,
         default=0.75,
-        help="multiplicative factor of learning rate decay (for step scheduler only)",
+        help="multiplicative learning rate decay factor (--lr-scheduler step or multistep)",
     )
     group.add_argument(
         "--lr-cosine-min", type=float, default=0.0, help="minimum learning rate (for cosine annealing scheduler only)"
@@ -518,7 +524,14 @@ def add_dataloader_args(
 
 
 def add_precision_args(parser: argparse.ArgumentParser, channels_last: bool = False) -> None:
-    group = parser.add_argument_group("Precision parameters")
+    group = parser.add_argument_group("Device and precision parameters")
+    group.add_argument(
+        "--device",
+        type=str,
+        choices=["cuda", "cpu"],
+        default="cuda",
+        help="device to use for training",
+    )
     if channels_last is True:
         group.add_argument(
             "--channels-last", default=False, action="store_true", help="use channels-last memory format"
@@ -644,16 +657,13 @@ def add_checkpoint_args(
 def add_distributed_args(parser: argparse.ArgumentParser, fsdp: bool = False) -> None:
     group = parser.add_argument_group("Distributed training parameters")
     group.add_argument("--world-size", type=int, default=1, metavar="N", help="number of distributed processes")
+    group.add_argument("--rank", type=int, default=0, metavar="N", help="global distributed process rank")
     group.add_argument("--local-rank", type=int, metavar="N", help="local rank")
     group.add_argument("--dist-url", type=str, default="env://", help="URL used to initialize distributed training")
     group.add_argument("--dist-backend", type=str, default="nccl", help="distributed backend")
     if fsdp is True:
         group.add_argument(
-            "--distributed-mode",
-            type=str,
-            choices=["ddp", "fsdp"],
-            default="ddp",
-            help="distributed training mode",
+            "--distributed-mode", type=str, choices=["ddp", "fsdp"], default="ddp", help="distributed training mode"
         )
         group.add_argument(
             "--fsdp-sharding-strategy",
@@ -759,7 +769,6 @@ def add_logging_and_debug_args(
     group.add_argument(
         "--seed", type=int, help="set random seed for better reproducibility (affects torch, numpy and random)"
     )
-    group.add_argument("--cpu", default=False, action="store_true", help="use cpu (mostly for testing)")
     if fake_data is True:
         group.add_argument(
             "--use-fake-data",
@@ -910,9 +919,7 @@ def add_detection_training_data_args(parser: argparse.ArgumentParser, wds_extra_
         help="JSON mapping of source labels to target labels for grouped detection training",
     )
     group.add_argument(
-        "--val-subset-size",
-        type=int,
-        help="run validation on a deterministic random subset of this many samples",
+        "--val-subset-size", type=int, help="run validation on a deterministic random subset of this many samples"
     )
 
 
@@ -1107,8 +1114,8 @@ def common_args_validation(args: argparse.Namespace) -> None:
             raise ValidationError("--compile-opt cannot be used with --distributed-mode fsdp")
         if hasattr(args, "compile_fullgraph") is True and args.compile_fullgraph is True:
             raise ValidationError("--compile-fullgraph cannot be used with --distributed-mode fsdp")
-        if args.cpu is True:
-            raise ValidationError("--cpu cannot be used with --distributed-mode fsdp")
+        if torch.device(args.device).type == "cpu":
+            raise ValidationError("--device cpu cannot be used with --distributed-mode fsdp")
         if args.fsdp_wrap_policy == "min-num-params" and args.fsdp_wrap_min_num_params is None:
             raise ValidationError("--fsdp-wrap-min-num-params is required when --fsdp-wrap-policy is min-num-params")
         if args.fsdp_wrap_min_num_params is not None and args.fsdp_wrap_min_num_params <= 0:

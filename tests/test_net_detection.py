@@ -15,6 +15,7 @@ from birder.net.detection import base
 logging.disable(logging.CRITICAL)
 
 NET_DETECTION_TEST_CASES = [
+    ("d_fine_n", "hgnet_v2_b0"),
     ("deformable_detr", "fasternet_t0"),
     ("deformable_detr", "efficientvit_msft_m0"),  # 3 stage network
     ("deformable_detr_boxref", "regnet_x_200m"),
@@ -51,6 +52,7 @@ NET_DETECTION_TEST_CASES = [
 ]
 
 DETECTION_DYNAMIC_SIZE_CASES = [
+    ("d_fine_n", "hgnet_v2_b0"),
     ("deformable_detr", "fasternet_t0"),
     ("deformable_detr_boxref", "regnet_x_200m"),
     ("detr", "regnet_y_1_6g"),
@@ -109,7 +111,7 @@ class TestNetDetection(unittest.TestCase):
         self.assertEqual(len(losses), 0)
         for detection in detections:
             for key in ["boxes", "labels", "scores"]:
-                self.assertFalse(torch.isnan(detection[key]).any())
+                self.assertTrue(torch.isfinite(detection[key]).all())
 
         # Again in "dynamic size" mode
         images, masks, image_sizes = batch_images(
@@ -135,14 +137,14 @@ class TestNetDetection(unittest.TestCase):
         detections, losses = out
         self.assertGreater(len(losses), 0)
         for loss in losses.values():
-            self.assertFalse(torch.isnan(loss).any())
+            self.assertTrue(torch.isfinite(loss).all())
 
         loss = sum(v for v in losses.values())
         self.assertEqual(loss.ndim, 0)
 
         for detection in detections:
             for key in ["boxes", "labels", "scores"]:
-                self.assertFalse(torch.isnan(detection[key]).any())
+                self.assertTrue(torch.isfinite(detection[key]).all())
 
         if n.scriptable is True:
             torch.jit.script(n)
@@ -163,7 +165,29 @@ class TestNetDetection(unittest.TestCase):
             self.assertEqual(len(losses), 0)
             for detection in detections:
                 for key in ["boxes", "labels", "scores"]:
-                    self.assertFalse(torch.isnan(detection[key]).any())
+                    self.assertTrue(torch.isfinite(detection[key]).all())
+
+    @parameterized.expand(NET_DETECTION_TEST_CASES)  # type: ignore[untyped-decorator]
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_net_detection_meta(
+        self,
+        network_name: str,
+        encoder: str,
+        size: tuple[int, int] = (256, 256),
+    ) -> None:
+        with torch.device("meta"):
+            backbone = registry.net_factory(encoder, 10, size=size)
+            meta_net = registry.detection_net_factory(network_name, 10, backbone, size=size)
+
+        non_meta_tensors = [
+            f"parameter '{name}': {parameter.device}"
+            for name, parameter in meta_net.named_parameters()
+            if parameter.is_meta is False
+        ]
+        non_meta_tensors.extend(
+            f"buffer '{name}': {buffer.device}" for name, buffer in meta_net.named_buffers() if buffer.is_meta is False
+        )
+        self.assertListEqual(non_meta_tensors, [])
 
     @parameterized.expand(NET_DETECTION_TEST_CASES)  # type: ignore[untyped-decorator]
     @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
@@ -247,14 +271,14 @@ class TestNetDetection(unittest.TestCase):
         self.assertEqual(len(losses), 0)
         for detection in detections:
             for key in ["boxes", "labels", "scores"]:
-                self.assertFalse(torch.isnan(detection[key]).any())
+                self.assertTrue(torch.isfinite(detection[key]).all())
 
         size = (size[0] + 32, size[1] + 64)
         detections, losses = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
         self.assertEqual(len(losses), 0)
         for detection in detections:
             for key in ["boxes", "labels", "scores"]:
-                self.assertFalse(torch.isnan(detection[key]).any())
+                self.assertTrue(torch.isfinite(detection[key]).all())
 
     @parameterized.expand(DETECTION_DYNAMIC_SIZE_CASES)  # type: ignore[untyped-decorator]
     @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")

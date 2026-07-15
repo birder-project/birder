@@ -21,6 +21,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 
 
 def build_relative_position_index(input_resolution: tuple[int, int], device: torch.device) -> torch.Tensor:
@@ -295,7 +296,7 @@ class LIT_v1(DetectorBackbone):
         )
 
         # Stochastic depth
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []

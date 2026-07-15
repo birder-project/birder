@@ -27,6 +27,7 @@ from torchvision.ops import StochasticDepth
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import make_divisible
+from birder.net.base import staged_stochastic_depth_rates
 
 logger = logging.getLogger(__name__)
 
@@ -238,7 +239,7 @@ class NFNet(DetectorBackbone):
             ScaledStdConv2d(stem_channels // 2, stem_channels, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
         )
 
-        drop_path_rates = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        drop_path_rates = staged_stochastic_depth_rates(drop_path_rate, depths)
         prev_channels = stem_channels
         expected_var = 1.0
         stages: OrderedDict[str, nn.Module] = OrderedDict()

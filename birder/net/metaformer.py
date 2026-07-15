@@ -29,6 +29,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import staged_stochastic_depth_rates
 
 logger = logging.getLogger(__name__)
 
@@ -404,7 +405,7 @@ class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         prev_dim = dims[0]
-        dp_rates = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dp_rates = staged_stochastic_depth_rates(drop_path_rate, depths)
         for i in range(num_stages):
             stages[f"stage{i+1}"] = MetaFormerStage(
                 prev_dim,

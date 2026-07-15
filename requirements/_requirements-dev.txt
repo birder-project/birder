@@ -3,7 +3,7 @@ bandit~=1.9.4
 black~=26.5.0
 build~=1.5.1
 bumpver~=2026.1132
-captum~=0.7.0
+# captum~=0.9.0
 coverage~=7.15.0
 debugpy
 # executorch~=1.3.1

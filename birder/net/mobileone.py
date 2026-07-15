@@ -16,6 +16,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.nn.utils.fusion import fuse_conv_bn_weights
 from torchvision.ops import SqueezeExcitation
 
 from birder.model_registry import registry
@@ -146,11 +147,13 @@ class MobileOneBlock(nn.Module):
             stride=self.stride,
             padding=self.padding,
             groups=self.groups,
+            device=kernel.device,
+            dtype=kernel.dtype,
         )
-        self.reparam_conv.weight.data = kernel
-        self.reparam_conv.bias.data = bias
+        self.reparam_conv.weight.data.copy_(kernel)
+        self.reparam_conv.bias.data.copy_(bias)
 
-        # Delete un-used branches
+        # Delete unused branches
         for param in self.parameters():
             param.detach_()
 
@@ -186,30 +189,26 @@ class MobileOneBlock(nn.Module):
         bias_conv = 0
         for ix in range(self.num_conv_branches):
             _kernel, _bias = self._fuse_bn_tensor(self.rbr_conv[ix])
-            kernel_conv += _kernel
-            bias_conv += _bias
+            kernel_conv = kernel_conv + _kernel
+            bias_conv = bias_conv + _bias
 
         kernel_final = kernel_conv + kernel_scale + kernel_identity
         bias_final = bias_conv + bias_scale + bias_identity
 
         return (kernel_final, bias_final)
 
-    def _fuse_bn_tensor(self, branch: nn.Module) -> tuple[torch.Tensor, torch.Tensor]:
+    def _fuse_bn_tensor(self, branch: nn.Sequential | nn.BatchNorm2d) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Method to fuse batchnorm layer with preceding convolution layer.
         Reference: https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py#L95
         """
 
         if isinstance(branch, nn.Sequential):
-            kernel_value = branch.conv.weight
-            running_mean = branch.bn.running_mean
-            running_var = branch.bn.running_var
-            gamma = branch.bn.weight
-            beta = branch.bn.bias
-            eps = branch.bn.eps
+            kernel = branch.conv.weight
+            bias = branch.conv.bias
+            bn = branch.bn
 
         else:
-            assert isinstance(branch, nn.BatchNorm2d)
             input_dim = self.in_channels // self.groups
             kernel_value = torch.zeros(
                 (self.in_channels, input_dim, self.kernel_size, self.kernel_size),
@@ -220,17 +219,19 @@ class MobileOneBlock(nn.Module):
                 kernel_value[i, i % input_dim, self.kernel_size // 2, self.kernel_size // 2] = 1
 
             self.id_tensor = kernel_value
+            kernel = kernel_value
+            bias = None
+            bn = branch
 
-            running_mean = branch.running_mean
-            running_var = branch.running_var
-            gamma = branch.weight
-            beta = branch.bias
-            eps = branch.eps
-
-        std = (running_var + eps).sqrt()
-        t = (gamma / std).reshape(-1, 1, 1, 1)
-
-        return (kernel_value * t, beta - running_mean * gamma / std)
+        return fuse_conv_bn_weights(  # type: ignore[no-any-return]
+            kernel,
+            bias,
+            bn.running_mean,
+            bn.running_var,
+            bn.eps,
+            bn.weight,
+            bn.bias,
+        )
 
 
 class MobileOneStage(nn.Sequential):
@@ -375,6 +376,9 @@ class MobileOne(DetectorBackbone):
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:
+        if self.reparameterized is True:
+            return
+
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:
                 module.reparameterize()

@@ -20,6 +20,7 @@ from torchvision.ops import StochasticDepth
 from birder.layers import LayerScale
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class MLP(nn.Module):
@@ -231,7 +232,7 @@ class UniFormer(DetectorBackbone):
         layer_scale_init_value: Optional[float] = self.config["layer_scale_init_value"]
 
         num_stages = len(depth)
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depth)).split(depth)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depth)
         num_heads = [dim // head_dim for dim in embed_dim]
 
         prev_dim = self.input_channels

@@ -254,16 +254,7 @@ def evaluate_cub200(args: argparse.Namespace) -> None:
             continue
 
         x_gallery, y_gallery, x_query, y_query, stats = _load_embeddings_with_split(embeddings_path, metadata_df)
-        result = evaluate_cub200_single(
-            x_gallery,
-            y_gallery,
-            x_query,
-            y_query,
-            embeddings_path,
-            args.k,
-            device,
-            stats,
-        )
+        result = evaluate_cub200_single(x_gallery, y_gallery, x_query, y_query, embeddings_path, args.k, device, stats)
         results.append(result)
         if output_path is not None:
             _append_result_csv(result, args.k, output_path)

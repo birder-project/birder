@@ -35,6 +35,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
+from birder.net.base import stochastic_depth_rates
 from birder.net.vit import adjust_position_embedding
 
 logger = logging.getLogger(__name__)
@@ -381,7 +382,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         self.reroll = Reroll(image_size, patch_stride, [q_stride] * len(self.stage_ends[:-1]), self.stage_ends, q_pool)
 
         q_pool_blocks = [x + 1 for x in self.stage_ends[:q_pool]]
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, self.num_layers)]  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, self.num_layers)  # Stochastic depth decay rule
 
         cur_stage = 0
         layers = []

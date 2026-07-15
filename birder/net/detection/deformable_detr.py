@@ -45,13 +45,21 @@ class HungarianMatcher(nn.Module):
     This class computes an assignment between the targets and the predictions of the network
     """
 
-    def __init__(self, cost_class: float, cost_bbox: float, cost_giou: float, use_giou: bool = True) -> None:
+    def __init__(
+        self,
+        cost_class: float,
+        cost_bbox: float,
+        cost_giou: float,
+        use_giou: bool = True,
+        clamp_box_sizes: bool = False,
+    ) -> None:
         super().__init__()
         assert cost_class != 0 or cost_bbox != 0 or cost_giou != 0
         self.cost_class = cost_class
         self.cost_bbox = cost_bbox
         self.cost_giou = cost_giou
         self.use_giou = use_giou
+        self.clamp_box_sizes = clamp_box_sizes
         self.linear_assignment = LinearAssignment()
 
     @torch.jit.unused  # type: ignore[untyped-decorator]
@@ -85,6 +93,9 @@ class HungarianMatcher(nn.Module):
             cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1.0)
 
             # Compute the GIoU or IoU cost between boxes
+            if self.clamp_box_sizes is True:
+                out_bbox = torch.concat((out_bbox[..., :2], out_bbox[..., 2:].clamp(min=0)), dim=-1)
+
             out_bbox_xyxy = box_ops.box_convert(out_bbox, in_fmt="cxcywh", out_fmt="xyxy")
             tgt_bbox_xyxy = box_ops.box_convert(tgt_bbox, in_fmt="cxcywh", out_fmt="xyxy")
             if self.use_giou is True:
@@ -471,7 +482,7 @@ class DeformableTransformer(nn.Module):
             d_model, dim_feedforward, dropout, num_feature_levels, num_heads, dec_n_points
         )
         self.decoder = DeformableTransformerDecoder(decoder_layer, num_decoder_layers, return_intermediate_dec)
-        self.level_embed = nn.Parameter(torch.Tensor(num_feature_levels, d_model))
+        self.level_embed = nn.Parameter(torch.empty(num_feature_levels, d_model))
         self.reference_points = nn.Linear(d_model, 2)
 
         # Weights initialization

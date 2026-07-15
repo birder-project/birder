@@ -2,8 +2,6 @@
 
 Before running any training scripts, set the `OMP_NUM_THREADS` environment variable appropriately for your system.
 
-Examples use repo-root script names (e.g., `train_mim.py`). If you installed Birder as a package, use the module form such as `python -m birder.scripts.train_mim`.
-
 ## Image Pretraining
 
 - [AIM v1](#aim-v1)

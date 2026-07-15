@@ -32,6 +32,7 @@ from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
 from birder.net.base import normalize_out_indices
 from birder.net.base import pos_embedding_sin_cos_2d
+from birder.net.base import stochastic_depth_rates
 from birder.net.vit import Encoder
 from birder.net.vit import EncoderBlock
 from birder.net.vit import PatchEmbed
@@ -72,7 +73,7 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         self.mlp_dim = mlp_dim
         self.num_special_tokens = 0
         self.out_indices = normalize_out_indices(out_indices, num_layers)
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
             self.input_channels,

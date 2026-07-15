@@ -23,6 +23,7 @@ from torchvision.ops import StochasticDepth
 from birder.layers.activations import get_activation_module
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import stochastic_depth_rates
 
 
 class PartialConv(nn.Module):
@@ -103,7 +104,7 @@ class FasterNetBlock(nn.Module):
         depth: int,
         n_div: int,
         mlp_ratio: float,
-        drop_path: list[int],
+        drop_path: list[float],
         act_layer: Callable[..., nn.Module],
     ) -> None:
         super().__init__()
@@ -151,7 +152,7 @@ class FasterNet(DetectorBackbone):
         )
 
         # Stochastic depth decay rule
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+        dpr = stochastic_depth_rates(drop_path_rate, sum(depths))
 
         num_stages = len(depths)
         stages: OrderedDict[str, nn.Module] = OrderedDict()

@@ -320,12 +320,7 @@ def checkpoint_model_from_state_dicts(
     )
 
     _checkpoint_states_from_state_dicts(
-        states_path,
-        optimizer_state,
-        scheduler_state,
-        scaler_state,
-        model_base_state,
-        **extra_states,
+        states_path, optimizer_state, scheduler_state, scaler_state, model_base_state, **extra_states
     )
 
 
@@ -556,12 +551,7 @@ def load_detection_checkpoint(
     new_size: Optional[tuple[int, int]] = None,
     strict: bool = True,
 ) -> DetectionCheckpointStates:
-    network_name = get_detection_network_name(
-        network,
-        tag=tag,
-        backbone=backbone,
-        backbone_tag=backbone_tag,
-    )
+    network_name = get_detection_network_name(network, tag=tag, backbone=backbone, backbone_tag=backbone_tag)
     path = model_path(network_name, epoch=epoch, pts=False)
     states_path = model_path(network_name, epoch=epoch, pts=False, states=True)
 

@@ -73,11 +73,12 @@ class InferenceDataParallel(nn.Module):
             raise ValueError("At least one device id must be provided")
 
         self.device_ids = device_ids
-        self.src_device = torch.device(f"cuda:{self.device_ids[0]}")
+        self.devices = [torch.device("cuda", device_id) for device_id in self.device_ids]
+        self.src_device = self.devices[0]
         if output_device is None:
             self.output_device = self.src_device
         elif isinstance(output_device, int):
-            self.output_device = torch.device(f"cuda:{output_device}")
+            self.output_device = torch.device("cuda", output_device)
         elif isinstance(output_device, str):
             self.output_device = torch.device(output_device)
         elif isinstance(output_device, torch.device):
@@ -106,25 +107,25 @@ class InferenceDataParallel(nn.Module):
         if compile_replicas is True:
             for i, replica in enumerate(self.replicas):
                 self.replicas[i] = torch.compile(replica, mode=compile_mode)
-                logger.debug(f"Replica on cuda:{self.device_ids[i]} compiled")
+                logger.debug(f"Replica on {self.devices[i]} compiled")
 
                 for method_name in compile_methods:
                     if hasattr(replica, method_name) is True and callable(getattr(replica, method_name)) is True:
                         original_method = getattr(replica, method_name)
                         compiled_method = torch.compile(original_method, mode=compile_mode)
                         setattr(replica, method_name, compiled_method)
-                        logger.debug(f"Method '{method_name}' on replica on cuda:{self.device_ids[i]} compiled")
+                        logger.debug(f"Method '{method_name}' on replica on {self.devices[i]} compiled")
                     else:
                         logger.warning(f"Cannot compile method '{method_name}': not found or not callable")
 
     def _replicate_model(self) -> None:
         self.replicas = [self.module]
 
-        for device_id in self.device_ids[1:]:
+        for device in self.devices[1:]:
             replica = copy.deepcopy(self.module)
-            replica = replica.to(f"cuda:{device_id}")
+            replica = replica.to(device)
             self.replicas.append(replica)
-            logger.debug(f"Model replicated to cuda:{device_id}")
+            logger.debug(f"Model replicated to {device}")
 
     def _scatter(
         self, inputs: torch.Tensor, kwargs: dict[str, Any]
@@ -143,10 +144,10 @@ class InferenceDataParallel(nn.Module):
         input_chunks = []
         kwargs_chunks = []
         offset = 0
-        for chunk_size, device_id in zip(chunk_sizes, self.device_ids):
+        for chunk_size, device in zip(chunk_sizes, self.devices):
             if chunk_size > 0:
                 # Slice and move input to target device
-                input_chunk = inputs[offset : offset + chunk_size].to(f"cuda:{device_id}", non_blocking=True)
+                input_chunk = inputs[offset : offset + chunk_size].to(device, non_blocking=True)
                 input_chunks.append(input_chunk)
 
                 # Handle kwargs - we need to scatter any tensor kwargs too
@@ -157,11 +158,9 @@ class InferenceDataParallel(nn.Module):
                         # Other tensors (e.g., lookup tables, global tensors) are moved
                         # to the device without slicing, assuming they are replicated.
                         if value.size(0) == batch_size:
-                            kwargs_chunk[key] = value[offset : offset + chunk_size].to(
-                                f"cuda:{device_id}", non_blocking=True
-                            )
+                            kwargs_chunk[key] = value[offset : offset + chunk_size].to(device, non_blocking=True)
                         else:
-                            kwargs_chunk[key] = value.to(f"cuda:{device_id}", non_blocking=True)
+                            kwargs_chunk[key] = value.to(device, non_blocking=True)
                     elif isinstance(value, list) and len(value) == batch_size:
                         # Assume sequence with len == batch_size are per-sample and must be sliced per chunk
                         kwargs_chunk[key] = value[offset : offset + chunk_size]
@@ -252,9 +251,9 @@ class InferenceDataParallel(nn.Module):
         scattered = self._scatter(inputs, kwargs)
 
         outputs = []
-        for replica, (input_chunk, kwargs_chunk), device_id in zip(self.replicas, scattered, self.device_ids):
+        for replica, (input_chunk, kwargs_chunk), device in zip(self.replicas, scattered, self.devices):
             if input_chunk is not None and input_chunk.size(0) > 0:
-                with torch.cuda.device(device_id):
+                with torch.cuda.device(device):
                     output = replica(input_chunk, **kwargs_chunk)
                     outputs.append(output)
             else:
@@ -310,9 +309,9 @@ class InferenceDataParallel(nn.Module):
             scattered = self._scatter(inputs, kwargs)
 
             outputs = []
-            for replica, (input_chunk, kwargs_chunk), device_id in zip(self.replicas, scattered, self.device_ids):
+            for replica, (input_chunk, kwargs_chunk), device in zip(self.replicas, scattered, self.devices):
                 if input_chunk is not None and input_chunk.size(0) > 0:
-                    with torch.cuda.device(device_id):
+                    with torch.cuda.device(device):
                         method = getattr(replica, method_name)
                         output = method(input_chunk, **kwargs_chunk)
                         outputs.append(output)
@@ -341,7 +340,7 @@ class DetectionInferenceDataParallel(InferenceDataParallel):
         self.replicas = [self.module]
         source_forward = self.module.__dict__.get("forward")
 
-        for device_id in self.device_ids[1:]:
+        for device in self.devices[1:]:
             replica = copy.deepcopy(self.module)
             # Some detector models assign a compiler disable wrapper to self.forward
             # After deepcopy, that wrapper can still point to the source module
@@ -350,9 +349,9 @@ class DetectionInferenceDataParallel(InferenceDataParallel):
                     type(replica).forward.__get__(replica)  # pylint: disable=unnecessary-dunder-call
                 )
 
-            replica = replica.to(f"cuda:{device_id}")
+            replica = replica.to(device)
             self.replicas.append(replica)
-            logger.debug(f"Model replicated to cuda:{device_id}")
+            logger.debug(f"Model replicated to {device}")
 
     def _gather_detection_list(self, outputs: list[list[dict[str, torch.Tensor]]]) -> list[dict[str, torch.Tensor]]:
         non_blocking = self.output_device.type == "cuda"

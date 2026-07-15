@@ -26,6 +26,7 @@ from birder.common import training_utils
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import pos_embedding_sin_cos_2d
+from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.deformable_detr import DeformableTransformerDecoderLayer
 from birder.net.detection.deformable_detr import HungarianMatcher
@@ -331,10 +332,16 @@ class AIFI(nn.Module):
             cache_key = f"{H}x{W}x{C}_{x.device}_{x.dtype}"
             pos = self._pos_cache.get(cache_key)
             if pos is None:
-                pos = pos_embedding_sin_cos_2d(H, W, C, num_special_tokens=0, device=x.device).unsqueeze(0)
+                pos = pos_embedding_sin_cos_2d(
+                    H, W, C, num_special_tokens=0, include_frequency_endpoint=False, device=x.device
+                )
+                pos = pos.to(dtype=x.dtype).unsqueeze(0)
                 self._pos_cache[cache_key] = pos
         else:
-            pos = pos_embedding_sin_cos_2d(H, W, C, num_special_tokens=0, device=x.device).unsqueeze(0)
+            pos = pos_embedding_sin_cos_2d(
+                H, W, C, num_special_tokens=0, include_frequency_endpoint=False, device=x.device
+            )
+            pos = pos.to(dtype=x.dtype).unsqueeze(0)
 
         key_padding_mask = mask.flatten(1) if mask is not None else None
         for layer in self.layers:
@@ -1188,6 +1195,9 @@ class RT_DETR_v1(DetectionBaseNet):
     def reparameterize_model(self) -> None:
         if self.reparameterized is True:
             return
+
+        if reparameterize_available(self.backbone) is True:
+            self.backbone.reparameterize_model()
 
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:

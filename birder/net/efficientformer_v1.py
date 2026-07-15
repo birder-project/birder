@@ -29,6 +29,7 @@ from birder.layers import LayerScale2d
 from birder.model_registry import registry
 from birder.net.base import BaseNet
 from birder.net.base import interpolate_attention_bias
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class Attention(nn.Module):
@@ -261,7 +262,7 @@ class EfficientFormer_v1(BaseNet):
         prev_dim = embed_dims[0]
         num_stages = len(depths)
         last_stage = num_stages - 1
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         downsample = (False,) + (True,) * (num_stages - 1)
 
         stages = []

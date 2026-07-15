@@ -16,6 +16,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.nn.utils.fusion import fuse_conv_bn_weights
 from torchvision.ops import SqueezeExcitation
 
 from birder.model_registry import registry
@@ -36,7 +37,7 @@ class RepConvBN(nn.Sequential):
         reparameterized: bool,
     ) -> None:
         super().__init__()
-        self.c: nn.Module
+        self.c: nn.Conv2d
         self.reparameterized = reparameterized
         self.add_module(
             "c",
@@ -47,7 +48,7 @@ class RepConvBN(nn.Sequential):
                 stride=stride,
                 padding=padding,
                 groups=groups,
-                bias=False,
+                bias=reparameterized,
             ),
         )
         if reparameterized is False:
@@ -59,23 +60,32 @@ class RepConvBN(nn.Sequential):
         if self.reparameterized is True:
             return
 
-        c, bn = self._modules.values()
-        w = bn.weight / (bn.running_var + bn.eps) ** 0.5
-        w = c.weight * w[:, None, None, None]
-        b = bn.bias - bn.running_mean * bn.weight / (bn.running_var + bn.eps) ** 0.5
-        self.c = nn.Conv2d(
-            w.size(1) * self.c.groups,
-            w.size(0),
-            kernel_size=w.shape[2:],
-            stride=self.c.stride,
-            padding=self.c.padding,
-            groups=self.c.groups,
-            device=c.weight.device,
+        kernel, bias = fuse_conv_bn_weights(
+            self.c.weight,
+            self.c.bias,
+            self.bn.running_mean,
+            self.bn.running_var,
+            self.bn.eps,
+            self.bn.weight,
+            self.bn.bias,
         )
-        self.c.weight.data.copy_(w)
-        self.c.bias.data.copy_(b)
+        conv = self.c
+        self.c = nn.Conv2d(
+            in_channels=conv.in_channels,
+            out_channels=conv.out_channels,
+            kernel_size=conv.kernel_size,
+            stride=conv.stride,
+            padding=conv.padding,
+            dilation=conv.dilation,
+            groups=conv.groups,
+            padding_mode=conv.padding_mode,
+            device=kernel.device,
+            dtype=kernel.dtype,
+        )
+        self.c.weight.data.copy_(kernel)
+        self.c.bias.data.copy_(bias)
 
-        # Delete un-used branches
+        # Delete unused branches
         for param in self.parameters():
             param.detach_()
 
@@ -99,6 +109,7 @@ class RepNormLinear(nn.Sequential):
         if self.reparameterized is True:
             return
 
+        # BatchNorm precedes the linear layer, so fuse_conv_bn_weights does not apply here.
         bn, li = self._modules.values()
         w = bn.weight / (bn.running_var + bn.eps) ** 0.5
         b = bn.bias - self.bn.running_mean * self.bn.weight / (bn.running_var + bn.eps) ** 0.5
@@ -108,11 +119,11 @@ class RepNormLinear(nn.Sequential):
         else:
             b = (li.weight @ b[:, None]).view(-1) + self.li.bias
 
-        self.li = nn.Linear(w.size(1), w.size(0), device=li.weight.device)
+        self.li = nn.Linear(w.size(1), w.size(0), device=li.weight.device, dtype=li.weight.dtype)
         self.li.weight.data.copy_(w)
         self.li.bias.data.copy_(b)
 
-        # Delete un-used branches
+        # Delete unused branches
         for param in self.parameters():
             param.detach_()
 
@@ -153,17 +164,27 @@ class RepVggDW(nn.Module):
     def __init__(self, dim: int, kernel_size: int, use_se: bool, reparameterized: bool) -> None:
         super().__init__()
         self.reparameterized = reparameterized
-        self.conv = RepConvBN(
-            dim,
-            dim,
-            kernel_size=(kernel_size, kernel_size),
-            stride=(1, 1),
-            padding=(kernel_size // 2, kernel_size // 2),
-            groups=dim,
-            bn_weight_init=1.0,
-            reparameterized=reparameterized,
-        )
-        if reparameterized is False:
+        self.conv: nn.Conv2d | RepConvBN
+        if reparameterized is True:
+            self.conv = nn.Conv2d(
+                dim,
+                dim,
+                kernel_size=(kernel_size, kernel_size),
+                stride=(1, 1),
+                padding=(kernel_size // 2, kernel_size // 2),
+                groups=dim,
+            )
+        else:
+            self.conv = RepConvBN(
+                dim,
+                dim,
+                kernel_size=(kernel_size, kernel_size),
+                stride=(1, 1),
+                padding=(kernel_size // 2, kernel_size // 2),
+                groups=dim,
+                bn_weight_init=1.0,
+                reparameterized=False,
+            )
             self.conv1x1 = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), groups=dim)
             self.bn = nn.BatchNorm2d(dim)
 
@@ -182,44 +203,26 @@ class RepVggDW(nn.Module):
         if self.reparameterized is True:
             return
 
-        self.conv.reparameterize()
-        conv = self.conv.c
-        conv_w = conv.weight
-        conv_b = conv.bias
-
-        conv1x1 = self.conv1x1
-        conv1x1_w = conv1x1.weight
-        conv1x1_b = conv1x1.bias
-
-        conv1x1_w = F.pad(conv1x1_w, [1, 1, 1, 1])
-
-        identity = F.pad(
-            torch.ones(conv1x1_w.shape[0], conv1x1_w.shape[1], 1, 1, device=conv1x1_w.device), [1, 1, 1, 1]
-        )
-
-        final_conv_w = conv_w + conv1x1_w + identity
-        final_conv_b = conv_b + conv1x1_b
-
-        conv.weight.data.copy_(final_conv_w)
-        conv.bias.data.copy_(final_conv_b)
-
-        bn = self.bn
-        w = bn.weight / (bn.running_var + bn.eps) ** 0.5
-        w = conv.weight * w[:, None, None, None]
-        b = bn.bias + (conv.bias - bn.running_mean) * bn.weight / (bn.running_var + bn.eps) ** 0.5
+        assert isinstance(self.conv, RepConvBN)
+        conv_bn = self.conv
+        kernel, bias = self._get_kernel_bias(conv_bn)
+        conv = conv_bn.c
         self.conv = nn.Conv2d(
-            w.size(1) * self.conv.c.groups,
-            w.size(0),
-            kernel_size=w.shape[2:],
-            stride=self.conv.c.stride,
-            padding=self.conv.c.padding,
-            groups=self.conv.c.groups,
-            device=conv.weight.device,
+            in_channels=conv.in_channels,
+            out_channels=conv.out_channels,
+            kernel_size=conv.kernel_size,
+            stride=conv.stride,
+            padding=conv.padding,
+            dilation=conv.dilation,
+            groups=conv.groups,
+            padding_mode=conv.padding_mode,
+            device=kernel.device,
+            dtype=kernel.dtype,
         )
-        self.conv.weight.data.copy_(w)
-        self.conv.bias.data.copy_(b)
+        self.conv.weight.data.copy_(kernel)
+        self.conv.bias.data.copy_(bias)
 
-        # Delete un-used branches
+        # Delete unused branches
         for param in self.parameters():
             param.detach_()
 
@@ -227,6 +230,47 @@ class RepVggDW(nn.Module):
         del self.bn
 
         self.reparameterized = True
+
+    def _get_kernel_bias(self, conv_bn: RepConvBN) -> tuple[torch.Tensor, torch.Tensor]:
+        conv = conv_bn.c
+        kernel, bias = fuse_conv_bn_weights(
+            conv.weight,
+            conv.bias,
+            conv_bn.bn.running_mean,
+            conv_bn.bn.running_var,
+            conv_bn.bn.eps,
+            conv_bn.bn.weight,
+            conv_bn.bn.bias,
+        )
+        assert self.conv1x1.bias is not None
+
+        pad_h = (conv.kernel_size[0] - self.conv1x1.kernel_size[0]) // 2
+        pad_w = (conv.kernel_size[1] - self.conv1x1.kernel_size[1]) // 2
+        kernel_1x1 = F.pad(self.conv1x1.weight, [pad_w, pad_w, pad_h, pad_h])
+
+        assert conv.groups == conv.in_channels == conv.out_channels
+        identity = torch.ones(
+            conv.out_channels,
+            1,
+            1,
+            1,
+            device=conv.weight.device,
+            dtype=conv.weight.dtype,
+        )
+        identity = F.pad(identity, [pad_w, pad_w, pad_h, pad_h])
+
+        kernel = kernel + kernel_1x1 + identity
+        bias = bias + self.conv1x1.bias
+
+        return fuse_conv_bn_weights(  # type: ignore[no-any-return]
+            kernel,
+            bias,
+            self.bn.running_mean,
+            self.bn.running_var,
+            self.bn.eps,
+            self.bn.weight,
+            self.bn.bias,
+        )
 
 
 class RepViTBlock(nn.Module):
@@ -476,6 +520,9 @@ class RepViT(DetectorBackbone):
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:
+        if self.reparameterized is True:
+            return
+
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:
                 module.reparameterize()

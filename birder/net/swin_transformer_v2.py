@@ -30,6 +30,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import stochastic_depth_rates
 from birder.net.swin_transformer_v1 import get_relative_position_bias
 from birder.net.swin_transformer_v1 import patch_merging_pad
 from birder.net.swin_transformer_v1 import shifted_window_attention
@@ -242,6 +243,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
 
         resolution = (self.size[0] // patch_size, self.size[1] // patch_size)
         total_stage_blocks = sum(depths)
+        dpr = stochastic_depth_rates(drop_path_rate, total_stage_blocks)
         stage_block_id = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
@@ -249,8 +251,6 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
         for i_stage, depth in enumerate(depths):
             dim = embed_dim * 2**i_stage
             for i_layer in range(depth):
-                # Adjust stochastic depth probability based on the depth of the stage block
-                sd_prob = drop_path_rate * float(stage_block_id) / (total_stage_blocks - 1)
                 if i_layer % 2 == 0:
                     shift_size = (0, 0)
                 else:
@@ -264,7 +264,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
                         window_size=window_size,
                         shift_size=shift_size,
                         mlp_ratio=mlp_ratio,
-                        stochastic_depth_prob=sd_prob,
+                        stochastic_depth_prob=dpr[stage_block_id],
                     )
                 )
                 stage_block_id += 1

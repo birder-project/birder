@@ -7,6 +7,7 @@ Paper "DenseNets Reloaded: Paradigm Shift Beyond ResNets and ViTs", https://arxi
 
 # Reference license: Apache-2.0
 
+import logging
 from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
@@ -15,6 +16,7 @@ from typing import Optional
 
 import torch
 from torch import nn
+from torch.utils.checkpoint import checkpoint_sequential
 from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
@@ -24,6 +26,9 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import staged_stochastic_depth_rates
+
+logger = logging.getLogger(__name__)
 
 
 class EffectiveSEModule(nn.Module):
@@ -104,7 +109,7 @@ class DenseStage(nn.Module):
         self,
         num_block: int,
         num_input_features: int,
-        drop_path_rates: list[int],
+        drop_path_rates: list[float],
         growth_rate: int,
         bottleneck_width_ratio: float,
         block_name: str,
@@ -165,6 +170,12 @@ class RDNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         block_type_name: list[str] = self.config["block_type_name"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
+        self.grad_checkpointing = False
+        self.grad_checkpointing_segments: Optional[int] = None
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
+        self._grad_checkpointing_blocks = ()
+
         self.stem = nn.Sequential(
             nn.Conv2d(self.input_channels, num_init_features, kernel_size=(4, 4), stride=(4, 4), padding=(0, 0)),
             LayerNorm2d(num_init_features),
@@ -172,7 +183,7 @@ class RDNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         num_stages = len(growth_rates)
         num_features = num_init_features
-        dp_rates = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(num_blocks_list)).split(num_blocks_list)]
+        dp_rates = staged_stochastic_depth_rates(drop_path_rate, num_blocks_list)
 
         # Add dense blocks
         stages: OrderedDict[str, nn.Module] = OrderedDict()
@@ -234,6 +245,31 @@ class RDNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             elif isinstance(m, nn.Linear):
                 nn.init.zeros_(m.bias)
 
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        if enable is True:
+            logger.debug(
+                f"Enabling gradient checkpointing: segments={segments}, "
+                f"preserve_rng_state={preserve_rng_state}, use_reentrant={use_reentrant}"
+            )
+        else:
+            logger.debug("Disabling gradient checkpointing")
+
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_segments = segments
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
+        if enable is True:
+            self._grad_checkpointing_blocks = tuple(block for stage in self.body for block in stage)
+        else:
+            self._grad_checkpointing_blocks = ()
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
 
@@ -265,7 +301,21 @@ class RDNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     ) -> TokenRetentionResultType:
         x = self.stem(x)
         x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token)
-        x = self.body(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self._grad_checkpointing_blocks)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self._grad_checkpointing_blocks))
+
+            x = checkpoint_sequential(
+                self._grad_checkpointing_blocks,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+        else:
+            x = self.body(x)
 
         result: TokenRetentionResultType = {}
         if return_keys in ("all", "features"):
@@ -277,6 +327,20 @@ class RDNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self._grad_checkpointing_blocks)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self._grad_checkpointing_blocks))
+
+            return checkpoint_sequential(
+                self._grad_checkpointing_blocks,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+
         return self.body(x)
 
     def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:

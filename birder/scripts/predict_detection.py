@@ -97,7 +97,12 @@ def predict(args: argparse.Namespace) -> None:
         logger.info(f"Using device {device}")
 
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
-    amp_dtype: torch.dtype = getattr(torch, args.amp_dtype)
+    if args.amp_dtype is None:
+        amp_dtype = torch.get_autocast_dtype(device.type)
+        logger.debug(f"AMP: {args.amp}, AMP dtype: {amp_dtype}")
+    else:
+        amp_dtype = getattr(torch, args.amp_dtype)
+
     network_name = lib.get_detection_network_name(
         args.network, tag=args.tag, backbone=args.backbone, backbone_tag=args.backbone_tag
     )
@@ -132,7 +137,7 @@ def predict(args: argparse.Namespace) -> None:
         dynamic_input_size = args.dynamic_size is True or args.max_size is not None or args.no_resize is True
         if dynamic_input_size is True or args.tta is True:
             net.set_dynamic_size()
-        if dynamic_input_size is True:
+        if device.type == "cuda" and dynamic_input_size is True:
             # Disable cuDNN for dynamic sizes to avoid per-size algorithm selection overhead
             torch.backends.cudnn.enabled = False
     elif args.sliding_window_global_size is not None:
@@ -461,7 +466,6 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--amp-dtype",
         type=str,
         choices=["float16", "bfloat16"],
-        default="float16",
         help="whether to use float16 or bfloat16 for mixed precision",
     )
     parser.add_argument(

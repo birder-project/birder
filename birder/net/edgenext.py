@@ -23,6 +23,7 @@ from torchvision.ops import StochasticDepth
 from birder.layers import LayerNorm2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 from birder.net.xcit import PositionalEncodingFourier
 
 
@@ -284,7 +285,7 @@ class EdgeNeXt(DetectorBackbone):
         current_stride = 4
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         in_channels = dims[0]
         for i, (depth, dim, head) in enumerate(zip(depths, dims, heads)):
             stride = 2 if current_stride == 2 or i > 0 else 1

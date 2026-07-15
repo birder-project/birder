@@ -27,6 +27,7 @@ from birder.layers import LayerNorm2d
 from birder.layers import LayerScale2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 
 
 def _grid2seq(x: torch.Tensor, region_size: tuple[int, int], num_heads: int) -> tuple[torch.Tensor, int, int]:
@@ -409,7 +410,7 @@ class BiFormer(DetectorBackbone):
             ),
         )
 
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         num_stages = len(depths)
         n_heads = [dim // head_dim for dim in qk_dims]
 

@@ -32,6 +32,7 @@ from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
 from birder.net.base import TokenRetentionResultType
 from birder.net.base import normalize_out_indices
+from birder.net.base import stochastic_depth_rates
 from birder.net.vit import Encoder
 from birder.net.vit import EncoderBlock
 from birder.net.vit import PatchEmbed
@@ -156,7 +157,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.attn_pool_special_tokens = attn_pool_special_tokens
         self.out_indices = normalize_out_indices(out_indices, num_layers)
         self.patch_size_list = get_patch_sizes(min_patch_size, max_patch_size, self.size)
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
             self.input_channels,

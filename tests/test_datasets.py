@@ -6,12 +6,27 @@ import torch
 
 from birder.data.datasets import coco
 from birder.data.datasets import directory
+from birder.data.datasets import fake
 from birder.data.datasets import webdataset
 
 logging.disable(logging.CRITICAL)
 
 
 class TestDatasets(unittest.TestCase):
+    def test_fake_data_with_paths(self) -> None:
+        dataset = fake.FakeDataWithPaths(
+            size=4,
+            image_size=(3, 8, 8),
+            num_classes=2,
+            transform=lambda _: torch.zeros((3, 8, 8)),
+        )
+
+        self.assertEqual(len(dataset), 4)
+        path, sample, label = dataset[2]
+        self.assertEqual(path, "fake/path/2.jpeg")
+        self.assertTrue(torch.equal(sample, torch.zeros((3, 8, 8))))
+        self.assertIn(label, (0, 1))
+
     def test_directory(self) -> None:
         dataset = directory.ImageListDataset(
             [("file1.jpeg", 0), ("file2.jpeg", 1), ("file3.jpeg", 0), ("file4.jpeg", 0)],

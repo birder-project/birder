@@ -11,6 +11,7 @@ Changes from original:
 
 # Reference license: MIT
 
+import logging
 import math
 from collections import OrderedDict
 from typing import Any
@@ -19,13 +20,17 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint_sequential
 from torchvision.ops import MLP
 from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 from birder.net.vit import PatchEmbed
+
+logger = logging.getLogger(__name__)
 
 
 def img2windows(img: torch.Tensor, h_sp: int, w_sp: int) -> torch.Tensor:
@@ -294,12 +299,19 @@ class CSWin_Transformer(DetectorBackbone):
         num_heads: list[int] = self.config["num_heads"]
         drop_path_rate: float = self.config["drop_path_rate"]
         mlp_ratio = 4.0
+
         self.split_size = [
             (1, 1),
             (2, 2),
             (int(self.size[0] / (2**5)), int(self.size[1] / (2**5))),
             (int(self.size[0] / (2**5)), int(self.size[1] / (2**5))),
         ]
+
+        self.grad_checkpointing = False
+        self.grad_checkpointing_segments: Optional[int] = None
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
+        self._grad_checkpointing_blocks = ()
 
         self.stem = nn.Sequential(
             nn.Conv2d(self.input_channels, embed_dim, kernel_size=(7, 7), stride=(4, 4), padding=(2, 2)),
@@ -309,7 +321,7 @@ class CSWin_Transformer(DetectorBackbone):
 
         num_stages = len(depths)
         curr_dim = embed_dim
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
@@ -344,6 +356,36 @@ class CSWin_Transformer(DetectorBackbone):
         self.embedding_size = curr_dim
         self.classifier = self.create_classifier()
 
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        if enable is True:
+            logger.debug(
+                f"Enabling gradient checkpointing: segments={segments}, "
+                f"preserve_rng_state={preserve_rng_state}, use_reentrant={use_reentrant}"
+            )
+        else:
+            logger.debug("Disabling gradient checkpointing")
+
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_segments = segments
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
+        if enable is True:
+            blocks = []
+            for stage in self.body:
+                blocks.append(stage.downsample)
+                blocks.extend(stage.blocks)
+
+            self._grad_checkpointing_blocks = tuple(blocks)
+        else:
+            self._grad_checkpointing_blocks = ()
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
 
@@ -371,6 +413,20 @@ class CSWin_Transformer(DetectorBackbone):
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self._grad_checkpointing_blocks)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self._grad_checkpointing_blocks))
+
+            return checkpoint_sequential(
+                self._grad_checkpointing_blocks,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+
         return self.body(x)
 
     def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:

@@ -21,6 +21,7 @@ from torch import nn
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 from birder.net.vit import Encoder
 
 
@@ -135,7 +136,7 @@ class PiT(DetectorBackbone):
         self.pos_embed = nn.Parameter(torch.randn(1, embed_dim, height, width))
         self.cls_token = nn.Parameter(torch.randn(1, 2, embed_dim))
 
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         prev_dim = embed_dim
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()

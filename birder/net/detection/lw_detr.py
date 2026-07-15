@@ -1225,7 +1225,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 126.9,
-                "sha256": "b8b145253cf67ec50fe3216f5bdd29517527fca770bca05bfa11acd7244571b6",
+                "sha256": "6a412f742e94f0cf8e119ee3f0abf85d7bb231b757306adb958fb3efe98439c3",
             }
         },
         "net": {"network": "lw_detr_2stg", "tag": "objects365"},

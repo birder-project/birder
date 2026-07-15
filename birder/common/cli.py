@@ -114,16 +114,18 @@ def download_file(
     if isinstance(dst, str):
         dst = Path(dst)
 
-    # If file by the same name exists, check sha256 before overriding
+    # Reuse an existing file unless the caller explicitly requests an override
     if dst.exists() is True:
-        if expected_sha256 is None or calc_sha256(dst) == expected_sha256:
+        if override is True:
+            logger.warning(f"Overriding existing file {dst}")
+        elif expected_sha256 is None:
+            logger.debug("Found existing file, skipping download")
+            return
+        elif calc_sha256(dst) == expected_sha256:
             logger.debug("Found existing file with the same hash, skipping download")
             return
-
-        if override is False:
-            logger.warning("Found existing file with different SHA256, aborting...")
-
-        logger.warning("Overriding existing file with different SHA256")
+        else:
+            raise FileExistsError(f"{dst} exists with a different SHA256, pass override=True to replace it")
 
     fname = urlsplit(url)[2].split("/")[-1]
     logger.info(f"Downloading {fname} to {dst}...")

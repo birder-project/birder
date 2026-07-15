@@ -24,6 +24,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 from birder.net.vit import adjust_position_embedding
 
 
@@ -221,7 +222,7 @@ class PVT_v1(DetectorBackbone):
         )
         img_size = (self.size[0] // 4, self.size[1] // 4)
 
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         num_stages = len(depths)
         prev_dim = embed_dims[0]
         stages: OrderedDict[str, nn.Module] = OrderedDict()

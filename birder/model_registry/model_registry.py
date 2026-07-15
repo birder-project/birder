@@ -85,11 +85,7 @@ class ModelRegistry:
             raise ValueError(f"Unsupported model task: {net_type.task}")
 
     def register_model_config(
-        self,
-        name: str,
-        net_type: "BaseNetType",
-        *,
-        config: Optional[dict[str, Any]] = None,
+        self, name: str, net_type: "BaseNetType", *, config: Optional[dict[str, Any]] = None
     ) -> None:
         """
         Register a model configuration

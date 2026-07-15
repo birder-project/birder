@@ -79,9 +79,7 @@ def _normalize_coco_class_name(class_name: str) -> str:
 
 
 def build_coco_category_remap(
-    categories: dict[int, Any],
-    target_class_to_idx: Optional[dict[str, int]] = None,
-    use_class_file_ids: bool = False,
+    categories: dict[int, Any], target_class_to_idx: Optional[dict[str, int]] = None, use_class_file_ids: bool = False
 ) -> tuple[dict[str, int], dict[int, int]]:
     """
     Build the mapping from raw COCO category ids to Birder detector labels
@@ -145,9 +143,7 @@ def _mapped_class_to_idx(class_to_idx: dict[str, int], label_mapping: dict[str, 
 
 
 def build_label_mapping_indices(
-    class_to_idx: dict[str, int],
-    label_mapping: dict[str, str],
-    target_class_to_idx: Optional[dict[str, int]] = None,
+    class_to_idx: dict[str, int], label_mapping: dict[str, str], target_class_to_idx: Optional[dict[str, int]] = None
 ) -> tuple[dict[str, int], dict[int, int]]:
     if target_class_to_idx is None:
         target_class_to_idx = _mapped_class_to_idx(class_to_idx, label_mapping)
@@ -212,9 +208,7 @@ class CocoBase(torch.utils.data.Dataset):
         self, target_class_to_idx: Optional[dict[str, int]] = None, use_class_file_ids: bool = False
     ) -> dict[str, int]:
         target_class_to_idx, source_idx_to_target_idx = build_coco_category_remap(
-            self.dataset.coco.cats,
-            target_class_to_idx=target_class_to_idx,
-            use_class_file_ids=use_class_file_ids,
+            self.dataset.coco.cats, target_class_to_idx=target_class_to_idx, use_class_file_ids=use_class_file_ids
         )
         if any(source_idx != target_idx for source_idx, target_idx in source_idx_to_target_idx.items()):
             self.dataset = _map_annotations_to_targets(self.dataset, source_idx_to_target_idx)

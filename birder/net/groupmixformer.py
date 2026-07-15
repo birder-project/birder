@@ -19,6 +19,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class SeparableConv2d(nn.Module):
@@ -315,7 +316,7 @@ class GroupMixFormer(DetectorBackbone):
         mlp_ratios: list[float] = self.config["mlp_ratios"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         num_stages = len(depths)
 
         self.stem = nn.Sequential(

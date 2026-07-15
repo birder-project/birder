@@ -30,6 +30,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import staged_stochastic_depth_rates
 
 logger = logging.getLogger(__name__)
 
@@ -344,7 +345,7 @@ class DaViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.stem = Stem(self.input_channels, dims[0])
 
         num_stages = len(depths)
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         in_channels = dims[0]

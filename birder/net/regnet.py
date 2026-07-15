@@ -87,7 +87,7 @@ class BlockParams:
             raise ValueError("Invalid RegNet settings")
 
         # Compute the block widths. Each stage has one unique block width
-        widths_cont = torch.arange(depth) * w_a + w_0
+        widths_cont = torch.arange(depth, device="cpu") * w_a + w_0
         block_capacity = torch.round(torch.log(widths_cont / w_0) / math.log(w_m))
         block_widths = (torch.round(torch.divide(w_0 * torch.pow(w_m, block_capacity), QUANT)) * QUANT).int().tolist()
         num_stages = len(set(block_widths))
@@ -97,7 +97,7 @@ class BlockParams:
         splits = [w != wp or r != rp for w, wp, r, rp in split_helper]
 
         stage_widths = [w for w, t in zip(block_widths, splits[:-1]) if t]
-        stage_depths = torch.diff(torch.tensor([d for d, t in enumerate(splits) if t])).int().tolist()
+        stage_depths = torch.diff(torch.tensor([d for d, t in enumerate(splits) if t], device="cpu")).int().tolist()
 
         strides = [STRIDE] * num_stages
         bottleneck_multipliers = [bottleneck_multiplier] * num_stages

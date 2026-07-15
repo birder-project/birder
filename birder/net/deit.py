@@ -21,6 +21,7 @@ from birder.net._vit_configs import SMALL
 from birder.net._vit_configs import TINY
 from birder.net.base import DetectorBackbone
 from birder.net.base import normalize_out_indices
+from birder.net.base import stochastic_depth_rates
 from birder.net.vit import Encoder
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
@@ -60,7 +61,7 @@ class DeiT(DetectorBackbone):
         self.hidden_dim = hidden_dim
         self.num_special_tokens = 2
         self.out_indices = normalize_out_indices(out_indices, num_layers)
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
             self.input_channels,

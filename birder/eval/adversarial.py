@@ -94,32 +94,18 @@ def _build_attack(
         return FGSM(net, eps=eps, rgb_stats=rgb_stats)
 
     if method == "pgd":
-        return PGD(
-            net,
-            eps=eps,
-            steps=steps,
-            step_size=step_size,
-            random_start=False,
-            rgb_stats=rgb_stats,
-        )
+        return PGD(net, eps=eps, steps=steps, step_size=step_size, random_start=False, rgb_stats=rgb_stats)
 
     if method == "deepfool":
         return DeepFool(net, num_classes=deepfool_num_classes, overshoot=0.02, max_iter=steps, rgb_stats=rgb_stats)
 
     if method == "simba":
-        return SimBA(
-            net,
-            step_size=step_size if step_size is not None else eps,
-            max_iter=steps,
-            rgb_stats=rgb_stats,
-        )
+        return SimBA(net, step_size=step_size if step_size is not None else eps, max_iter=steps, rgb_stats=rgb_stats)
 
     raise ValueError(f"Unsupported attack method '{method}'")
 
 
-def evaluate_adversarial_robustness(
-    args: argparse.Namespace,
-) -> None:
+def evaluate_adversarial_robustness(args: argparse.Namespace) -> None:
     if args.gpu is True:
         device = torch.device("cuda")
     elif args.mps is True:
@@ -334,10 +320,7 @@ def set_parser(subparsers: Any) -> None:
         "--reparameterized", default=False, action="store_true", help="load reparameterized checkpoint model"
     )
     subparser.add_argument(
-        "--method",
-        type=str,
-        choices=["fgsm", "pgd", "deepfool", "simba"],
-        help="adversarial attack method",
+        "--method", type=str, choices=["fgsm", "pgd", "deepfool", "simba"], help="adversarial attack method"
     )
     subparser.add_argument("--eps", type=float, default=0.007, help="perturbation budget in pixel space [0, 1]")
     subparser.add_argument("--steps", type=int, default=10, help="number of iterations for iterative attacks")

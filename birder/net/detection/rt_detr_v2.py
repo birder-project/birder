@@ -23,6 +23,7 @@ from torchvision.ops import boxes as box_ops
 from birder.common import training_utils
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.deformable_detr import HungarianMatcher
 from birder.net.detection.deformable_detr import inverse_sigmoid
@@ -108,6 +109,7 @@ class MultiScaleDeformableAttention(nn.Module):
         n_points: list[int],
         method: Literal["default", "discrete"] = "default",
         offset_scale: float = 0.5,
+        with_proj: bool = True,
     ) -> None:
         super().__init__()
         assert d_model % n_heads == 0, "d_model must be divisible by n_heads"
@@ -137,8 +139,12 @@ class MultiScaleDeformableAttention(nn.Module):
 
         self.sampling_offsets = nn.Linear(d_model, n_heads * self.total_points * 2)
         self.attention_weights = nn.Linear(d_model, n_heads * self.total_points)
-        self.value_proj = nn.Linear(d_model, d_model)
-        self.output_proj = nn.Linear(d_model, d_model)
+        if with_proj is True:
+            self.value_proj = nn.Linear(d_model, d_model)
+            self.output_proj = nn.Linear(d_model, d_model)
+        else:
+            self.value_proj = nn.Identity()
+            self.output_proj = nn.Identity()
 
         self.reset_parameters()
 
@@ -160,10 +166,12 @@ class MultiScaleDeformableAttention(nn.Module):
 
         nn.init.zeros_(self.attention_weights.weight)
         nn.init.zeros_(self.attention_weights.bias)
-        nn.init.xavier_uniform_(self.value_proj.weight)
-        nn.init.zeros_(self.value_proj.bias)
-        nn.init.xavier_uniform_(self.output_proj.weight)
-        nn.init.zeros_(self.output_proj.bias)
+        if isinstance(self.value_proj, nn.Linear):
+            nn.init.xavier_uniform_(self.value_proj.weight)
+            nn.init.zeros_(self.value_proj.bias)
+        if isinstance(self.output_proj, nn.Linear):
+            nn.init.xavier_uniform_(self.output_proj.weight)
+            nn.init.zeros_(self.output_proj.bias)
 
     def forward(
         self,
@@ -1147,6 +1155,9 @@ class RT_DETR_v2(DetectionBaseNet):
     def reparameterize_model(self) -> None:
         if self.reparameterized is True:
             return
+
+        if reparameterize_available(self.backbone) is True:
+            self.backbone.reparameterize_model()
 
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:

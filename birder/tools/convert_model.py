@@ -48,24 +48,28 @@ def reparameterize(
     rgb_stats: RGBType,
     epoch: int,
     network_name: str,
+    custom_config: Optional[dict[str, Any]],
+    backbone_custom_config: Optional[dict[str, Any]],
 ) -> None:
     if reparameterize_available(net) is False:
         logger.error("Reparameterize not supported for this network")
-    else:
-        net.reparameterize_model()
-        network_name = lib.get_network_name(network_name, tag="reparameterized")
-        fs_ops.checkpoint_model(
-            network_name,
-            epoch,
-            net,
-            signature=signature,
-            class_to_idx=class_to_idx,
-            rgb_stats=rgb_stats,
-            optimizer=None,
-            scheduler=None,
-            scaler=None,
-            model_base=None,
-        )
+        raise SystemExit(1)
+
+    net.reparameterize_model()
+    fs_ops.checkpoint_model(
+        network_name,
+        epoch,
+        net,
+        signature=signature,
+        class_to_idx=class_to_idx,
+        rgb_stats=rgb_stats,
+        optimizer=None,
+        scheduler=None,
+        scaler=None,
+        model_base=None,
+        external_config=custom_config,
+        external_backbone_config=backbone_custom_config,
+    )
 
 
 def _pt2_export_input(
@@ -438,6 +442,9 @@ def main(args: argparse.Namespace) -> None:
     elif args.resize_patch is not None:
         network_name = f"{network_name}_ip{args.resize_patch}"
 
+    if args.reparameterize is True:
+        network_name = lib.get_network_name(network_name, tag="reparameterized")
+
     model_path = fs_ops.model_path(
         network_name,
         epoch=args.epoch,
@@ -451,7 +458,7 @@ def main(args: argparse.Namespace) -> None:
     if args.head_only is True:
         model_path = model_path.with_suffix(".head.pt")
 
-    if model_path.exists() is True and args.force is False and args.reparameterize is False and args.config is False:
+    if model_path.exists() is True and args.force is False and args.config is False:
         logger.warning("Converted model already exists... aborting")
         raise SystemExit(1)
 
@@ -508,6 +515,7 @@ def main(args: argparse.Namespace) -> None:
             scaler=None,
             model_base=None,
             external_config=args.add_config,
+            external_backbone_config=backbone_custom_config,
         )
 
     elif args.add_backbone_config is not None:
@@ -525,11 +533,21 @@ def main(args: argparse.Namespace) -> None:
             scheduler=None,
             scaler=None,
             model_base=None,
+            external_config=custom_config,
             external_backbone_config=args.add_backbone_config,
         )
 
     elif args.reparameterize is True:
-        reparameterize(net, signature, class_to_idx, rgb_stats, args.epoch, network_name)
+        reparameterize(
+            net,
+            signature,
+            class_to_idx,
+            rgb_stats,
+            args.epoch,
+            network_name,
+            custom_config,
+            backbone_custom_config,
+        )
 
     elif args.lite is True:
         if args.trace is True:

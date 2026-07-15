@@ -20,6 +20,7 @@ from torchvision.ops import StochasticDepth
 from birder.layers import LayerScale
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class SequentialWithShape(nn.Sequential):
@@ -361,7 +362,7 @@ class SMT(DetectorBackbone):
         drop_path_rate: float = self.config["drop_path_rate"]
 
         num_stages = len(depths)
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         prev_dim = self.input_channels
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []

@@ -72,12 +72,12 @@ class ResMLP(BaseNet):
         self.patch_embed = PatchEmbed(self.input_channels, embed_dim, patch_size)
         num_patches = (self.size[0] // patch_size[0]) * (self.size[1] // patch_size[1])
 
-        dpr = [drop_path_rate for _ in range(depth)]
+        # Uniform stochastic depth
         blocks = []
-        for i in range(depth):
+        for _ in range(depth):
             blocks.append(
                 LayerScaleMLP(
-                    embed_dim, num_patches=num_patches, drop=drop_rate, drop_path=dpr[i], init_value=init_value
+                    embed_dim, num_patches=num_patches, drop=drop_rate, drop_path=drop_path_rate, init_value=init_value
                 )
             )
 

@@ -19,6 +19,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 from birder.ops.swattention import SWAttention_AV
 from birder.ops.swattention import SWAttention_QK_RPB
 
@@ -462,7 +463,7 @@ class TransNeXt(DetectorBackbone):
 
         self.sr_ratio = sr_ratio
         num_stages = len(depth)
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depth)).split(depth)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depth)
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []

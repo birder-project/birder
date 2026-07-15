@@ -14,6 +14,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.nn.utils.fusion import fuse_conv_bn_weights
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import SqueezeExcitation
 
@@ -48,23 +49,31 @@ class RepGhostModule(nn.Module):
             nn.ReLU(inplace=True) if relu else nn.Identity(),
         )
 
+        self.cheap_operation: nn.Conv2d | nn.Sequential
         if reparameterized is True:
             self.fusion_bn = None
-        else:
-            self.fusion_bn = nn.BatchNorm2d(out_channels)
-
-        self.cheap_operation = nn.Sequential(
-            nn.Conv2d(
+            self.cheap_operation = nn.Conv2d(
                 out_channels,
                 out_channels,
                 kernel_size=(dw_size, dw_size),
                 stride=(1, 1),
                 padding=(dw_size // 2, dw_size // 2),
                 groups=out_channels,
-                bias=False,
-            ),
-            nn.BatchNorm2d(out_channels),
-        )
+            )
+        else:
+            self.fusion_bn = nn.BatchNorm2d(out_channels)
+            self.cheap_operation = nn.Sequential(
+                nn.Conv2d(
+                    out_channels,
+                    out_channels,
+                    kernel_size=(dw_size, dw_size),
+                    stride=(1, 1),
+                    padding=(dw_size // 2, dw_size // 2),
+                    groups=out_channels,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(out_channels),
+            )
         self.relu = nn.ReLU() if relu else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -79,56 +88,68 @@ class RepGhostModule(nn.Module):
         if self.reparameterized is True:
             return
 
-        kernel, bias = self._get_kernel_bias()
+        assert isinstance(self.cheap_operation, nn.Sequential)
+        conv = self.cheap_operation[0]
+        bn = self.cheap_operation[1]
+        assert isinstance(conv, nn.Conv2d)
+        assert isinstance(bn, nn.BatchNorm2d)
+        kernel, bias = self._get_kernel_bias(conv, bn)
         self.cheap_operation = nn.Conv2d(
-            in_channels=self.cheap_operation[0].in_channels,
-            out_channels=self.cheap_operation[0].out_channels,
-            kernel_size=self.cheap_operation[0].kernel_size,
-            padding=self.cheap_operation[0].padding,
-            dilation=self.cheap_operation[0].dilation,
-            groups=self.cheap_operation[0].groups,
+            in_channels=conv.in_channels,
+            out_channels=conv.out_channels,
+            kernel_size=conv.kernel_size,
+            stride=conv.stride,
+            padding=conv.padding,
+            dilation=conv.dilation,
+            groups=conv.groups,
+            device=kernel.device,
+            dtype=kernel.dtype,
         )
 
-        self.cheap_operation.weight.data = kernel
-        self.cheap_operation.bias.data = bias
+        self.cheap_operation.weight.data.copy_(kernel)
+        self.cheap_operation.bias.data.copy_(bias)
+
+        # Delete unused branches
+        for param in self.parameters():
+            param.detach_()
 
         del self.fusion_bn
         self.fusion_bn = None
         self.reparameterized = True
 
-    def _get_kernel_bias(self) -> tuple[torch.Tensor, torch.Tensor]:
-        kernel, bias = self._fuse_bn_tensor(self.cheap_operation[0], self.cheap_operation[1])
+    def _get_kernel_bias(self, conv: nn.Conv2d, bn: nn.BatchNorm2d) -> tuple[torch.Tensor, torch.Tensor]:
+        kernel, bias = self._fuse_bn_tensor(conv, bn)
         if self.fusion_bn is not None:
             kernel1x1, bias_bn = self._fuse_bn_tensor(nn.Identity(), self.fusion_bn, kernel.shape[0])
-            kernel += F.pad(kernel1x1, [1, 1, 1, 1])
-            bias += bias_bn
+            pad_h = (kernel.shape[2] - kernel1x1.shape[2]) // 2
+            pad_w = (kernel.shape[3] - kernel1x1.shape[3]) // 2
+            kernel = kernel + F.pad(kernel1x1, [pad_w, pad_w, pad_h, pad_h])
+            bias = bias + bias_bn
 
         return (kernel, bias)
 
     def _fuse_bn_tensor(
-        self, conv: nn.Module, bn: nn.Module, in_channels: Optional[int] = None
+        self, conv: nn.Conv2d | nn.Identity, bn: nn.BatchNorm2d, in_channels: Optional[int] = None
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if in_channels is None:
             in_channels = bn.running_mean.shape[0]
 
         if isinstance(conv, nn.Conv2d):
             kernel = conv.weight
-            assert conv.bias is None
+            bias = conv.bias
         else:
-            assert isinstance(conv, nn.Identity)
-            device = bn.weight.device
-            kernel = torch.ones(in_channels, 1, 1, 1, device=device)
+            kernel = torch.ones(in_channels, 1, 1, 1, device=bn.weight.device, dtype=bn.weight.dtype)
+            bias = None
 
-        running_mean = bn.running_mean
-        running_var = bn.running_var
-        gamma = bn.weight
-        beta = bn.bias
-        eps = bn.eps
-
-        std = (running_var + eps).sqrt()
-        t = (gamma / std).reshape(-1, 1, 1, 1)
-
-        return (kernel * t, beta - running_mean * gamma / std)
+        return fuse_conv_bn_weights(  # type: ignore[no-any-return]
+            kernel,
+            bias,
+            bn.running_mean,
+            bn.running_var,
+            bn.eps,
+            bn.weight,
+            bn.bias,
+        )
 
 
 class RepGhostBottleneck(nn.Module):
@@ -339,6 +360,9 @@ class RepGhost(DetectorBackbone):
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:
+        if self.reparameterized is True:
+            return
+
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:
                 module.reparameterize()

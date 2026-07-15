@@ -66,6 +66,7 @@ NET_TEST_CASES = [
     ("gc_vit_xxt"),
     ("ghostnet_v1_0_5"),
     ("ghostnet_v2_1_0"),
+    ("ghostnet_v3_0_5"),
     ("groupmixformer_mobile"),
     ("hgnet_v1_tiny"),
     ("hgnet_v2_b0"),
@@ -242,10 +243,36 @@ DYNAMIC_SIZE_CASES = [
     ("volo_d1"),
 ]
 
+META_UNSUPPORTED_NETS = {
+    "transnext_micro",
+}
+
 
 class TestBase(unittest.TestCase):
     def test_make_divisible(self) -> None:
         self.assertEqual(base.make_divisible(25, 6), 24)
+
+    def test_stochastic_depth_rates(self) -> None:
+        self.assertListEqual(base.stochastic_depth_rates(0.2, 0), [])
+        self.assertListEqual(base.stochastic_depth_rates(0.2, 1), [0.0])
+
+        rates = base.stochastic_depth_rates(0.2, 3)
+        torch.testing.assert_close(torch.tensor(rates), torch.linspace(0.0, 0.2, steps=3))
+
+        rates_without_endpoint = base.stochastic_depth_rates(0.2, 3, endpoint=False)
+        torch.testing.assert_close(torch.tensor(rates_without_endpoint), torch.linspace(0.0, 0.2, steps=4)[:-1])
+
+    def test_staged_stochastic_depth_rates(self) -> None:
+        staged_rates = base.staged_stochastic_depth_rates(0.4, [2, 1, 2])
+
+        self.assertListEqual([len(rates) for rates in staged_rates], [2, 1, 2])
+        self.assertListEqual([rate for rates in staged_rates for rate in rates], base.stochastic_depth_rates(0.4, 5))
+
+        staged_rates_without_endpoint = base.staged_stochastic_depth_rates(0.4, [2, 1, 2], endpoint=False)
+        self.assertListEqual(
+            [rate for rates in staged_rates_without_endpoint for rate in rates],
+            base.stochastic_depth_rates(0.4, 5, endpoint=False),
+        )
 
     def test_get_signature(self) -> None:
         signature = base.get_signature((1, 3, 224, 224), 10)
@@ -329,7 +356,7 @@ class TestNet(unittest.TestCase):
         # Test network
         out = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
         self.assertEqual(out.numel(), 100 * batch_size)
-        self.assertFalse(torch.isnan(out).any())
+        self.assertTrue(torch.isfinite(out).all())
 
         if skip_embedding is False:
             embedding = n.embedding(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size))).flatten()
@@ -349,16 +376,16 @@ class TestNet(unittest.TestCase):
 
         if non_standard_features is False:
             features = n.forward_features(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
-            self.assertFalse(torch.isnan(features).any())
+            self.assertTrue(torch.isfinite(features).all())
             self.assertEqual(features.size(0), batch_size)
 
             flat_features = n.flatten_features(features)
-            self.assertFalse(torch.isnan(flat_features).any())
+            self.assertTrue(torch.isfinite(flat_features).all())
             self.assertEqual(flat_features.size(0), batch_size)
             self.assertEqual(flat_features.size(2), n.feature_dim)
 
             visual_features = n.flatten_features(features, include_special_tokens=False)
-            self.assertFalse(torch.isnan(visual_features).any())
+            self.assertTrue(torch.isfinite(visual_features).all())
             self.assertEqual(visual_features.size(0), batch_size)
             self.assertEqual(visual_features.size(2), n.feature_dim)
             self.assertLessEqual(visual_features.size(1), flat_features.size(1))
@@ -402,6 +429,32 @@ class TestNet(unittest.TestCase):
         # Ensure model is copyable
         n_copy = copy.deepcopy(n)
         self.assertIsNotNone(n_copy)
+
+    @parameterized.expand(NET_TEST_CASES)  # type: ignore[untyped-decorator]
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_net_meta(
+        self,
+        network_name: str,
+        _skip_embedding: bool = False,
+        _non_standard_features: bool = False,
+        _batch_size: int = 1,
+        _size_step: int = 2**5,
+    ) -> None:
+        if network_name in META_UNSUPPORTED_NETS:
+            self.skipTest(f"{network_name} does not support meta initialization")
+
+        with torch.device("meta"):
+            meta_net = registry.net_factory(network_name, 10)
+
+        non_meta_tensors = [
+            f"parameter '{name}': {parameter.device}"
+            for name, parameter in meta_net.named_parameters()
+            if parameter.is_meta is False
+        ]
+        non_meta_tensors.extend(
+            f"buffer '{name}': {buffer.device}" for name, buffer in meta_net.named_buffers() if buffer.is_meta is False
+        )
+        self.assertListEqual(non_meta_tensors, [])
 
     @parameterized.expand(NET_TEST_CASES)  # type: ignore[untyped-decorator]
     @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
@@ -520,6 +573,7 @@ class TestNet(unittest.TestCase):
             ("gc_vit_xxt"),
             ("ghostnet_v1_0_5"),
             ("ghostnet_v2_1_0"),
+            ("ghostnet_v3_0_5"),
             ("groupmixformer_mobile"),
             ("hgnet_v1_tiny"),
             ("hgnet_v2_b0"),
@@ -644,7 +698,7 @@ class TestNet(unittest.TestCase):
         for i, stage_name in enumerate(n.return_stages):
             self.assertIn(stage_name, out)
             self.assertEqual(out[stage_name].shape[1], n.return_channels[i])
-            self.assertFalse(torch.isnan(out[stage_name]).any())
+            self.assertTrue(torch.isfinite(out[stage_name]).all())
 
         prev_h = 0
         prev_w = 0
@@ -683,10 +737,10 @@ class TestNet(unittest.TestCase):
         outs, mask = n.masked_encoding(x, mask)
 
         for out in outs:
-            self.assertFalse(torch.isnan(out).any())
+            self.assertTrue(torch.isfinite(out).all())
 
         self.assertEqual(outs[-1].size(-1), n.feature_dim)
-        self.assertFalse(torch.isnan(mask).any())
+        self.assertTrue(torch.isfinite(mask).all())
 
         self.assertTrue(hasattr(n, "block_group_regex"))
         self.assertTrue(hasattr(n, "stem_stride"))
@@ -784,14 +838,14 @@ class TestNet(unittest.TestCase):
 
         # Test retention
         out = n.masked_encoding_retention(x, mask, return_keys="features")
-        self.assertFalse(torch.isnan(out["features"]).any())
+        self.assertTrue(torch.isfinite(out["features"]).all())
         self.assertEqual(out["features"].ndim, 4)
         self.assertEqual(out["features"].size(1), n.feature_dim)
 
         # Test substitution
         out = n.masked_encoding_retention(x, mask, torch.zeros(1, 1, 1, n.stem_width))
         self.assertNotIn("embedding", out)
-        self.assertFalse(torch.isnan(out["features"]).any())
+        self.assertTrue(torch.isfinite(out["features"]).all())
         self.assertEqual(out["features"].ndim, 4)
 
         out = n.masked_encoding_retention(x, mask, torch.zeros(1, 1, 1, n.stem_width), return_keys="embedding")
@@ -873,10 +927,10 @@ class TestNet(unittest.TestCase):
         out = n.masked_encoding_omission(x, ids_keep, return_keys="all")
         tokens = out["tokens"]
         embedding = out["embedding"]
-        self.assertFalse(torch.isnan(tokens).any())
+        self.assertTrue(torch.isfinite(tokens).all())
         self.assertEqual(tokens.ndim, 3)
         self.assertEqual(tokens.size(-1), n.feature_dim)
-        self.assertFalse(torch.isnan(embedding).any())
+        self.assertTrue(torch.isfinite(embedding).all())
         self.assertEqual(embedding.ndim, 2)
         self.assertEqual(embedding.size(), (1, n.embedding_size))
 
@@ -884,20 +938,20 @@ class TestNet(unittest.TestCase):
             out = n.masked_encoding_omission(x, ids_keep, return_all_features=True, return_keys="all")
             tokens = out["tokens"]
             embedding = out["embedding"]
-            self.assertFalse(torch.isnan(tokens).any())
+            self.assertTrue(torch.isfinite(tokens).all())
             self.assertEqual(tokens.ndim, 4)
             self.assertEqual(tokens.size(-2), n.feature_dim)
-            self.assertFalse(torch.isnan(embedding).any())
+            self.assertTrue(torch.isfinite(embedding).all())
             self.assertEqual(embedding.ndim, 2)
             self.assertEqual(embedding.size(), (1, n.embedding_size))
 
         out = n.masked_encoding_omission(x, return_keys="all")
         tokens = out["tokens"]
         embedding = out["embedding"]
-        self.assertFalse(torch.isnan(tokens).any())
+        self.assertTrue(torch.isfinite(tokens).all())
         self.assertEqual(tokens.ndim, 3)
         self.assertEqual(tokens.size(-1), n.feature_dim)
-        self.assertFalse(torch.isnan(embedding).any())
+        self.assertTrue(torch.isfinite(embedding).all())
         self.assertEqual(embedding.ndim, 2)
 
         self.assertTrue(hasattr(n, "num_special_tokens"))
@@ -913,8 +967,10 @@ class TestNet(unittest.TestCase):
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
             ("cait_xxs24"),
+            ("conv2former_n"),
             ("convnext_v1_atto"),
             ("convnext_v2_atto"),
+            ("cswin_transformer_t"),
             ("davit_tiny"),
             ("deit3_t16"),
             ("efficientnet_v1_b0"),
@@ -927,6 +983,7 @@ class TestNet(unittest.TestCase):
             ("moganet_xt"),
             ("nfnet_f0"),
             ("poolformer_v1_s12"),
+            ("rdnet_t"),
             ("regnet_x_200m"),
             ("rope_deit3_t16"),
             ("rope_flexivit_s16"),
@@ -940,6 +997,7 @@ class TestNet(unittest.TestCase):
             ("vit_sam_b16"),
             ("vit_moe_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
+            ("wide_resnet_50"),
         ]
     )
     @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
@@ -1019,6 +1077,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("gc_vit_xxt"),
             ("ghostnet_v1_0_5"),
             ("ghostnet_v2_1_0"),
+            ("ghostnet_v3_0_5"),
             ("groupmixformer_mobile"),
             ("hgnet_v1_tiny"),
             ("hgnet_v2_b0"),
@@ -1193,7 +1252,7 @@ class TestDynamicSize(unittest.TestCase):
         if isinstance(n, base.DetectorBackbone):
             out = n.detection_features(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
             for stage_name in n.return_stages:
-                self.assertFalse(torch.isnan(out[stage_name]).any())
+                self.assertTrue(torch.isfinite(out[stage_name]).all())
 
     @parameterized.expand(DYNAMIC_SIZE_CASES)  # type: ignore[untyped-decorator]
     @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
@@ -1548,13 +1607,13 @@ class TestSpecialFunctions(unittest.TestCase):
         n.set_causal_attention(True)
         out = n(x)
         self.assertEqual(out.numel(), 10)
-        self.assertFalse(torch.isnan(out).any())
+        self.assertTrue(torch.isfinite(out).all())
 
         # Test disabling causal attention
         n.set_causal_attention(False)
         out = n(x)
         self.assertEqual(out.numel(), 10)
-        self.assertFalse(torch.isnan(out).any())
+        self.assertTrue(torch.isfinite(out).all())
 
     def test_set_causal_attention_soft_moe(self) -> None:
         n = registry.net_factory("vit_s16_soft_moe_32e_4s_avg", 10)

@@ -37,10 +37,7 @@ def load_image(image: str | Path | Image.Image) -> Image.Image:
 
 
 def preprocess_image(
-    image: str | Path | Image.Image,
-    transform: Callable[..., torch.Tensor],
-    device: torch.device,
-    rgb_stats: RGBType,
+    image: str | Path | Image.Image, transform: Callable[..., torch.Tensor], device: torch.device, rgb_stats: RGBType
 ) -> tuple[torch.Tensor, npt.NDArray[np.float32]]:
     pil_image = load_image(image)
     transformed_image = transform(pil_image)
@@ -53,10 +50,7 @@ def preprocess_image(
 
 
 def show_mask_on_image(
-    img: npt.NDArray[np.float32],
-    mask: npt.NDArray[np.float32],
-    image_weight: float = 0.5,
-    colormap: str = "jet",
+    img: npt.NDArray[np.float32], mask: npt.NDArray[np.float32], image_weight: float = 0.5, colormap: str = "jet"
 ) -> npt.NDArray[np.uint8]:
     color_map = matplotlib.colormaps[colormap]
     heatmap = color_map(mask)[:, :, :3]

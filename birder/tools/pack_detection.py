@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 # Few datasets like Objects365 have some very big files
 Image.MAX_IMAGE_PIXELS = int(2048 * 2048 * 1024 // 4 // 3)
 MAX_SIZE = 16_000
+QUEUE_TIMEOUT = 1.0
 
 
 def _save_classes(pack_path: Path, class_list: list[str]) -> None:
@@ -45,13 +46,22 @@ def _save_classes(pack_path: Path, class_list: list[str]) -> None:
         handle.write(doc)
 
 
+def _canonical_image_format(file_format: str) -> str:
+    file_format = file_format.lower().removeprefix(".")
+    if file_format == "jpg":
+        return "jpeg"
+
+    return file_format
+
+
 def _encode_image(
     path: str, file_format: str, size: Optional[int] = None
 ) -> tuple[bytes, tuple[int, int], tuple[int, int]]:
+    file_format = _canonical_image_format(file_format)
     image: Image.Image
     with Image.open(path) as image:
         input_size = image.size
-        if file_format.lower() in ("jpeg", "jpg") and image.mode in ("RGBA", "P"):
+        if file_format == "jpeg" and image.mode in ("RGBA", "P"):
             image = image.convert("RGB")
 
         if size is not None and size < min(image.size):
@@ -86,6 +96,22 @@ def _encode_image(
         sample_buffer = BytesIO()
         image.save(sample_buffer, format=file_format, quality=85)
         return (sample_buffer.getvalue(), input_size, image.size)
+
+
+def _read_verified_image(path: str, file_format: str) -> Optional[bytes]:
+    file_format = _canonical_image_format(file_format)
+    with open(path, "rb") as stream:
+        sample = stream.read()
+
+    with Image.open(BytesIO(sample)) as image:
+        source_format = _canonical_image_format(image.format or "")
+        # Intentionally avoid a full pixel decode to preserve same-format bytes and support very large images
+        image.verify()
+
+    if source_format != file_format:
+        return None
+
+    return sample
 
 
 def _resize_target(target: dict[str, Any], input_size: tuple[int, int], output_size: tuple[int, int]) -> dict[str, Any]:
@@ -189,6 +215,7 @@ def _load_coco_targets(
 
 
 def read_worker(q_in: Any, q_out: Any, error_event: Any, size: Optional[int], file_format: str) -> None:
+    file_format = _canonical_image_format(file_format)
     while True:
         deq: Optional[tuple[int, str, dict[str, Any]]] = q_in.get()
         if deq is None:
@@ -197,30 +224,38 @@ def read_worker(q_in: Any, q_out: Any, error_event: Any, size: Optional[int], fi
         try:
             idx, path, target = deq
             if size is None:
-                suffix = Path(path).suffix[1:]
+                suffix = _canonical_image_format(Path(path).suffix)
                 if file_format != suffix:
                     sample, input_size, output_size = _encode_image(path, file_format)
                     target = _resize_target(target, input_size, output_size)
                 else:
-                    with open(path, "rb") as stream:
-                        sample = stream.read()
+                    verified_sample = _read_verified_image(path, file_format)
+                    if verified_sample is None:
+                        sample, input_size, output_size = _encode_image(path, file_format)
+                        target = _resize_target(target, input_size, output_size)
+                    else:
+                        sample = verified_sample
 
             else:
                 sample, input_size, output_size = _encode_image(path, file_format, size)
                 target = _resize_target(target, input_size, output_size)
 
+            encoded_target = json.dumps(target, separators=(",", ":")).encode("utf-8")
+
         except Exception:
             error_event.set()
-            raise
+            logger.exception(f"Failed to read or encode image {path}")
+            raise SystemExit(1) from None
 
         if error_event.is_set() is True:
             break
 
-        q_out.put(
-            (idx, sample, file_format, json.dumps(target, separators=(",", ":")).encode("utf-8")),
-            block=True,
-            timeout=None,
-        )
+        while error_event.is_set() is False:
+            try:
+                q_out.put((idx, sample, file_format, encoded_target), block=True, timeout=QUEUE_TIMEOUT)
+                break
+            except queue.Full:
+                continue
 
 
 def wds_write_worker(q_out: Any, error_event: Any, pack_path: Path, total: int, args: argparse.Namespace) -> None:
@@ -233,27 +268,22 @@ def wds_write_worker(q_out: Any, error_event: Any, pack_path: Path, total: int, 
 
         else:
             info = None
-    except Exception:
-        error_event.set()
-        # Re-raise to terminate this process
-        raise
 
-    filenames: list[str] = []
-    shard_lengths: list[int] = []
-    path_pattern = str(pack_path.joinpath(f"{args.suffix}-{args.split}-%06d.tar"))
-    sink = wds.ShardWriter(path_pattern, maxsize=args.max_size, verbose=0)
+        filenames: list[str] = []
+        shard_lengths: list[int] = []
+        path_pattern = str(pack_path.joinpath(f"{args.suffix}-{args.split}-%06d.tar"))
+        sink = wds.ShardWriter(path_pattern, maxsize=args.max_size, verbose=0)
 
-    def wds_info(fname: str) -> None:
-        filenames.append(Path(fname).name)
-        shard_lengths.append(sink.count)
+        def wds_info(fname: str) -> None:
+            filenames.append(Path(fname).name)
+            shard_lengths.append(sink.count)
 
-    sink.post = wds_info
+        sink.post = wds_info
 
-    start_number = args.start_number
-    count = 0
-    buf = {}
-    more = True
-    try:
+        start_number = args.start_number
+        count = 0
+        buf = {}
+        more = True
         with tqdm(total=total, initial=0, unit="images", unit_scale=True, leave=False) as progress:
             while more:
                 deq: Optional[tuple[int, bytes, str, bytes]] = q_out.get()
@@ -281,34 +311,45 @@ def wds_write_worker(q_out: Any, error_event: Any, pack_path: Path, total: int, 
                     # Update progress bar
                     progress.update(n=1)
 
+        if count != total or len(buf) != 0:
+            raise RuntimeError(f"Writer received {count:,} of {total:,} samples")
+
+        sink.close()
+
+        split_info = {
+            "name": args.split,
+            "filenames": filenames,
+            "shard_lengths": shard_lengths,
+            "num_samples": sum(shard_lengths),
+        }
+
+        if info is None:
+            info = {
+                "name": args.suffix,
+                "task": Task.OBJECT_DETECTION,
+                "splits": {args.split: split_info},
+            }
+        else:
+            info["splits"][args.split] = split_info
+
+        with open(pack_path.joinpath("_info.json"), "w", encoding="utf-8") as handle:
+            logger.debug("Saving _info.json")
+            json.dump(info, handle, indent=2)
+
     except Exception:
         error_event.set()
-        raise
-
-    sink.close()
-
-    split_info = {
-        "name": args.split,
-        "filenames": filenames,
-        "shard_lengths": shard_lengths,
-        "num_samples": sum(shard_lengths),
-    }
-
-    if info is None:
-        info = {
-            "name": args.suffix,
-            "task": Task.OBJECT_DETECTION,
-            "splits": {args.split: split_info},
-        }
-    else:
-        info["splits"][args.split] = split_info
-
-    with open(pack_path.joinpath("_info.json"), "w", encoding="utf-8") as handle:
-        logger.debug("Saving _info.json")
-        json.dump(info, handle, indent=2)
+        logger.exception("WebDataset writer failed")
+        raise SystemExit(1) from None
 
 
 def pack(args: argparse.Namespace, pack_path: Path) -> None:
+    if args.append is True:
+        info = fs_ops.read_wds_info(pack_path.joinpath("_info.json"))
+        if info.get("task") != Task.OBJECT_DETECTION:
+            raise ValueError("target pack is not an object detection dataset")
+        if args.split in info["splits"]:
+            raise ValueError(f"split {args.split} already exists")
+
     ignore_list: Optional[set[str]] = None
     if args.ignore_file is not None:
         with open(args.ignore_file, "r", encoding="utf-8") as handle:
@@ -347,31 +388,39 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         indices = list(range(len(samples)))
 
     if args.jobs == -1:
-        args.jobs = multiprocessing.cpu_count()
+        jobs = multiprocessing.cpu_count()
+    else:
+        jobs = args.jobs
+
+    if jobs < 1:
+        raise ValueError("jobs must be a positive number or -1")
 
     logger.info(f"Packing {len(samples):,} samples")
-    logger.info(f"Running {args.jobs} read processes and 1 write process")
+    logger.info(f"Running {jobs} read processes and 1 write process")
 
     q_in = []  # type: ignore[var-annotated]
-    for _ in range(args.jobs):
+    for _ in range(jobs):
         q_in.append(multiprocessing.Queue(1024))
 
     q_out = multiprocessing.Queue(1024)  # type: ignore[var-annotated]
     error_event = multiprocessing.Event()
 
     read_processes: list[multiprocessing.Process] = []
-    for idx in range(args.jobs):
+    for idx in range(jobs):
         read_processes.append(
-            multiprocessing.Process(target=read_worker, args=(q_in[idx], q_out, error_event, args.size, args.format))
+            multiprocessing.Process(
+                name=f"pack-detection-reader-{idx}",
+                target=read_worker,
+                args=(q_in[idx], q_out, error_event, args.size, args.format),
+            )
         )
 
-    for p in read_processes:
-        p.start()
-
     write_process = multiprocessing.Process(
-        target=wds_write_worker, args=(q_out, error_event, pack_path, len(samples), args)
+        name="pack-detection-writer",
+        target=wds_write_worker,
+        args=(q_out, error_event, pack_path, len(samples), args),
     )
-    write_process.start()
+    started_processes: list[multiprocessing.Process] = []
 
     # Flag to prevent signal handler re-entry
     cleanup_in_progress = False
@@ -390,18 +439,66 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         q_out.cancel_join_thread()
 
         # Terminate child processes
-        for p in read_processes:
+        for p in started_processes:
             if p.is_alive():
                 p.terminate()
 
-        if write_process.is_alive():
-            write_process.terminate()
-
         # Wait briefly for termination
-        for p in read_processes:
-            p.join(timeout=1)
+        deadline = time.monotonic() + 1
+        for p in started_processes:
+            p.join(timeout=max(0.0, deadline - time.monotonic()))
 
-        write_process.join(timeout=1)
+        # Ensure cleanup cannot leave a stuck child behind
+        for p in started_processes:
+            if p.is_alive():
+                logger.warning(f"Killing unresponsive process {p.name}")
+                p.kill()
+
+        deadline = time.monotonic() + 1
+        for p in started_processes:
+            p.join(timeout=max(0.0, deadline - time.monotonic()))
+            if p.is_alive():
+                logger.error(f"Process {p.name} did not exit after being killed")
+
+    def raise_process_failure(process: multiprocessing.Process, *, unexpected_exit: bool = False) -> None:
+        error_event.set()
+        if unexpected_exit is True and process.exitcode == 0:
+            reason = "exited unexpectedly"
+        else:
+            reason = f"failed with exit code {process.exitcode}"
+
+        logger.error(f"Pack process {process.name} {reason}")
+        raise RuntimeError(f"Pack process {process.name} {reason}")
+
+    def ensure_pipeline_healthy(completed_readers: set[int]) -> None:
+        if error_event.is_set() is True:
+            for process in started_processes:
+                if process.exitcode not in (None, 0):
+                    raise_process_failure(process)
+
+            raise RuntimeError("A pack worker reported an error")
+
+        for idx, process in enumerate(read_processes):
+            if process.exitcode is None:
+                continue
+            if idx in completed_readers and process.exitcode == 0:
+                continue
+
+            raise_process_failure(process, unexpected_exit=True)
+
+        if write_process.exitcode is not None:
+            raise_process_failure(write_process, unexpected_exit=True)
+
+    def put_with_health_check(q: Any, item: Any, completed_readers: set[int]) -> None:
+        while True:
+            if error_event.is_set() is True:
+                ensure_pipeline_healthy(completed_readers)
+
+            try:
+                q.put(item, block=True, timeout=QUEUE_TIMEOUT)
+                return
+            except queue.Full:
+                ensure_pipeline_healthy(completed_readers)
 
     def signal_handler(signum, _frame) -> None:  # type: ignore
         logger.info(f"Received signal: {signum} at {multiprocessing.current_process().name}, aborting...")
@@ -409,53 +506,53 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         cleanup_processes()
         raise SystemExit(1)
 
-    signal.signal(signal.SIGINT, signal_handler)
+    previous_signal_handlers: dict[signal.Signals, Any] = {}
 
     try:
+        for p in read_processes:
+            p.start()
+            started_processes.append(p)
+
+        write_process.start()
+        started_processes.append(write_process)
+
+        # Install handlers after starting children so they do not inherit them
+        for handled_signal in (signal.SIGINT, signal.SIGTERM):
+            previous_handler = signal.getsignal(handled_signal)
+            signal.signal(handled_signal, signal_handler)
+            previous_signal_handlers[handled_signal] = previous_handler
+
         tic = time.time()
+        completed_readers: set[int] = set()
         for idx, sample_idx in enumerate(indices):
-            if idx % 1000 == 0:
-                if error_event.is_set() is True:
-                    cleanup_processes()
-                    raise RuntimeError()
-
             path, target = samples[sample_idx]
+            put_with_health_check(q_in[idx % len(q_in)], (idx, path, target), completed_readers)
 
-            while True:
-                try:
-                    q_in[idx % len(q_in)].put((idx, path, target), block=True, timeout=1)
-                    break
-                except queue.Full:
-                    if error_event.is_set() is True:
-                        cleanup_processes()
-                        raise RuntimeError()  # pylint: disable=raise-missing-from
-
-        for q in q_in:
-            q.put(None, block=True, timeout=None)
+        ensure_pipeline_healthy(completed_readers)
+        for idx, q in enumerate(q_in):
+            put_with_health_check(q, None, completed_readers)
+            completed_readers.add(idx)
 
         for p in read_processes:
-            while True:
-                p.join(timeout=2)
-                if p.is_alive() is False:
-                    break
+            while p.is_alive():
+                p.join(timeout=QUEUE_TIMEOUT)
+                ensure_pipeline_healthy(completed_readers)
 
-                if error_event.is_set() is True:
-                    cleanup_processes()
-                    raise RuntimeError()
+            if p.exitcode != 0:
+                raise_process_failure(p)
 
-        q_out.put(None, block=True, timeout=None)
-        while True:
-            write_process.join(timeout=2)
-            if write_process.is_alive() is False:
-                break
-
+        ensure_pipeline_healthy(completed_readers)
+        put_with_health_check(q_out, None, completed_readers)
+        while write_process.is_alive():
+            write_process.join(timeout=QUEUE_TIMEOUT)
             if error_event.is_set() is True:
-                cleanup_processes()
-                raise RuntimeError()
+                raise RuntimeError("A pack worker reported an error")
+
+        if write_process.exitcode != 0:
+            raise_process_failure(write_process)
 
         if error_event.is_set() is True:
-            cleanup_processes()
-            raise RuntimeError()
+            raise RuntimeError("A pack worker reported an error")
 
         wds_path, num_shards = fs_ops.wds_braces_from_path(pack_path, prefix=f"{args.suffix}-{args.split}")
         logger.info(f"Packed {len(samples):,} samples into {num_shards} shards at {wds_path}")
@@ -464,9 +561,20 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
         rate = len(samples) / (toc - tic)
         logger.info(f"{format_duration(toc-tic)} to pack {len(samples):,} samples ({rate:.2f} samples/sec)")
 
-    except Exception:
+    except BaseException:
+        error_event.set()
+        logger.error(f"Packing failed; output at {pack_path} may be incomplete")
         cleanup_processes()
         raise
+
+    finally:
+        for handled_signal, previous_handler in previous_signal_handlers.items():
+            signal.signal(handled_signal, previous_handler)
+
+        for q in [*q_in, q_out]:
+            q.close()
+            if cleanup_in_progress is False:
+                q.join_thread()
 
 
 def set_parser(subparsers: Any) -> None:
@@ -531,6 +639,8 @@ def main(args: argparse.Namespace) -> None:
     args.coco_json_path = os.path.expanduser(args.coco_json_path)
     if args.ignore_file is not None:
         args.ignore_file = os.path.expanduser(args.ignore_file)
+    if args.class_file is not None:
+        args.class_file = os.path.expanduser(args.class_file)
     if args.target_path is not None:
         args.target_path = os.path.expanduser(args.target_path)
 
@@ -539,6 +649,11 @@ def main(args: argparse.Namespace) -> None:
         pack_path = Path(f"{Path(args.data_path)}_{args.suffix}")
     else:
         pack_path = Path(args.target_path)
+
+    if args.append is True and pack_path.is_dir() is False:
+        raise cli.ValidationError("--append requires an existing target directory")
+    if args.jobs == 0 or args.jobs < -1:
+        raise cli.ValidationError("--jobs must be a positive number or -1")
 
     if pack_path.exists() is False:
         logger.info(f"Creating {pack_path} directory...")

@@ -20,6 +20,7 @@ from torchvision.ops import StochasticDepth
 from birder.layers import LayerScale2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class PatchEmbed(nn.Module):
@@ -189,11 +190,10 @@ class SwiftFormerStage(nn.Module):
         self,
         dim: int,
         dim_out: int,
-        index: int,
-        layers: list[int],
+        depth: int,
         mlp_ratio: float,
         drop_rate: float,
-        drop_path_rate: float,
+        drop_path_rates: list[float],
         use_layer_scale: bool,
         downsample: bool,
     ) -> None:
@@ -205,9 +205,9 @@ class SwiftFormerStage(nn.Module):
             self.downsample = nn.Identity()
 
         blocks = []
-        for block_idx in range(layers[index]):
-            block_dpr = drop_path_rate * (block_idx + sum(layers[:index])) / (sum(layers) - 1)
-            if layers[index] - block_idx <= 1:
+        for block_idx in range(depth):
+            block_dpr = drop_path_rates[block_idx]
+            if depth - block_idx <= 1:
                 blocks.append(
                     SwiftFormerBlock(
                         dim_out,
@@ -263,17 +263,17 @@ class SwiftFormer(DetectorBackbone):
         )
 
         prev_dim = embed_dims[0]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, layers)
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         for i in range(len(layers)):
             stages[f"stage{i+1}"] = SwiftFormerStage(
                 prev_dim,
                 embed_dims[i],
-                index=i,
-                layers=layers,
+                depth=layers[i],
                 mlp_ratio=4.0,
                 drop_rate=0.0,
-                drop_path_rate=drop_path_rate,
+                drop_path_rates=dpr[i],
                 use_layer_scale=True,
                 downsample=i > 0,
             )

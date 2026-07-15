@@ -15,8 +15,8 @@ from typing import Any
 from typing import Optional
 
 import torch
-import torch.nn.functional as F
 from torch import nn
+from torch.nn.utils.fusion import fuse_conv_bn_weights
 from torchvision.ops import SqueezeExcitation
 
 from birder.model_registry import registry
@@ -37,7 +37,7 @@ class Conv2dBN(nn.Sequential):
         reparameterized: bool = False,
     ) -> None:
         super().__init__()
-        self.c: nn.Module
+        self.c: nn.Conv2d
         self.reparameterized = reparameterized
         self.add_module(
             "c",
@@ -60,25 +60,32 @@ class Conv2dBN(nn.Sequential):
         if self.reparameterized is True:
             return
 
-        c, bn = self._modules.values()
-        w = bn.weight / (bn.running_var + bn.eps) ** 0.5
-        w = c.weight * w[:, None, None, None]
-        b = bn.bias - bn.running_mean * bn.weight / (bn.running_var + bn.eps) ** 0.5
-        self.c = nn.Conv2d(
-            w.size(1) * self.c.groups,
-            w.size(0),
-            kernel_size=w.shape[2:],
-            stride=self.c.stride,
-            padding=self.c.padding,
-            dilation=self.c.dilation,
-            groups=self.c.groups,
-            device=c.weight.device,
-            dtype=c.weight.dtype,
+        kernel, bias = fuse_conv_bn_weights(
+            self.c.weight,
+            self.c.bias,
+            self.bn.running_mean,
+            self.bn.running_var,
+            self.bn.eps,
+            self.bn.weight,
+            self.bn.bias,
         )
-        self.c.weight.data.copy_(w)
-        self.c.bias.data.copy_(b)
+        conv = self.c
+        self.c = nn.Conv2d(
+            in_channels=conv.in_channels,
+            out_channels=conv.out_channels,
+            kernel_size=conv.kernel_size,
+            stride=conv.stride,
+            padding=conv.padding,
+            dilation=conv.dilation,
+            groups=conv.groups,
+            padding_mode=conv.padding_mode,
+            device=kernel.device,
+            dtype=kernel.dtype,
+        )
+        self.c.weight.data.copy_(kernel)
+        self.c.bias.data.copy_(bias)
 
-        # Delete un-used branches
+        # Delete unused branches
         for param in self.parameters():
             param.detach_()
 
@@ -102,6 +109,7 @@ class NormLinear(nn.Sequential):
         if self.reparameterized is True:
             return
 
+        # BatchNorm precedes the linear layer, so fuse_conv_bn_weights does not apply here.
         bn, li = self._modules.values()
         w = bn.weight / (bn.running_var + bn.eps) ** 0.5
         b = bn.bias - self.bn.running_mean * self.bn.weight / (bn.running_var + bn.eps) ** 0.5
@@ -115,7 +123,7 @@ class NormLinear(nn.Sequential):
         self.li.weight.data.copy_(w)
         self.li.bias.data.copy_(b)
 
-        # Delete un-used branches
+        # Delete unused branches
         for param in self.parameters():
             param.detach_()
 
@@ -126,8 +134,11 @@ class NormLinear(nn.Sequential):
 class Residual(nn.Module):
     def __init__(self, module: nn.Module, reparameterized: bool) -> None:
         super().__init__()
-        self.m = module
         self.reparameterized = reparameterized and isinstance(module, Conv2dBN)
+        if self.reparameterized is True:
+            self.m: nn.Module = module.c
+        else:
+            self.m = module
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.reparameterized is True:
@@ -144,27 +155,25 @@ class Residual(nn.Module):
 
         if isinstance(self.m, Conv2dBN):
             conv = self.m.c
+            conv.weight.data.add_(self._get_identity_kernel(conv))
 
-            identity = torch.ones(
-                conv.weight.size(0), conv.weight.size(1), 1, 1, device=conv.weight.device, dtype=conv.weight.dtype
-            )
-            identity = F.pad(
-                identity,
-                [
-                    conv.kernel_size[1] // 2,
-                    conv.kernel_size[1] // 2,
-                    conv.kernel_size[0] // 2,
-                    conv.kernel_size[0] // 2,
-                ],
-            )
-            conv.weight.data.add_(identity)
-
-            # Delete un-used branches
+            # Delete unused branches
             for param in self.parameters():
                 param.detach_()
 
             self.m = conv
             self.reparameterized = True
+
+    @staticmethod
+    def _get_identity_kernel(conv: nn.Conv2d) -> torch.Tensor:
+        assert conv.in_channels == conv.out_channels
+        assert conv.stride == (1, 1)
+        input_dim = conv.in_channels // conv.groups
+        kernel = torch.zeros_like(conv.weight)
+        for channel_idx in range(conv.in_channels):
+            kernel[channel_idx, channel_idx % input_dim, conv.kernel_size[0] // 2, conv.kernel_size[1] // 2] = 1
+
+        return kernel
 
 
 class PatchMerging(nn.Module):
@@ -508,6 +517,9 @@ class SHViT(DetectorBackbone):
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:
+        if self.reparameterized is True:
+            return
+
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:
                 module.reparameterize()

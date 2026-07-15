@@ -17,6 +17,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.nn.utils.fusion import fuse_conv_bn_weights
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
@@ -84,26 +85,11 @@ class RepConv(nn.Module):
 
         return x
 
-    def reparameterize(self) -> nn.Conv2d:
+    def reparameterize(self) -> None:
         if self.reparameterized is True:
-            assert self.reparam_conv is not None
-            return self.reparam_conv
+            return
 
-        repconv_w = F.pad(
-            self.repconv.weight,
-            [
-                (self.conv.weight.shape[3] - self.repconv.weight.shape[3]) // 2,
-                (self.conv.weight.shape[3] - self.repconv.weight.shape[3]) // 2,
-                (self.conv.weight.shape[2] - self.repconv.weight.shape[2]) // 2,
-                (self.conv.weight.shape[2] - self.repconv.weight.shape[2]) // 2,
-            ],
-        )
-        conv_w = self.conv.weight + repconv_w
-        conv_b = self.conv.bias + self.repconv.bias
-
-        w = self.bn.weight / (self.bn.running_var + self.bn.eps).sqrt()
-        w = conv_w * w[:, None, None, None]
-        b = self.bn.bias + (conv_b - self.bn.running_mean) * self.bn.weight / (self.bn.running_var + self.bn.eps).sqrt()
+        kernel, bias = self._get_kernel_bias()
 
         self.reparam_conv = nn.Conv2d(
             self.in_channels,
@@ -112,13 +98,13 @@ class RepConv(nn.Module):
             stride=(self.stride, self.stride),
             padding=(self.padding, self.padding),
             groups=self.groups,
-            device=self.conv.weight.device,
-            dtype=self.conv.weight.dtype,
+            device=kernel.device,
+            dtype=kernel.dtype,
         )
-        self.reparam_conv.weight.data.copy_(w)
-        self.reparam_conv.bias.data.copy_(b)
+        self.reparam_conv.weight.data.copy_(kernel)
+        self.reparam_conv.bias.data.copy_(bias)
 
-        # Delete un-used branches
+        # Delete unused branches
         for param in self.parameters():
             param.detach_()
 
@@ -127,7 +113,24 @@ class RepConv(nn.Module):
         del self.bn
         self.reparameterized = True
 
-        return self.reparam_conv
+    def _get_kernel_bias(self) -> tuple[torch.Tensor, torch.Tensor]:
+        assert self.conv.bias is not None
+        assert self.repconv.bias is not None
+        pad_h = (self.conv.kernel_size[0] - self.repconv.kernel_size[0]) // 2
+        pad_w = (self.conv.kernel_size[1] - self.repconv.kernel_size[1]) // 2
+        kernel_repconv = F.pad(self.repconv.weight, [pad_w, pad_w, pad_h, pad_h])
+        kernel = self.conv.weight + kernel_repconv
+        bias = self.conv.bias + self.repconv.bias
+
+        return fuse_conv_bn_weights(  # type: ignore[no-any-return]
+            kernel,
+            bias,
+            self.bn.running_mean,
+            self.bn.running_var,
+            self.bn.eps,
+            self.bn.weight,
+            self.bn.bias,
+        )
 
 
 class Stem(nn.Module):
@@ -400,6 +403,9 @@ class MicroViT_v2(DetectorBackbone):
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize_model(self) -> None:
+        if self.reparameterized is True:
+            return
+
         for module in self.modules():
             if hasattr(module, "reparameterize") is True:
                 module.reparameterize()

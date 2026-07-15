@@ -28,6 +28,7 @@ from birder.layers import LayerScale2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import interpolate_attention_bias
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class Attention2d(nn.Module):
@@ -85,7 +86,7 @@ class Attention2d(nn.Module):
         rel_pos = (pos[..., :, None] - pos[..., None, :]).abs()
         rel_pos = (rel_pos[0] * self.resolution[1]) + rel_pos[1]
         self.attention_biases = nn.Parameter(torch.zeros(num_heads, self.N))
-        self.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
+        self.attention_bias_idxs = nn.Buffer(rel_pos.to(torch.long), persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B = x.size(0)  # (B, C, H, W)
@@ -178,7 +179,7 @@ class Attention2dDownsample(nn.Module):
         ).flatten(1)
         rel_pos = (q_pos[..., :, None] - k_pos[..., None, :]).abs()
         rel_pos = (rel_pos[0] * self.resolution[1]) + rel_pos[1]
-        self.attention_bias_idxs = nn.Buffer(torch.LongTensor(rel_pos), persistent=False)
+        self.attention_bias_idxs = nn.Buffer(rel_pos.to(torch.long), persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B = x.size(0)  # (B, C, H, W)
@@ -433,7 +434,7 @@ class EfficientFormer_v2(DetectorBackbone):
         prev_dim = embed_dims[0]
         stride = 4
         num_stages = len(depths)
-        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depths)).split(depths)]
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         downsample = (False,) + (True,) * (num_stages - 1)
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()

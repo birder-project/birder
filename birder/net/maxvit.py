@@ -30,6 +30,7 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
+from birder.net.base import stochastic_depth_rates
 
 logger = logging.getLogger(__name__)
 
@@ -521,7 +522,7 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         # Pre-compute the stochastic depth probabilities from 0 to stochastic_depth_prob
         # since we have N blocks with L layers, we will have N * L probabilities uniformly distributed
         # over the range [0, stochastic_depth_prob]
-        p_stochastic = torch.linspace(0, drop_path_rate, sum(block_layers)).tolist()
+        p_stochastic = stochastic_depth_rates(drop_path_rate, sum(block_layers))
 
         p_idx = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()

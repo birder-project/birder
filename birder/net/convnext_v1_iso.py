@@ -25,6 +25,7 @@ from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
 from birder.net.base import normalize_out_indices
+from birder.net.base import stochastic_depth_rates
 
 
 class ConvNeXtBlock(nn.Module):
@@ -83,11 +84,8 @@ class ConvNeXt_v1_Isotropic(DetectorBackbone, PreTrainEncoder, MaskedTokenRetent
             padding=(0, 0),
         )
 
-        layers = []
-        for idx in range(num_layers):
-            # Adjust stochastic depth probability based on the depth of the stage block
-            sd_prob = drop_path_rate * idx / (num_layers - 1.0)
-            layers.append(ConvNeXtBlock(dim, sd_prob))
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers)
+        layers = [ConvNeXtBlock(dim, dpr[idx]) for idx in range(num_layers)]
 
         self.body = nn.Sequential(*layers)
         self.features = nn.Sequential(
