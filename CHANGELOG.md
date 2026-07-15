@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.7 - 2026-07-15
+
+### Fixed
+
+- **Development Requirements**: Relaxed the `build` requirement from `~=1.5.1` to `~=1.5.0` because version 1.5.1 was yanked.
+
 ## 0.6.6 - 2026-07-15
 
 ### Added
