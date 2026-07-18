@@ -31,6 +31,8 @@ from birder.layers import LayerNorm2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
+from birder.net.detection.base import aligned_box_iou
+from birder.net.detection.base import aligned_generalized_box_iou
 from birder.net.detection.deformable_detr import HungarianMatcher
 from birder.net.detection.deformable_detr import MultiScaleDeformableAttention
 from birder.ops.soft_nms import SoftNMS
@@ -725,10 +727,10 @@ class LW_DETR(DetectionBaseNet):
             target_classes = torch.concat([t["labels"][J] for t, (_, J) in zip(targets, indices)], dim=0)
             src_boxes = box_output[idx]
             target_boxes = torch.concat([t["boxes"][J] for t, (_, J) in zip(targets, indices)], dim=0)
-            iou = box_ops.box_iou(
+            iou = aligned_box_iou(
                 box_ops.box_convert(src_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
                 box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-            ).diag()
+            )
             iou = iou.clamp(min=0).detach()
             mixed_target = pred_scores.detach()[idx[0], idx[1], target_classes] ** self.ia_alpha
             mixed_target = mixed_target * (iou ** (1.0 - self.ia_alpha))
@@ -760,11 +762,9 @@ class LW_DETR(DetectionBaseNet):
         loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction="none")
         loss_bbox = loss_bbox.sum() / num_boxes
 
-        loss_giou = 1 - torch.diag(
-            box_ops.generalized_box_iou(
-                box_ops.box_convert(src_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-                box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-            )
+        loss_giou = 1 - aligned_generalized_box_iou(
+            box_ops.box_convert(src_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
+            box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
         )
         loss_giou = loss_giou.sum() / num_boxes
 
@@ -1084,7 +1084,7 @@ class LW_DETR(DetectionBaseNet):
 
                     # Select proposals using encoder class scores, then run the heavier bbox head only on top-k
                     enc_cls_g = enc_out_class(output_memory_g)
-                    _, topk_indices_g = torch.topk(enc_cls_g.max(dim=-1)[0], topk, dim=1)
+                    _, topk_indices_g = torch.topk(enc_cls_g.amax(dim=-1), topk, dim=1)
 
                     # Gather selected proposals for this group
                     topk_cls_g = torch.gather(
@@ -1119,7 +1119,7 @@ class LW_DETR(DetectionBaseNet):
 
                 output_memory_g = enc_output_norm(enc_output(output_memory))
                 enc_cls_g = enc_out_class(output_memory_g)
-                _, topk_indices_g = torch.topk(enc_cls_g.max(dim=-1)[0], topk, dim=1)
+                _, topk_indices_g = torch.topk(enc_cls_g.amax(dim=-1), topk, dim=1)
                 enc_cls_logits = torch.gather(
                     enc_cls_g, 1, topk_indices_g.unsqueeze(-1).expand(-1, -1, enc_cls_g.size(-1))
                 )
@@ -1217,7 +1217,7 @@ registry.register_model_config(
 registry.register_weights(
     "lw_detr_2stg_objects365_pe_spatial_s16",
     {
-        "url": ("https://huggingface.co/birder-project/lw_detr_2stg_objects365_pe_spatial_s16/resolve/main"),
+        "url": "https://huggingface.co/birder-project/lw_detr_2stg_objects365_pe_spatial_s16/resolve/main",
         "description": (
             "LW-DETR (2 stage) with a PE-Spatial s16 backbone, detection model trained on the Objects365-2020 dataset"
         ),
@@ -1235,7 +1235,7 @@ registry.register_weights(
 registry.register_weights(
     "lw_detr_2stg_objects365-coco_pe_spatial_s16",
     {
-        "url": ("https://huggingface.co/birder-project/lw_detr_2stg_objects365-coco_pe_spatial_s16/resolve/main"),
+        "url": "https://huggingface.co/birder-project/lw_detr_2stg_objects365-coco_pe_spatial_s16/resolve/main",
         "description": (
             "LW-DETR (2 stage) with a PE-Spatial s16 backbone, detection model trained on the Objects365-2020 dataset "
             "and fine-tuned on the COCO dataset"

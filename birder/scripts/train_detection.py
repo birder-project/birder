@@ -41,6 +41,8 @@ from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.detection import InferenceTransform
+from birder.data.transforms.detection import resolve_multiscale_long_edge_size
+from birder.data.transforms.detection import resolve_multiscale_sizes
 from birder.data.transforms.detection import training_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
@@ -135,19 +137,21 @@ def train(args: argparse.Namespace) -> None:
     #
     # Initialize
     #
-    transform_dynamic_size = (
-        args.multiscale is True
-        or args.dynamic_size is True
-        or args.max_size is not None
-        or args.aug_type == "multiscale"
-        or args.aug_type == "detr"
-    )
+    per_image_multiscale = args.multiscale is True or args.aug_type in {"multiscale", "detr"}
+    transform_dynamic_size = per_image_multiscale is True or args.dynamic_size is True or args.max_size is not None
     model_dynamic_size = transform_dynamic_size or args.batch_multiscale is True
 
     device, device_id, disable_tqdm = training_utils.init_training(args, logger, cudnn_dynamic_size=model_dynamic_size)
 
     if args.size is None:
         args.size = registry.get_default_size(args.network)
+
+    validation_max_size = args.max_size
+    if per_image_multiscale is True:
+        validation_multiscale_sizes = resolve_multiscale_sizes(
+            args.size, args.multiscale_min_size, args.multiscale_max_size, multiscale_step=args.multiscale_step
+        )
+        validation_max_size = resolve_multiscale_long_edge_size(validation_multiscale_sizes, args.max_size)
 
     if model_dynamic_size is False:
         logger.info(f"Using size={args.size}")
@@ -168,10 +172,14 @@ def train(args: argparse.Namespace) -> None:
 
     train_transform_size = args.size
     if args.batch_multiscale is True:
-        batch_multiscale_max_size = args.multiscale_max_size
-        if batch_multiscale_max_size is None:
-            batch_multiscale_max_size = max(args.size)
-
+        batch_multiscale_base_size = max(args.size)
+        batch_multiscale_sizes = resolve_multiscale_sizes(
+            (batch_multiscale_base_size, batch_multiscale_base_size),
+            args.multiscale_min_size,
+            args.multiscale_max_size,
+            multiscale_step=args.multiscale_step,
+        )
+        batch_multiscale_max_size = batch_multiscale_sizes[-1]
         train_transform_size = (batch_multiscale_max_size, batch_multiscale_max_size)
         logger.info(f"Using batch multiscale transform target size={train_transform_size}")
 
@@ -221,7 +229,7 @@ def train(args: argparse.Namespace) -> None:
                 args.multiscale_step,
                 post_mosaic=True,
             )
-            if args.dynamic_size is True or args.multiscale is True:
+            if transform_dynamic_size is True:
                 if args.max_size is not None:
                     mosaic_dim = args.max_size
                 else:
@@ -255,7 +263,7 @@ def train(args: argparse.Namespace) -> None:
             val_wds_path,
             dataset_size=val_size,
             shuffle=False,
-            transform=InferenceTransform(args.size, rgb_stats, transform_dynamic_size, args.max_size),
+            transform=InferenceTransform(args.size, rgb_stats, transform_dynamic_size, validation_max_size),
             label_remap=label_remap,
             cache_dir=args.wds_cache_dir,
         )
@@ -275,7 +283,7 @@ def train(args: argparse.Namespace) -> None:
                 args.multiscale_step,
                 post_mosaic=True,
             )
-            if args.dynamic_size is True or args.multiscale is True:
+            if transform_dynamic_size is True:
                 # Dynamic/Multiscale: args.size is the short-side target
                 if args.max_size is not None:
                     mosaic_dim = args.max_size
@@ -295,6 +303,7 @@ def train(args: argparse.Namespace) -> None:
                 fill_value=114,
                 mosaic_prob=args.mosaic_prob,
                 mosaic_type=args.mosaic_type,
+                normalize_empty_targets=True,
             )
             mosaic_dataset = training_dataset
             if args.mosaic_stop_epoch is not None:
@@ -309,12 +318,14 @@ def train(args: argparse.Namespace) -> None:
                     "decay_fraction=0.1"
                 )
         else:
-            training_dataset = CocoTraining(args.data_path, args.coco_json_path, transforms=transforms)
+            training_dataset = CocoTraining(
+                args.data_path, args.coco_json_path, transforms=transforms, normalize_empty_targets=True
+            )
 
         validation_dataset = CocoTraining(
             args.val_path,
             args.coco_val_json_path,
-            transforms=InferenceTransform(args.size, rgb_stats, transform_dynamic_size, args.max_size),
+            transforms=InferenceTransform(args.size, rgb_stats, transform_dynamic_size, validation_max_size),
         )
 
     if args.ignore_file is not None:
@@ -347,7 +358,10 @@ def train(args: argparse.Namespace) -> None:
                 target_class_to_idx=class_to_idx, use_class_file_ids=use_class_file_ids
             )
 
-        training_dataset.remove_images_without_annotations(ignore_list)
+        if args.drop_empty is True:
+            logger.debug("Dropping training images without valid object annotations")
+
+        training_dataset.remove_images_without_annotations(ignore_list, allow_empty=not args.drop_empty)
 
     full_validation_dataset_len = len(validation_dataset)
     if args.val_subset_size is not None:
@@ -716,7 +730,7 @@ def train(args: argparse.Namespace) -> None:
     if args.model_ema is True:
         model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
         model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
-        if args.load_states is True and training_states.ema_model_state is not None:
+        if (args.load_states is True or args.load_ema is True) and training_states.ema_model_state is not None:
             logger.info("Setting model EMA weights...")
             if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
                 model_ema.module._orig_mod.load_state_dict(training_states.ema_model_state)
@@ -994,9 +1008,9 @@ def train(args: argparse.Namespace) -> None:
         with torch.inference_mode():
             for inputs, targets, masks, image_sizes in validation_loader:
                 if args.channels_last is True:
-                    inputs = inputs.to(device, non_blocking=True, memory_format=torch.channels_last)
+                    inputs = inputs.to(device, dtype=model_dtype, non_blocking=True, memory_format=torch.channels_last)
                 else:
-                    inputs = inputs.to(device, non_blocking=True)
+                    inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
 
                 targets = [
                     {k: v.to(device, non_blocking=True) if isinstance(v, torch.Tensor) else v for k, v in t.items()}
@@ -1009,10 +1023,10 @@ def train(args: argparse.Namespace) -> None:
                     detections, losses = eval_model(inputs, masks=masks, image_sizes=image_sizes)
 
                 for target in targets:
-                    # TorchMetrics can't handle "empty" images
+                    # TorchMetrics requires correctly shaped tensors for empty targets
                     if "boxes" not in target:
-                        target["boxes"] = torch.tensor([], dtype=torch.float, device=device)
-                        target["labels"] = torch.tensor([], dtype=torch.int64, device=device)
+                        target["boxes"] = torch.empty((0, 4), dtype=torch.float, device=device)
+                        target["labels"] = torch.empty((0,), dtype=torch.int64, device=device)
 
                 # Statistics
                 validation_metrics(detections, targets)
@@ -1254,7 +1268,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     training_cli.add_precision_args(parser, channels_last=True)
     training_cli.add_compile_args(parser, backbone=True)
-    training_cli.add_checkpoint_args(parser, pretrained=True)
+    training_cli.add_checkpoint_args(parser, pretrained=True, load_ema=True)
     training_cli.add_distributed_args(parser)
     training_cli.add_logging_and_debug_args(parser, default_log_interval=20, fake_data=False)
     training_cli.add_detection_training_data_args(parser, wds_extra_shuffle=False)
@@ -1323,6 +1337,8 @@ def validate_args(args: argparse.Namespace) -> None:
             raise cli.ValidationError("--class-file cannot be used with --wds, use --wds-class-file")
         if args.ignore_file is not None:
             raise cli.ValidationError("--ignore-file is not supported with --wds")
+        if args.drop_empty is True:
+            raise cli.ValidationError("--drop-empty is not supported with --wds")
     if args.backbone_pretrained is True and args.backbone_epoch is not None:
         raise cli.ValidationError("--backbone-pretrained cannot be used with --backbone-epoch")
     if args.label_mapping is not None and args.binary_mode is True:

@@ -10,6 +10,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 - [FCMAE](#fcmae)
 - [MAE Hiera](#mae-hiera)
 - [MAE ViT](#mae-vit)
+- [MaskFeat](#maskfeat)
 - [SimMIM](#simmim)
 
 ### AIM v1
@@ -266,6 +267,14 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit_dec512
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit --encoder rope_vit_reg4_so150m_p14_ap --encoder-model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-betas 0.9 0.95 --lr 0.00015 --wd 0.05 --lr-scheduler cosine --warmup-epochs 40 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+```
+
+### MaskFeat
+
+#### MaskFeat: ViT b16
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network maskfeat --encoder vit_b16 --encoder-model-config drop_path_rate=0.0 --batch-size 128 --opt adamw --opt-fused --clip-grad-norm 0.02 --lr 0.0002 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --lr-warmup-decay 0.005 --epochs 300 --warmup-epochs 30 --aug-level 1 --resize-min-scale 0.5 --amp --amp-dtype bfloat16 --compile --data-path data/training
 ```
 
 ### SimMIM

@@ -37,12 +37,26 @@ from birder.data.transforms.classification import reverse_preset
 from birder.data.transforms.detection import MULTISCALE_STEP
 from birder.data.transforms.detection import AugType
 from birder.data.transforms.detection import InferenceTransform
+from birder.data.transforms.detection import resolve_multiscale_sizes
 from birder.data.transforms.detection import training_preset
 
 
 def show_det_iterator(args: argparse.Namespace) -> None:
     reverse_transform = reverse_preset(get_rgb_stats("birder"))
     root_path = Path(args.data_path)
+    per_image_multiscale = args.multiscale is True or args.aug_type in {"multiscale", "detr"}
+    transform_dynamic_size = per_image_multiscale is True or args.dynamic_size is True or args.max_size is not None
+    train_transform_size = args.size
+    if args.mode == "training" and args.batch_multiscale is True:
+        batch_multiscale_base_size = max(args.size)
+        batch_multiscale_sizes = resolve_multiscale_sizes(
+            (batch_multiscale_base_size, batch_multiscale_base_size),
+            args.multiscale_min_size,
+            args.multiscale_max_size,
+            multiscale_step=args.multiscale_step,
+        )
+        train_transform_size = (batch_multiscale_sizes[-1], batch_multiscale_sizes[-1])
+
     label_mapping: Optional[dict[str, str]] = None
     if args.label_mapping is not None:
         with open(args.label_mapping, "r", encoding="utf-8") as handle:
@@ -51,7 +65,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
     if args.mode == "training":
         offset = 0
         transform = training_preset(
-            args.size,
+            train_transform_size,
             args.aug_type,
             args.aug_level,
             get_rgb_stats("birder"),
@@ -90,7 +104,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
 
         if args.mode == "training" and args.mosaic_prob > 0.0:
             mosaic_transforms = training_preset(
-                args.size,
+                train_transform_size,
                 args.aug_type,
                 args.aug_level,
                 get_rgb_stats("birder"),
@@ -102,13 +116,13 @@ def show_det_iterator(args: argparse.Namespace) -> None:
                 args.multiscale_step,
                 post_mosaic=True,
             )
-            if args.dynamic_size is True or args.multiscale is True:
+            if transform_dynamic_size is True:
                 if args.max_size is not None:
                     mosaic_dim = args.max_size
                 else:
-                    mosaic_dim = min(args.size) * 2
+                    mosaic_dim = min(train_transform_size) * 2
             else:
-                mosaic_dim = max(args.size) * 2
+                mosaic_dim = max(train_transform_size) * 2
 
             dataset = make_wds_mosaic_detection_dataset(
                 wds_path,
@@ -129,7 +143,7 @@ def show_det_iterator(args: argparse.Namespace) -> None:
     else:
         if args.mode == "training":
             mosaic_transforms = training_preset(
-                args.size,
+                train_transform_size,
                 args.aug_type,
                 args.aug_level,
                 get_rgb_stats("birder"),
@@ -142,16 +156,16 @@ def show_det_iterator(args: argparse.Namespace) -> None:
                 post_mosaic=True,
             )
             if args.mosaic_prob > 0.0:
-                if args.dynamic_size is True or args.multiscale is True:
+                if transform_dynamic_size is True:
                     # Dynamic/Multiscale: args.size is the short-side target
                     if args.max_size is not None:
                         mosaic_dim = args.max_size
                     else:
-                        mosaic_dim = min(args.size) * 2
+                        mosaic_dim = min(train_transform_size) * 2
 
                 else:
                     # Fixed size
-                    mosaic_dim = max(args.size) * 2
+                    mosaic_dim = max(train_transform_size) * 2
 
                 dataset = CocoMosaicTraining(
                     args.data_path,
@@ -162,9 +176,12 @@ def show_det_iterator(args: argparse.Namespace) -> None:
                     fill_value=114,
                     mosaic_prob=args.mosaic_prob,
                     mosaic_type=args.mosaic_type,
+                    normalize_empty_targets=True,
                 )
             else:
-                dataset = CocoTraining(args.data_path, args.coco_json_path, transforms=transform)
+                dataset = CocoTraining(
+                    args.data_path, args.coco_json_path, transforms=transform, normalize_empty_targets=True
+                )
         else:
             dataset = CocoInference(args.data_path, args.coco_json_path, transforms=transform)
 
@@ -368,12 +385,17 @@ def set_parser(subparsers: Any) -> None:
         action="store_true",
         help="allow variable image sizes while preserving aspect ratios",
     )
-    subparser.add_argument("--multiscale", default=False, action="store_true", help="enable random scale per image")
+    subparser.add_argument(
+        "--multiscale",
+        default=False,
+        action="store_true",
+        help="enable target-relative random short-edge scaling per image",
+    )
     subparser.add_argument(
         "--batch-multiscale",
         default=False,
         action="store_true",
-        help="enable random square resize once per batch (batch mode only, capped by max(--size))",
+        help="enable target-relative random square resizing once per batch, centered on max(--size) (batch mode only)",
     )
     subparser.add_argument(
         "--multiscale-step",
@@ -384,14 +406,17 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--multiscale-min-size",
         type=int,
-        help="minimum short-edge size for multiscale lists (rounded up to nearest multiple of --multiscale-step)",
+        help=(
+            "minimum short-edge size for multiscale lists, when omitted, derived from --size by the selected "
+            "multiscale policy (rounded up to the nearest multiple of --multiscale-step)"
+        ),
     )
     subparser.add_argument(
         "--multiscale-max-size",
         type=int,
         help=(
-            "maximum short-edge size for multiscale lists, rounded down to nearest multiple of "
-            "--multiscale-step (defaults to the preset or max(--size) for --batch-multiscale)"
+            "maximum short-edge size for multiscale lists, when omitted, derived from --size by the selected "
+            "multiscale policy (rounded down to the nearest multiple of --multiscale-step)"
         ),
     )
     subparser.add_argument(

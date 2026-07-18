@@ -6,6 +6,7 @@ import tempfile
 import typing
 import unittest
 from collections import OrderedDict
+from typing import Any
 from unittest.mock import mock_open
 from unittest.mock import patch
 
@@ -477,13 +478,24 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertEqual(samples[1025], 0)
 
     def test_optimizer_parameter_groups(self) -> None:
+        def expand_parameter_groups(
+            current_model: torch.nn.Module, groups: list[dict[str, Any]]
+        ) -> list[dict[str, Any]]:
+            group_by_parameter = {
+                id(parameter): {**group, "params": parameter} for group in groups for parameter in group["params"]
+            }
+            return [group_by_parameter[id(parameter)] for parameter in current_model.parameters()]
+
         model = torch.nn.Sequential(
             torch.nn.Linear(1, 2),
             torch.nn.BatchNorm1d(2),
             torch.nn.Linear(2, 1, bias=False),
         )
         params = training_utils.optimizer_parameter_groups(model, 0.1, 0.1)
-        self.assertEqual(len(params), 5)  # Linear + bias + norm std + norm mean + linear
+        self.assertEqual(len(params), 1)
+        self.assertEqual([id(parameter) for parameter in params[0]["params"]], [id(p) for p in model.parameters()])
+
+        params = expand_parameter_groups(model, params)  # Linear + bias + norm std + norm mean + linear
         self.assertEqual(params[0]["weight_decay"], 0.1)
         self.assertEqual(params[1]["weight_decay"], 0.1)
         self.assertEqual(params[2]["weight_decay"], 0.1)
@@ -494,6 +506,12 @@ class TestTrainingUtils(unittest.TestCase):
 
         # Test bias
         params = training_utils.optimizer_parameter_groups(model, 0.1, 0.1, custom_keys_weight_decay=[("bias", 0)])
+        self.assertEqual(len(params), 2)
+        model_params = list(model.parameters())
+        self.assertEqual([id(p) for p in params[0]["params"]], [id(model_params[i]) for i in (0, 2, 4)])
+        self.assertEqual([id(p) for p in params[1]["params"]], [id(model_params[i]) for i in (1, 3)])
+
+        params = expand_parameter_groups(model, params)
         self.assertEqual(params[0]["weight_decay"], 0.1)
         self.assertEqual(params[1]["weight_decay"], 0.0)
         self.assertEqual(params[2]["weight_decay"], 0.1)
@@ -502,6 +520,7 @@ class TestTrainingUtils(unittest.TestCase):
 
         # Test norm
         params = training_utils.optimizer_parameter_groups(model, 0.1, 0.1, norm_weight_decay=0)
+        params = expand_parameter_groups(model, params)
         self.assertEqual(params[0]["weight_decay"], 0.1)
         self.assertEqual(params[1]["weight_decay"], 0.1)
         self.assertEqual(params[2]["weight_decay"], 0.0)
@@ -512,6 +531,7 @@ class TestTrainingUtils(unittest.TestCase):
         params = training_utils.optimizer_parameter_groups(
             model, 0.1, 0.1, norm_weight_decay=0, custom_keys_weight_decay=[("bias", 0)]
         )
+        params = expand_parameter_groups(model, params)
         self.assertEqual(params[0]["weight_decay"], 0.1)
         self.assertEqual(params[1]["weight_decay"], 0.0)
         self.assertEqual(params[2]["weight_decay"], 0.0)
@@ -520,6 +540,7 @@ class TestTrainingUtils(unittest.TestCase):
 
         # Test layer decay
         params = training_utils.optimizer_parameter_groups(model, 0, 0.1, layer_decay=0.1)
+        params = expand_parameter_groups(model, params)
         self.assertAlmostEqual(params[0]["lr_scale"], 1e-2)
         self.assertAlmostEqual(params[1]["lr_scale"], 1e-2)
         self.assertEqual(params[2]["lr_scale"], 0.1)
@@ -528,6 +549,7 @@ class TestTrainingUtils(unittest.TestCase):
 
         model = ResNeXt(3, 2, config={"units": [3, 4, 6, 3]})
         params = training_utils.optimizer_parameter_groups(model, 0, 0.1, layer_decay=0.1)
+        params = expand_parameter_groups(model, params)
         self.assertEqual(params[-1]["lr_scale"], 1.0)
         self.assertEqual(params[-2]["lr_scale"], 1.0)
         self.assertEqual(params[-3]["lr_scale"], 0.1)
@@ -546,6 +568,7 @@ class TestTrainingUtils(unittest.TestCase):
             },
         )
         params = training_utils.optimizer_parameter_groups(model, 0, 0.1, layer_decay=0.1)
+        params = expand_parameter_groups(model, params)
         for param in params[-4:]:  # Head + norm
             self.assertEqual(param["lr_scale"], 1.0)
         for param in params[-16:-4]:  # Block 12
@@ -570,6 +593,7 @@ class TestTrainingUtils(unittest.TestCase):
             },
         )
         params = training_utils.optimizer_parameter_groups(model, 0, 0.1, layer_decay=0.1, layer_decay_min_scale=0.01)
+        params = expand_parameter_groups(model, params)
         for param in params[-4:]:  # Head + norm
             self.assertEqual(param["lr_scale"], 1.0)
         for param in params[-16:-4]:  # Block 12
@@ -597,6 +621,7 @@ class TestTrainingUtils(unittest.TestCase):
         params = training_utils.optimizer_parameter_groups(
             model, 0, 0.1, layer_decay=0.1, layer_decay_no_opt_scale=1e-4
         )
+        params = expand_parameter_groups(model, params)
         for param in params[-4:]:  # Head + norm
             self.assertTrue(param["params"].requires_grad)
         for param in params[-16:-4]:  # Block 12
@@ -621,6 +646,7 @@ class TestTrainingUtils(unittest.TestCase):
             )
         )
         params = training_utils.optimizer_parameter_groups(model, 0, 0.1, backbone_lr=0.1)
+        params = expand_parameter_groups(model, params)
         for param in params[:4]:  # Linear + norm
             self.assertEqual(param["lr"], 0.1)
         for param in params[4:]:
@@ -628,6 +654,7 @@ class TestTrainingUtils(unittest.TestCase):
 
         # Test backbone with layer decay (backbone_lr should NOT be affected by lr_scale)
         params = training_utils.optimizer_parameter_groups(model, 0, 0.1, backbone_lr=0.01, layer_decay=0.1)
+        params = expand_parameter_groups(model, params)
         self.assertAlmostEqual(params[0]["lr"], 0.01)
         self.assertAlmostEqual(params[1]["lr"], 0.01)
         self.assertAlmostEqual(params[2]["lr"], 0.01)
@@ -636,6 +663,7 @@ class TestTrainingUtils(unittest.TestCase):
 
         # Test backbone layer decay
         params = training_utils.optimizer_parameter_groups(model, 0, 0.1, backbone_layer_decay=0.1)
+        params = expand_parameter_groups(model, params)
         self.assertAlmostEqual(params[0]["lr_scale"], 0.1)
         self.assertAlmostEqual(params[1]["lr_scale"], 0.1)
         self.assertEqual(params[2]["lr_scale"], 1.0)
@@ -649,6 +677,7 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertNotIn("lr", params[4])
 
         params = training_utils.optimizer_parameter_groups(model, 0, 0.1, backbone_lr=0.01, backbone_layer_decay=0.1)
+        params = expand_parameter_groups(model, params)
         self.assertAlmostEqual(params[0]["lr"], 0.001)
         self.assertAlmostEqual(params[1]["lr"], 0.001)
         self.assertAlmostEqual(params[2]["lr"], 0.01)
@@ -692,6 +721,7 @@ class TestTrainingUtils(unittest.TestCase):
         params = training_utils.optimizer_parameter_groups(
             model, 0, 0.1, backbone_layer_decay=0.1, backbone_prefix="student.backbone"
         )
+        params = expand_parameter_groups(model, params)
         self.assertAlmostEqual(params[0]["lr_scale"], 0.1)
         self.assertAlmostEqual(params[1]["lr_scale"], 0.1)
         self.assertEqual(params[2]["lr_scale"], 1.0)
@@ -714,6 +744,7 @@ class TestTrainingUtils(unittest.TestCase):
             torch.nn.Linear(2, 1, bias=False),
         )
         params = training_utils.optimizer_parameter_groups(model, 0, 0.1, bias_lr=0.01)
+        params = expand_parameter_groups(model, params)
         self.assertEqual(params[1]["lr"], 0.01)
         self.assertEqual(params[3]["lr"], 0.01)
 
@@ -725,6 +756,7 @@ class TestTrainingUtils(unittest.TestCase):
         )
         custom_layer_wd = {"0.weight": 0.01, "1.": 0.05}
         params = training_utils.optimizer_parameter_groups(model, 0.1, 0.1, custom_layer_weight_decay=custom_layer_wd)
+        params = expand_parameter_groups(model, params)
 
         # Check that custom weight decay is applied correctly
         for pg in params:
@@ -747,6 +779,7 @@ class TestTrainingUtils(unittest.TestCase):
         params = training_utils.optimizer_parameter_groups(
             model, 0.1, 0.1, norm_weight_decay=0.0, custom_layer_weight_decay={"2.weight": 0.02}
         )
+        params = expand_parameter_groups(model, params)
         for pg in params:
             param_tensor = pg["params"]
             param_name = None
@@ -777,11 +810,10 @@ class TestTrainingUtils(unittest.TestCase):
         optimizer = training_utils.get_optimizer(params, base_lr, args)
 
         # Verify initial learning rates are set correctly (base_lr * lr_scale for groups with lr_scale != 1.0)
+        self.assertEqual(len(optimizer.param_groups), 3)
         self.assertAlmostEqual(optimizer.param_groups[0]["lr"], base_lr * 0.01)
-        self.assertAlmostEqual(optimizer.param_groups[1]["lr"], base_lr * 0.01)
-        self.assertAlmostEqual(optimizer.param_groups[2]["lr"], base_lr * 0.1)
-        self.assertAlmostEqual(optimizer.param_groups[3]["lr"], base_lr * 0.1)
-        self.assertAlmostEqual(optimizer.param_groups[4]["lr"], base_lr)
+        self.assertAlmostEqual(optimizer.param_groups[1]["lr"], base_lr * 0.1)
+        self.assertAlmostEqual(optimizer.param_groups[2]["lr"], base_lr)
 
         initial_lrs = [pg["lr"] for pg in optimizer.param_groups]
         optimizer.zero_grad()
@@ -814,9 +846,9 @@ class TestTrainingUtils(unittest.TestCase):
             self.assertAlmostEqual(pg["lr"], expected_lrs_after_step1[i], places=6)
 
         # Verify relative ratios are maintained
-        self.assertAlmostEqual(optimizer.param_groups[0]["lr"] / optimizer.param_groups[2]["lr"], 0.1, places=6)
-        self.assertAlmostEqual(optimizer.param_groups[0]["lr"] / optimizer.param_groups[4]["lr"], 0.01, places=6)
-        self.assertAlmostEqual(optimizer.param_groups[2]["lr"] / optimizer.param_groups[4]["lr"], 0.1, places=6)
+        self.assertAlmostEqual(optimizer.param_groups[0]["lr"] / optimizer.param_groups[1]["lr"], 0.1, places=6)
+        self.assertAlmostEqual(optimizer.param_groups[0]["lr"] / optimizer.param_groups[2]["lr"], 0.01, places=6)
+        self.assertAlmostEqual(optimizer.param_groups[1]["lr"] / optimizer.param_groups[2]["lr"], 0.1, places=6)
 
         # Another training iteration
         optimizer.zero_grad()
@@ -831,7 +863,7 @@ class TestTrainingUtils(unittest.TestCase):
             self.assertAlmostEqual(pg["lr"], expected_lrs_after_step2[i], places=6)
 
         # Verify relative ratios are still maintained
-        self.assertAlmostEqual(optimizer.param_groups[0]["lr"] / optimizer.param_groups[2]["lr"], 0.1, places=6)
+        self.assertAlmostEqual(optimizer.param_groups[0]["lr"] / optimizer.param_groups[1]["lr"], 0.1, places=6)
 
         # Test custom layer LR scale with CosineLR scheduler
         model = torch.nn.Sequential(

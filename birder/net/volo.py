@@ -215,6 +215,8 @@ class Downsample(nn.Module):
 
 
 class VOLO(BaseNet):
+    block_group_regex = r"network\.\d+\.(\d+)|post_network\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,

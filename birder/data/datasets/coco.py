@@ -20,14 +20,16 @@ MosaicType = Literal["fixed_grid", "random_center"]
 logger = logging.getLogger(__name__)
 
 
-def _remove_images_without_annotations(dataset: CocoDetection, ignore_list: list[str]) -> CocoDetection:
+def _remove_images_without_annotations(
+    dataset: CocoDetection, ignore_list: list[str], allow_empty: bool
+) -> CocoDetection:
     def _has_only_empty_bbox(anno: list[dict[str, Any]]) -> bool:
         return all(any(o <= 1 for o in obj["bbox"][2:]) for obj in anno)
 
     def _has_valid_annotation(anno: list[dict[str, Any]]) -> bool:
-        # If it's empty, there is no annotation
+        # An intentionally empty image is a valid background sample when requested
         if len(anno) == 0:
-            return False
+            return allow_empty
 
         # If all boxes have close to zero area, there is no annotation
         if _has_only_empty_bbox(anno):
@@ -162,6 +164,35 @@ def build_label_mapping_indices(
     return (target_class_to_idx, source_idx_to_target_idx)
 
 
+class _CocoDetectionTransform:
+    """
+    Normalize empty COCO targets before applying detection transforms
+    """
+
+    def __init__(self, transforms: Optional[Callable[..., torch.Tensor]]) -> None:
+        self.transforms = transforms
+
+    def __call__(self, image: Any, target: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
+        # The torchvision COCO v2 wrapper returns only {"image_id": ...} when an image has no annotations
+        # Detection transforms and models require boxes and labels to be present with their canonical empty shapes
+        if "boxes" not in target:
+            canvas_size = F.get_size(image)
+            target = {
+                **target,
+                "boxes": tv_tensors.BoundingBoxes(
+                    torch.zeros((0, 4), dtype=torch.float32),
+                    format=tv_tensors.BoundingBoxFormat.XYXY,
+                    canvas_size=canvas_size,
+                ),
+                "labels": torch.zeros((0,), dtype=torch.int64),
+            }
+
+        if self.transforms is not None:
+            image, target = self.transforms(image, target)
+
+        return (image, target)
+
+
 class CocoBase(torch.utils.data.Dataset):
     def __init__(
         self, root: str | Path, ann_file: str, transforms: Optional[Callable[..., torch.Tensor]] = None
@@ -186,8 +217,8 @@ class CocoBase(torch.utils.data.Dataset):
     def __repr__(self) -> str:
         return repr(self.dataset)
 
-    def remove_images_without_annotations(self, ignore_list: list[str]) -> None:
-        self.dataset = _remove_images_without_annotations(self.dataset, ignore_list)
+    def remove_images_without_annotations(self, ignore_list: list[str], allow_empty: bool = True) -> None:
+        self.dataset = _remove_images_without_annotations(self.dataset, ignore_list, allow_empty=allow_empty)
 
     def convert_to_binary_annotations(self, class_name: str = "Object") -> None:
         self.dataset = _convert_to_binary_annotations(self.dataset)
@@ -219,6 +250,18 @@ class CocoBase(torch.utils.data.Dataset):
 
 
 class CocoTraining(CocoBase):
+    def __init__(
+        self,
+        root: str | Path,
+        ann_file: str,
+        transforms: Optional[Callable[..., torch.Tensor]] = None,
+        normalize_empty_targets: bool = False,
+    ) -> None:
+        if normalize_empty_targets is True:
+            transforms = _CocoDetectionTransform(transforms)
+
+        super().__init__(root, ann_file, transforms=transforms)
+
     def __getitem__(self, index: int) -> tuple[torch.Tensor, Any]:
         sample, labels = self.dataset[index]
         return (sample, labels)
@@ -248,8 +291,10 @@ class CocoMosaicTraining(CocoBase):
         fill_value: int | tuple[int, int, int],
         mosaic_prob: float,
         mosaic_type: MosaicType = "fixed_grid",
+        normalize_empty_targets: bool = False,
     ) -> None:
-        super().__init__(root, ann_file, transforms=None)
+        dataset_transforms = _CocoDetectionTransform(None) if normalize_empty_targets is True else None
+        super().__init__(root, ann_file, transforms=dataset_transforms)
         self.transforms = transforms
         self.mosaic_transforms = mosaic_transforms
         self.output_size = output_size
@@ -312,17 +357,6 @@ class CocoMosaicTraining(CocoBase):
 
         else:
             img, target = self.dataset[index]
-
-            # When an image has no annotations, wrapped COCO returns only {'image_id': ...}
-            if "boxes" not in target or len(target["boxes"]) == 0:
-                canvas_size = F.get_size(img)
-                boxes = tv_tensors.BoundingBoxes(
-                    torch.zeros((0, 4), dtype=torch.float32),
-                    format=tv_tensors.BoundingBoxFormat.XYXY,
-                    canvas_size=canvas_size,
-                )
-                labels = torch.zeros((0,), dtype=torch.int64)
-                target = {"boxes": boxes, "labels": labels}
 
             if self.transforms is not None:
                 img, target = self.transforms(img, target)

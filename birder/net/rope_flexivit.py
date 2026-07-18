@@ -294,7 +294,8 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
 
         if isinstance(self.classifier, nn.Linear):
             nn.init.zeros_(self.classifier.weight)
-            nn.init.zeros_(self.classifier.bias)
+            if self.classifier.bias is not None:
+                nn.init.zeros_(self.classifier.bias)
 
     def _get_pos_embed(self, H: int, W: int, patch_size: Optional[int] = None) -> Optional[torch.Tensor]:
         if self.pos_embedding is None:

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 _CACHED_KERNELS: dict[str, ModuleType] = {}
+_DISABLED_CUSTOM_KERNELS: set[str] = set()
 _CUSTOM_KERNELS_ENABLED = True
 
 
@@ -22,16 +23,34 @@ def set_custom_kernels_enabled(enabled: bool) -> None:
     _CUSTOM_KERNELS_ENABLED = enabled
 
 
-def is_custom_kernels_enabled() -> bool:
+def set_custom_kernel_enabled(kernel: str, enabled: bool) -> None:
+    """
+    Enable or disable loading of an individual custom kernel
+    """
+
+    if enabled is True:
+        _DISABLED_CUSTOM_KERNELS.discard(kernel)
+    else:
+        _DISABLED_CUSTOM_KERNELS.add(kernel)
+
+
+def is_custom_kernels_enabled(kernel: Optional[str] = None) -> bool:
     if os.environ.get("DISABLE_CUSTOM_KERNELS", "0") == "1":
         return False
+
+    if kernel is not None:
+        if kernel in _DISABLED_CUSTOM_KERNELS:
+            return False
+
+        if os.environ.get(f"DISABLE_CUSTOM_KERNELS_{kernel.upper()}", "0") == "1":
+            return False
 
     return _CUSTOM_KERNELS_ENABLED
 
 
 def load_msda() -> Optional[ModuleType]:
     name = "msda"
-    if torch.cuda.is_available() is False or is_custom_kernels_enabled() is False:
+    if torch.cuda.is_available() is False or is_custom_kernels_enabled(name) is False:
         return None
 
     if name in _CACHED_KERNELS:
@@ -53,8 +72,10 @@ def load_msda() -> Optional[ModuleType]:
             src_files,
             with_cuda=True,
             extra_include_paths=[str(root)],
-            extra_cflags=["-DWITH_CUDA=1"],
+            extra_cflags=["-O3", "-DWITH_CUDA=1"],
             extra_cuda_cflags=[
+                "-O3",
+                "--restrict",
                 "-DCUDA_HAS_FP16=1",
                 "-D__CUDA_NO_HALF_OPERATORS__",
                 "-D__CUDA_NO_HALF_CONVERSIONS__",
@@ -77,7 +98,7 @@ def load_msda() -> Optional[ModuleType]:
 
 def load_swattention() -> Optional[ModuleType]:
     name = "swattention"
-    if torch.cuda.is_available() is False or is_custom_kernels_enabled() is False:
+    if torch.cuda.is_available() is False or is_custom_kernels_enabled(name) is False:
         return None
 
     if name in _CACHED_KERNELS:
@@ -124,7 +145,7 @@ def load_swattention() -> Optional[ModuleType]:
 
 def load_soft_nms() -> Optional[ModuleType]:
     name = "soft_nms"
-    if is_custom_kernels_enabled() is False:
+    if is_custom_kernels_enabled(name) is False:
         return None
 
     if name in _CACHED_KERNELS:
@@ -154,7 +175,7 @@ def load_soft_nms() -> Optional[ModuleType]:
 
 def load_linear_assignment() -> Optional[ModuleType]:
     name = "linear_assignment"
-    if torch.cuda.is_available() is False or is_custom_kernels_enabled() is False:
+    if torch.cuda.is_available() is False or is_custom_kernels_enabled(name) is False:
         return None
 
     if name in _CACHED_KERNELS:

@@ -8,7 +8,7 @@ from torchvision import tv_tensors
 from torchvision.transforms import v2
 from torchvision.transforms.v2 import functional as F
 
-from birder.data.transforms.detection import build_multiscale_sizes
+from birder.data.transforms.detection import resolve_multiscale_sizes
 
 
 def collate_fn(batch: list[tuple[Any, ...]]) -> tuple[Any, ...]:
@@ -82,18 +82,16 @@ class BatchRandomResizeCollator(DetectionCollator):
         if size is None:
             raise ValueError("size must be provided for batch multiscale")
 
-        if multiscale_max_size is None:
-            multiscale_max_size = max(size)
-
         if multiscale_step is None:
             multiscale_step = size_divisible
 
-        sizes = build_multiscale_sizes(
-            multiscale_min_size, max_size=multiscale_max_size, multiscale_step=multiscale_step
+        batch_multiscale_base_size = max(size)
+        sizes = resolve_multiscale_sizes(
+            (batch_multiscale_base_size, batch_multiscale_base_size),
+            multiscale_min_size,
+            multiscale_max_size,
+            multiscale_step=multiscale_step,
         )
-
-        if len(sizes) == 0:
-            sizes = (multiscale_max_size,)
 
         self.sizes = [int(s) for s in sizes]
 

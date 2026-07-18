@@ -1218,7 +1218,7 @@ torchrun --nproc_per_node=2 train.py --network ghostnet_v2_1_6 --batch-size 256 
 #### GhostNet v3: 1.0 (100)
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network ghostnet_v3_1_0 --batch-size 256 --opt adamw --lr 0.005 --wd 0.05 --lr-scheduler cosine --epochs 600 --model-ema --model-ema-steps 1 --model-ema-decay 0.9999 --size 256 --aug-level 8 --amp --compile
+torchrun --nproc_per_node=2 train.py --network ghostnet_v3_1_0 --batch-size 256 --opt adamw --lr 0.005 --wd 0.05 --lr-scheduler cosine --epochs 600 --warmup-epochs 3 --model-ema --model-ema-steps 1 --model-ema-decay 0.9999 --size 256 --aug-level 8 --smoothing-alpha 0.1 --amp --compile
 ```
 
 ### GroupMixFormer

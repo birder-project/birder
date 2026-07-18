@@ -458,7 +458,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     if args.model_ema is True:
         model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
         model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
-        if args.load_states is True and training_states.ema_model_state is not None:
+        if (args.load_states is True or args.load_ema is True) and training_states.ema_model_state is not None:
             logger.info("Setting model EMA weights...")
             if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
                 model_ema.module._orig_mod.load_state_dict(training_states.ema_model_state)
@@ -1004,7 +1004,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_precision_args(parser, channels_last=True)
     training_cli.add_grad_checkpointing_args(parser)
     training_cli.add_compile_args(parser)
-    training_cli.add_checkpoint_args(parser, default_save_frequency=5, pretrained=True)
+    training_cli.add_checkpoint_args(parser, default_save_frequency=5, pretrained=True, load_ema=True)
     training_cli.add_distributed_args(parser)
     training_cli.add_logging_and_debug_args(parser, classification=True)
     training_cli.add_training_data_args(parser, allow_empty=True)

@@ -79,6 +79,9 @@ class SinkhornQueue(nn.Module):
         else:
             self.queue = nn.Buffer(torch.empty(queue_size, dim))
 
+        # This queue is updated inside OnlineClustering.forward(), which can be compiled
+        # Keep its mutable ring state in device buffers because Python scalar attributes would
+        # guard on each pointer value and trigger recompiles
         self.queue_ptr = nn.Buffer(torch.zeros(1, dtype=torch.long))
         self.queue_full = nn.Buffer(torch.zeros(1, dtype=torch.bool))
 

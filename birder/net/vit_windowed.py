@@ -422,7 +422,8 @@ class ViT_Windowed(DetectorBackbone):
 
         if isinstance(self.classifier, nn.Linear):
             nn.init.zeros_(self.classifier.weight)
-            nn.init.zeros_(self.classifier.bias)
+            if self.classifier.bias is not None:
+                nn.init.zeros_(self.classifier.bias)
 
     def _get_window_size(self, grid_h: int, grid_w: int) -> tuple[int, int]:
         if self.num_windows is None:

@@ -787,7 +787,6 @@ class TestNetSSL(unittest.TestCase):
         masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
             teacher_masked_patch_tokens_after_head,
             teacher_temp=teacher_temp,
-            n_masked_patches_tensor=torch.full((1,), fill_value=mask_indices_list.size(0), dtype=torch.long),
         )
 
         self.assertFalse(torch.isnan(teacher_dino_softmax_centered).any())
@@ -1036,7 +1035,6 @@ class TestNetSSL(unittest.TestCase):
             masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
                 teacher_masked_patch_tokens_after_head,
                 teacher_temp=teacher_temp,
-                n_masked_patches_tensor=torch.full((1,), fill_value=mask_indices_list.size(0), dtype=torch.long),
             )
 
             self.assertFalse(torch.isnan(teacher_dino_softmax_centered).any())
@@ -1112,9 +1110,7 @@ class TestNetSSL(unittest.TestCase):
 
             patch_output = torch.randn(16, 256)
             patch_output_clone = patch_output.clone()
-            ibot_patch_loss.sinkhorn_knopp_teacher(
-                patch_output, teacher_temp=0.04, n_masked_patches_tensor=torch.tensor([16])
-            )
+            ibot_patch_loss.sinkhorn_knopp_teacher(patch_output, teacher_temp=0.04)
             self.assertTrue(torch.equal(patch_output, patch_output_clone))
 
         dino_loss = dino_v2.DINOLoss(256, student_temp=0.1, center_momentum=0.9, queue_size=None)
@@ -1128,9 +1124,7 @@ class TestNetSSL(unittest.TestCase):
 
             patch_output = torch.randn(16, 256)
             patch_output_clone = patch_output.clone()
-            ibot_patch_loss.sinkhorn_knopp_teacher(
-                patch_output, teacher_temp=0.04, n_masked_patches_tensor=torch.tensor([16])
-            )
+            ibot_patch_loss.sinkhorn_knopp_teacher(patch_output, teacher_temp=0.04)
             self.assertTrue(torch.equal(patch_output, patch_output_clone))
 
     def test_franca(self) -> None:
@@ -1287,7 +1281,6 @@ class TestNetSSL(unittest.TestCase):
         masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
             teacher_masked_patch_tokens_after_head,
             teacher_temp=teacher_temp,
-            n_masked_patches_tensor=torch.full((1,), fill_value=mask_indices_list.size(0), dtype=torch.long),
         )
 
         self.assertEqual(len(teacher_dino_softmax_centered_list), num_nesting_levels)
@@ -1466,6 +1459,21 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(loss_vectorized_global.ndim, 0)
         self.assertTrue(torch.allclose(loss_reference_global, loss_vectorized_global, rtol=1e-5, atol=1e-5))
 
+        # Test gradients match (teacher_global=True)
+        loss_reference_global.backward()
+        grads_reference_global = [s.grad.clone() for s in student_global_list]
+
+        for s in student_global_list:
+            s.grad = None
+
+        loss_vectorized_global = dino_loss.forward(
+            student_global_list, teacher_out_softmax_centered_list, n_crops=n_global_crops, teacher_global=True
+        )
+        loss_vectorized_global.backward()
+
+        for g_reference, s in zip(grads_reference_global, student_global_list):
+            self.assertTrue(torch.allclose(g_reference, s.grad, rtol=1e-5, atol=1e-5))
+
     def test_franca_queue(self) -> None:
         batch_size = 4
         size = (192, 192)
@@ -1549,7 +1557,6 @@ class TestNetSSL(unittest.TestCase):
             masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
                 teacher_masked_patch_tokens_after_head,
                 teacher_temp=teacher_temp,
-                n_masked_patches_tensor=torch.full((1,), fill_value=mask_indices_list.size(0), dtype=torch.long),
             )
 
             self.assertEqual(len(teacher_dino_softmax_centered_list), num_nesting_levels)
@@ -1726,9 +1733,7 @@ class TestNetSSL(unittest.TestCase):
 
             patch_output = (torch.randn(16, 128), torch.randn(16, 256))
             patch_output_clone = (patch_output[0].clone(), patch_output[1].clone())
-            ibot_patch_loss.sinkhorn_knopp_teacher(
-                patch_output, teacher_temp=0.04, n_masked_patches_tensor=torch.tensor([16])
-            )
+            ibot_patch_loss.sinkhorn_knopp_teacher(patch_output, teacher_temp=0.04)
             self.assertTrue(torch.equal(patch_output[0], patch_output_clone[0]))
             self.assertTrue(torch.equal(patch_output[1], patch_output_clone[1]))
 
@@ -1744,9 +1749,7 @@ class TestNetSSL(unittest.TestCase):
 
             patch_output = (torch.randn(16, 128), torch.randn(16, 256))
             patch_output_clone = (patch_output[0].clone(), patch_output[1].clone())
-            ibot_patch_loss.sinkhorn_knopp_teacher(
-                patch_output, teacher_temp=0.04, n_masked_patches_tensor=torch.tensor([16])
-            )
+            ibot_patch_loss.sinkhorn_knopp_teacher(patch_output, teacher_temp=0.04)
             self.assertTrue(torch.equal(patch_output[0], patch_output_clone[0]))
             self.assertTrue(torch.equal(patch_output[1], patch_output_clone[1]))
 

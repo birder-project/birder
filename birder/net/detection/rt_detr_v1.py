@@ -28,6 +28,8 @@ from birder.net.base import DetectorBackbone
 from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionBaseNet
+from birder.net.detection.base import aligned_box_iou
+from birder.net.detection.base import aligned_generalized_box_iou
 from birder.net.detection.deformable_detr import DeformableTransformerDecoderLayer
 from birder.net.detection.deformable_detr import HungarianMatcher
 from birder.net.detection.deformable_detr import inverse_sigmoid
@@ -890,11 +892,9 @@ class RT_DETR_v1(DetectionBaseNet):
 
         src_boxes = box_output[idx]
         target_boxes = torch.concat([t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0)
-        ious = torch.diag(
-            box_ops.box_iou(
-                box_ops.box_convert(src_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-                box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-            )
+        ious = aligned_box_iou(
+            box_ops.box_convert(src_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
+            box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
         ).detach()
 
         target_score_o = torch.zeros(cls_logits.shape[:2], dtype=cls_logits.dtype, device=cls_logits.device)
@@ -920,11 +920,9 @@ class RT_DETR_v1(DetectionBaseNet):
         loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction="none")
         loss_bbox = loss_bbox.sum() / num_boxes
 
-        loss_giou = 1 - torch.diag(
-            box_ops.generalized_box_iou(
-                box_ops.box_convert(src_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-                box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-            )
+        loss_giou = 1 - aligned_generalized_box_iou(
+            box_ops.box_convert(src_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
+            box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
         )
         loss_giou = loss_giou.sum() / num_boxes
 

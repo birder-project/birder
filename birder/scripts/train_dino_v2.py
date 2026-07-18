@@ -79,7 +79,7 @@ class TrainOverrides:
 
 class DINOv2BlockMasking(BlockMasking):
     def __call__(self, num_masking_patches: int) -> torch.Tensor:
-        mask = torch.zeros(*self.get_shape())
+        mask = torch.zeros(*self.get_shape(), dtype=torch.bool)
         mask_count = 0
         while mask_count < num_masking_patches:
             max_mask_patches = num_masking_patches - mask_count
@@ -170,12 +170,11 @@ class TrainCollator:
 
         random.shuffle(masks_list)
 
-        collated_masks = torch.stack(masks_list).flatten(1)
+        collated_masks = torch.stack(masks_list).flatten(1).to(torch.bool)
         mask_indices_list = collated_masks.flatten().nonzero().flatten()
 
-        masks_weight = (
-            (1 / collated_masks.sum(-1).clamp(min=1.0)).unsqueeze(-1).expand_as(collated_masks)[collated_masks.bool()]
-        )
+        per_sample_weight = collated_masks.sum(dim=-1, dtype=torch.float32).clamp_min_(1.0).reciprocal_()
+        masks_weight = per_sample_weight.unsqueeze(-1).expand_as(collated_masks)[collated_masks]
 
         return {
             "collated_global_crops": collated_global_crops,
@@ -184,7 +183,6 @@ class TrainCollator:
             "mask_indices_list": mask_indices_list,
             "masks_weight": masks_weight,
             "upper_bound": upper_bound,
-            "n_masked_patches": torch.full((1,), fill_value=mask_indices_list.size(0), dtype=torch.long),
         }
 
 
@@ -575,6 +573,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     # Gradient scaler and AMP related tasks
     scaler, amp_dtype = training_utils.get_amp_scaler(device, args.amp, args.amp_dtype)
 
+    if amp_dtype is not None and args.sinkhorn_queue_size is not None:
+        assert dino_loss.sinkhorn_queue is not None
+        assert ibot_patch_loss.sinkhorn_queue is not None
+        dino_loss.sinkhorn_queue.to(amp_dtype)
+        ibot_patch_loss.sinkhorn_queue.to(amp_dtype)
+        logger.debug(f"Using {amp_dtype} storage for Sinkhorn queues")
+
     # There is no backpropagation through the teacher
     for p in teacher.parameters():
         p.requires_grad_(False)
@@ -780,7 +785,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
             masks = data["collated_masks"].to(device, non_blocking=True)
             mask_indices_list = data["mask_indices_list"].to(device, non_blocking=True)
-            n_masked_patches_tensor = data["n_masked_patches"].to(device, non_blocking=True)
             n_masked_patches = mask_indices_list.size(0)
             upper_bound = data["upper_bound"]
             masks_weight = data["masks_weight"].to(device, non_blocking=True)
@@ -823,7 +827,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                             masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
                                 teacher_masked_patch_tokens_after_head,
                                 teacher_temp=teacher_temp,
-                                n_masked_patches_tensor=n_masked_patches_tensor,
                             )
 
                     # Student

@@ -36,6 +36,8 @@ class ResidualBlock(nn.Module):
 
 
 class Darknet(DetectorBackbone):
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
+
     default_size = (256, 256)
 
     def __init__(

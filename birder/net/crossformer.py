@@ -13,6 +13,7 @@ Changes from original:
 
 from collections import OrderedDict
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -21,8 +22,12 @@ from torchvision.ops import MLP
 from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 from birder.net.base import staged_stochastic_depth_rates
 
 
@@ -312,7 +317,9 @@ class CrossFormerStage(nn.Module):
         return x
 
 
-class CrossFormer(DetectorBackbone):
+class CrossFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
+    block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,
@@ -380,6 +387,9 @@ class CrossFormer(DetectorBackbone):
         self.embedding_size = last_features
         self.classifier = self.create_classifier()
 
+        self.stem_stride = self.patch_sizes[0]
+        self.stem_width = embed_dim
+
         # Weights initialization
         for m in self.modules():
             if isinstance(m, nn.Linear):
@@ -414,6 +424,34 @@ class CrossFormer(DetectorBackbone):
 
             for param in module.parameters():
                 param.requires_grad_(False)
+
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        H, W = x.shape[-2:]
+        B = x.size(0)
+
+        x = self.patch_embed(x)
+        x = x.reshape(B, H // self.stem_stride, W // self.stem_stride, self.stem_width)
+        x = mask_tensor(
+            x, mask, channels_last=True, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token
+        )
+        x = x.flatten(1, 2)
+        x = self.body(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            features = x.permute(0, 2, 1)
+            features = features.reshape(B, self.feature_dim, H // self.max_stride, W // self.max_stride)
+            result["features"] = features
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)

@@ -78,6 +78,9 @@ Number of samples to pre-fill WebDataset shuffle buffer.
 **`DISABLE_CUSTOM_KERNELS`**  
 Set to `1` to disable custom CUDA/CPU kernels. Useful for debugging or compatibility issues.
 
+Individual kernels can be disabled while leaving the others enabled with the `DISABLE_CUSTOM_KERNELS_<KERNEL_NAME>` pattern, where `<KERNEL_NAME>` is the uppercase kernel identifier.
+Set the relevant variable to `1` before loading the kernel.
+
 **`COMPILE_RECOMPILE_LIMIT`**  
 Overrides `torch.compiler.config.recompile_limit` in Birder training scripts.
 If set, this takes precedence over `--compile-recompile-limit`.

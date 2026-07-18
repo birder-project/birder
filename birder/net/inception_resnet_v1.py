@@ -158,6 +158,7 @@ class InceptionBlockC(nn.Module):
 class Inception_ResNet_v1(DetectorBackbone):
     default_size = (299, 299)
     auto_register = True
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
     def __init__(
         self,

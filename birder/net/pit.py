@@ -101,6 +101,8 @@ class Pooling(nn.Module):
 
 
 class PiT(DetectorBackbone):
+    block_group_regex = r"body\.stage(\d+)\.encoder\.block\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,

@@ -35,6 +35,10 @@ from birder.net.base import BaseNet
 # - patch_size  : Patch size (e.g., 14, 16, 32 for 14x14, 16x16, 32x32 patches)
 #
 # Optional Components:
+#     Stem:
+#     - hmlp        : Hierarchical MLP stem with LayerNorm2d (instead of the standard patch projection)
+#     - hmlp_bn     : Hierarchical MLP stem with BatchNorm2d
+#
 #     Position Embeddings:
 #     - nape        : No Absolute Position Embedding
 #     - nps         : No Position embedding on Special tokens

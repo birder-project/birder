@@ -17,9 +17,13 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
 from birder.layers import LayerScale
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 from birder.net.base import staged_stochastic_depth_rates
 
 
@@ -168,10 +172,10 @@ class UniFormerStage(nn.Module):
     def __init__(
         self,
         block_type: Literal["conv", "attn"],
-        patch_size: tuple[int, int],
-        in_channels: int,
-        embed_dim: int,
+        dim: int,
+        dim_out: int,
         depth: int,
+        downsample: bool,
         num_heads: int,
         mlp_ratio: float,
         layer_scale_init_value: Optional[float],
@@ -179,16 +183,20 @@ class UniFormerStage(nn.Module):
         drop_path: list[float],
     ) -> None:
         super().__init__()
-        self.patch_embed = PatchEmbed(patch_size=patch_size, in_channels=in_channels, embed_dim=embed_dim)
+        if downsample is True:
+            self.downsample: Optional[PatchEmbed] = PatchEmbed(patch_size=(2, 2), in_channels=dim, embed_dim=dim_out)
+        else:
+            assert dim == dim_out
+            self.downsample = None
 
         layers = []
         for i in range(depth):
             if block_type == "conv":
-                layers.append(ConvBlock(embed_dim, mlp_ratio=mlp_ratio, drop=drop, drop_path=drop_path[i]))
+                layers.append(ConvBlock(dim_out, mlp_ratio=mlp_ratio, drop=drop, drop_path=drop_path[i]))
             elif block_type == "attn":
                 layers.append(
                     AttentionBlock(
-                        embed_dim,
+                        dim_out,
                         num_heads=num_heads,
                         mlp_ratio=mlp_ratio,
                         qkv_bias=True,
@@ -204,13 +212,17 @@ class UniFormerStage(nn.Module):
         self.blocks = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.patch_embed(x)
+        if self.downsample is not None:
+            x = self.downsample(x)
+
         x = self.blocks(x)
 
         return x
 
 
-class UniFormer(DetectorBackbone):
+class UniFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
+    block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,
@@ -223,7 +235,6 @@ class UniFormer(DetectorBackbone):
         assert self.config is not None, "must set config"
 
         block_type = ["conv", "conv", "attn", "attn"]
-        patch_size = [4, 2, 2, 2]
         depth: list[int] = self.config["depth"]
         embed_dim: list[int] = self.config["embed_dim"]
         mlp_ratio: list[float] = self.config["mlp_ratio"]
@@ -235,16 +246,18 @@ class UniFormer(DetectorBackbone):
         dpr = staged_stochastic_depth_rates(drop_path_rate, depth)
         num_heads = [dim // head_dim for dim in embed_dim]
 
-        prev_dim = self.input_channels
+        self.stem = PatchEmbed(patch_size=(4, 4), in_channels=self.input_channels, embed_dim=embed_dim[0])
+
+        prev_dim = embed_dim[0]
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         for i in range(num_stages):
             stages[f"stage{i+1}"] = UniFormerStage(
                 block_type=block_type[i],  # type: ignore[arg-type]
-                patch_size=(patch_size[i], patch_size[i]),
-                in_channels=prev_dim,
-                embed_dim=embed_dim[i],
+                dim=prev_dim,
+                dim_out=embed_dim[i],
                 depth=depth[i],
+                downsample=i > 0,
                 num_heads=num_heads[i],
                 mlp_ratio=mlp_ratio[i],
                 layer_scale_init_value=layer_scale_init_value,
@@ -265,6 +278,9 @@ class UniFormer(DetectorBackbone):
         self.embedding_size = embed_dim[-1]
         self.classifier = self.create_classifier()
 
+        self.stem_stride = 4
+        self.stem_width = embed_dim[0]
+
         # Weights initialization
         for m in self.modules():
             if isinstance(m, nn.Linear):
@@ -277,6 +293,8 @@ class UniFormer(DetectorBackbone):
                 nn.init.zeros_(m.bias)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
         out = {}
         for name, module in self.body.named_children():
             x = module(x)
@@ -286,6 +304,9 @@ class UniFormer(DetectorBackbone):
         return out
 
     def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad_(False)
+
         for idx, module in enumerate(self.body.children()):
             if idx >= up_to_stage:
                 break
@@ -294,7 +315,27 @@ class UniFormer(DetectorBackbone):
                 param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
         return self.body(x)
+
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        x = self.stem(x)
+        x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token)
+        x = self.body(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
 
     def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
         return self.features(features)
@@ -346,7 +387,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 81.8,
-                "sha256": "b752190d4ced70c112c757b79ed4683be5018c0a80dd86607df2b495c5dbfcd2",
+                "sha256": "d1e4a44f566c3f5c9dcc616719b89f6bb78589a05d13cdeb81c970d42185718e",
             },
         },
         "net": {"network": "uniformer_s", "tag": "eu-common256px"},
@@ -361,7 +402,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 81.8,
-                "sha256": "a9541a9393ff69385a0862d7717982c7fd7986221a2c1eae2f9bed8a20c5fca7",
+                "sha256": "9ce5b3fc498c1e71316431ca97dd575d90e8f7f0f210de94ba8ce77cfd375e5d",
             },
         },
         "net": {"network": "uniformer_s", "tag": "eu-common"},

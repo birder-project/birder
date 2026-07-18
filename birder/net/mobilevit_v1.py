@@ -14,6 +14,7 @@ Changes from original:
 # Reference license: Apache-2.0 and MIT
 
 import math
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -23,7 +24,7 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.mobilenet_v2 import InvertedResidual
 from birder.net.vit import EncoderBlock
 
@@ -140,8 +141,9 @@ class MobileVitBlock(nn.Module):
         return x
 
 
-class MobileViT_v1(BaseNet):
+class MobileViT_v1(DetectorBackbone):
     default_size = (256, 256)
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
     def __init__(
         self,
@@ -176,14 +178,14 @@ class MobileViT_v1(BaseNet):
             activation_layer=nn.SiLU,
         )
 
-        layers = []
+        stage1_layers = []
         for i in range(1, len(channels_a)):
             if channels_a[i - 1] == channels_a[i] and strides[i - 1] == 1:
                 shortcut = True
             else:
                 shortcut = False
 
-            layers.append(
+            stage1_layers.append(
                 InvertedResidual(
                     channels_a[i - 1],
                     channels_a[i],
@@ -196,6 +198,11 @@ class MobileViT_v1(BaseNet):
                 )
             )
 
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
+        stages["stage1"] = nn.Sequential(*stage1_layers)
+        return_channels.append(channels_a[-1])
+
         for idx, i in enumerate(range(0, len(channels_b), 2)):
             k = 2
             if i == 0:
@@ -203,7 +210,7 @@ class MobileViT_v1(BaseNet):
             else:
                 in_channels = channels_b[i - 1]
 
-            layers.append(
+            stages[f"stage{idx+2}"] = nn.Sequential(
                 InvertedResidual(
                     in_channels,
                     channels_b[i],
@@ -213,9 +220,7 @@ class MobileViT_v1(BaseNet):
                     expansion_factor=expansion,
                     shortcut=False,
                     activation_layer=nn.SiLU,
-                )
-            )
-            layers.append(
+                ),
                 MobileVitBlock(
                     channels_b[i + 1],
                     kernel_size=(3, 3),
@@ -228,10 +233,11 @@ class MobileViT_v1(BaseNet):
                     attn_drop=attention_dropout,
                     dropout=dropout,
                     projection_dropout=projection_dropout,
-                )
+                ),
             )
+            return_channels.append(channels_b[i + 1])
 
-        self.body = nn.Sequential(*layers)
+        self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             Conv2dNormActivation(
                 channels_b[-2],
@@ -244,9 +250,32 @@ class MobileViT_v1(BaseNet):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.feature_dim = channels_b[-2]
         self.embedding_size = last_dim
         self.classifier = self.create_classifier()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad_(False)
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -298,7 +327,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 4.2,
-                "sha256": "d8599ddf67faea311898756c1cd6ef816990b551a2e94fcae10a9396b2e850a3",
+                "sha256": "0a70edcb6cdd55139c69c532abed16b70ff70985abc889cc3a32cb27142617ce",
             }
         },
         "net": {"network": "mobilevit_v1_xxs", "tag": "il-common"},

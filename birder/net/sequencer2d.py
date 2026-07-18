@@ -159,6 +159,8 @@ class Sequencer2dStage(nn.Module):
 
 
 class Sequencer2d(BaseNet):
+    block_group_regex = r"body\.(\d+)\.blocks\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,

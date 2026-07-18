@@ -26,6 +26,7 @@ from torchvision.ops import StochasticDepth
 from birder.common.masking import mask_tensor
 from birder.layers import FFN
 from birder.layers import EfficientProbing
+from birder.layers import LayerNorm2d
 from birder.layers import LayerScale
 from birder.layers import MultiHeadAttentionPool
 from birder.layers import SoftMoE_FFN
@@ -49,6 +50,7 @@ from birder.net.base import normalize_out_indices
 from birder.net.base import stochastic_depth_rates
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
+from birder.net.vit import hMLPStem
 
 logger = logging.getLogger(__name__)
 
@@ -435,6 +437,10 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", True)
         patch_size: int = self.config["patch_size"]
+        stem_type: Literal["patchify", "hmlp"] = self.config.get("stem_type", "patchify")
+        stem_norm_layer_type: Optional[Literal["BatchNorm2d", "LayerNorm2d"]] = self.config.get(
+            "stem_norm_layer_type", None
+        )
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
@@ -470,6 +476,32 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         attention_dropout: float = self.config.get("attention_dropout", 0.0)
         projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
+
+        if stem_type == "patchify":
+            if stem_norm_layer_type is not None:
+                raise ValueError("stem_norm_layer_type is only supported with stem_type='hmlp'")
+
+            self.conv_proj = nn.Conv2d(
+                self.input_channels,
+                hidden_dim,
+                kernel_size=(patch_size, patch_size),
+                stride=(patch_size, patch_size),
+                padding=(0, 0),
+                bias=not pre_norm,
+            )
+        elif stem_type == "hmlp":
+            assert patch_size == 16, "The hMLP stem requires patch_size=16"
+
+            if stem_norm_layer_type is None:
+                self.conv_proj = hMLPStem(self.input_channels, hidden_dim)
+            elif stem_norm_layer_type == "BatchNorm2d":
+                self.conv_proj = hMLPStem(self.input_channels, hidden_dim, norm_layer=nn.BatchNorm2d)
+            elif stem_norm_layer_type == "LayerNorm2d":
+                self.conv_proj = hMLPStem(self.input_channels, hidden_dim, norm_layer=LayerNorm2d)
+            else:
+                raise ValueError(f"Unknown stem_norm_layer_type '{stem_norm_layer_type}'")
+        else:
+            raise ValueError(f"Unknown stem_type '{stem_type}'")
 
         if norm_layer_type == "LayerNorm":
             norm_layer = nn.LayerNorm
@@ -531,14 +563,6 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.pt_grid_size = pt_grid_size
         dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
 
-        self.conv_proj = nn.Conv2d(
-            self.input_channels,
-            hidden_dim,
-            kernel_size=(patch_size, patch_size),
-            stride=(patch_size, patch_size),
-            padding=(0, 0),
-            bias=not pre_norm,
-        )
         self.patch_embed = PatchEmbed()
 
         seq_length = (image_size[0] // patch_size) * (image_size[1] // patch_size)
@@ -670,7 +694,8 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         if isinstance(self.classifier, nn.Linear):
             nn.init.zeros_(self.classifier.weight)
-            nn.init.zeros_(self.classifier.bias)
+            if self.classifier.bias is not None:
+                nn.init.zeros_(self.classifier.bias)
 
     def _get_pos_embed(self, H: int, W: int) -> Optional[torch.Tensor]:
         if self.pos_embedding is None:

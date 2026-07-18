@@ -195,6 +195,7 @@ class MobileVitBlock(nn.Module):
 
 class MobileViT_v2(DetectorBackbone):
     default_size = (256, 256)
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
     def __init__(
         self,

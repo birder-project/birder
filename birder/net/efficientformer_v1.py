@@ -14,6 +14,7 @@ Changes from original:
 
 # Reference license: Apache-2.0 (both)
 
+from collections import OrderedDict
 from typing import Any
 from typing import Optional
 
@@ -27,7 +28,7 @@ from torchvision.ops import StochasticDepth
 from birder.layers import LayerScale
 from birder.layers import LayerScale2d
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import DetectorBackbone
 from birder.net.base import interpolate_attention_bias
 from birder.net.base import staged_stochastic_depth_rates
 
@@ -233,7 +234,7 @@ class EfficientFormerStage(nn.Module):
         return x
 
 
-class EfficientFormer_v1(BaseNet):
+class EfficientFormer_v1(DetectorBackbone):
     def __init__(
         self,
         input_channels: int,
@@ -248,9 +249,9 @@ class EfficientFormer_v1(BaseNet):
         resolution = (int(self.size[0] / (2**5)), int(self.size[1] / (2**5)))
         layer_scale_init_value = 1e-5
         embed_dims: tuple[int, int, int, int] = self.config["embed_dims"]
-        depths: tuple[int, int, int, int] = (3, 2, 6, 4)
-        drop_path_rate: float = 0.0
-        num_vit: int = 1
+        depths: tuple[int, int, int, int] = self.config["depths"]
+        num_vit: int = self.config["num_vit"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         self.stem = nn.Sequential(
             Conv2dNormActivation(
@@ -265,25 +266,25 @@ class EfficientFormer_v1(BaseNet):
         dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         downsample = (False,) + (True,) * (num_stages - 1)
 
-        stages = []
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        return_channels: list[int] = []
         for i in range(num_stages):
-            stages.append(
-                EfficientFormerStage(
-                    prev_dim,
-                    embed_dims[i],
-                    depths[i],
-                    downsample=downsample[i],
-                    num_vit=num_vit if i == last_stage else 0,
-                    mlp_ratio=4.0,
-                    resolution=resolution,
-                    proj_drop=0.0,
-                    drop_path=dpr[i],
-                    layer_scale_init_value=layer_scale_init_value,
-                )
+            stages[f"stage{i+1}"] = EfficientFormerStage(
+                prev_dim,
+                embed_dims[i],
+                depths[i],
+                downsample=downsample[i],
+                num_vit=num_vit if i == last_stage else 0,
+                mlp_ratio=4.0,
+                resolution=resolution,
+                proj_drop=0.0,
+                drop_path=dpr[i],
+                layer_scale_init_value=layer_scale_init_value,
             )
+            return_channels.append(embed_dims[i])
             prev_dim = embed_dims[i]
 
-        self.body = nn.Sequential(*stages)
+        self.body = nn.Sequential(stages)
 
         self.features = nn.Sequential(
             nn.LayerNorm(embed_dims[-1], eps=1e-6),
@@ -291,11 +292,14 @@ class EfficientFormer_v1(BaseNet):
             nn.AdaptiveAvgPool1d(output_size=1),
             nn.Flatten(1),
         )
+        self.return_channels = return_channels
         self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
         self.distillation_output = False
+
+        self.max_stride = 2**5
 
         # Weight initialization
         for m in self.modules():
@@ -321,6 +325,37 @@ class EfficientFormer_v1(BaseNet):
         if unfreeze_features is True:
             for param in self.features.parameters():
                 param.requires_grad_(True)
+
+    def transform_to_backbone(self) -> None:
+        self.features = nn.Identity()
+        self.classifier = nn.Identity()
+        self.dist_classifier = nn.Identity()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                if x.ndim == 3:
+                    resolution = (int(self.size[0] / self.max_stride), int(self.size[1] / self.max_stride))
+                    out[name] = x.transpose(1, 2).reshape(x.size(0), -1, resolution[0], resolution[1])
+                else:
+                    out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad_(False)
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -354,8 +389,8 @@ class EfficientFormer_v1(BaseNet):
         old_size = self.size
         super().adjust_size(new_size)
 
-        old_resolution = (int(old_size[0] / (2**5)), int(old_size[1] / (2**5)))
-        resolution = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
+        old_resolution = (int(old_size[0] / self.max_stride), int(old_size[1] / self.max_stride))
+        resolution = (int(new_size[0] / self.max_stride), int(new_size[1] / self.max_stride))
         for m in self.body.modules():
             if isinstance(m, Attention):
                 with torch.no_grad():
@@ -379,17 +414,17 @@ class EfficientFormer_v1(BaseNet):
 registry.register_model_config(
     "efficientformer_v1_l1",
     EfficientFormer_v1,
-    config={"embed_dims": (48, 96, 224, 448), "depths": (3, 2, 6, 4), "drop_path_rate": 0.0, "num_vit": 1},
+    config={"embed_dims": (48, 96, 224, 448), "depths": (3, 2, 6, 4), "num_vit": 1, "drop_path_rate": 0.0},
 )
 registry.register_model_config(
     "efficientformer_v1_l3",
     EfficientFormer_v1,
-    config={"embed_dims": (64, 128, 320, 512), "depths": (4, 4, 12, 6), "drop_path_rate": 0.1, "num_vit": 4},
+    config={"embed_dims": (64, 128, 320, 512), "depths": (4, 4, 12, 6), "num_vit": 4, "drop_path_rate": 0.1},
 )
 registry.register_model_config(
     "efficientformer_v1_l7",
     EfficientFormer_v1,
-    config={"embed_dims": (96, 192, 384, 768), "depths": (6, 6, 18, 8), "drop_path_rate": 0.1, "num_vit": 8},
+    config={"embed_dims": (96, 192, 384, 768), "depths": (6, 6, 18, 8), "num_vit": 8, "drop_path_rate": 0.1},
 )
 
 registry.register_weights(
@@ -400,7 +435,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 45,
-                "sha256": "f0497d4e7bad7035ca84da57601e52ce303126b481197a916520b3761f0bd652",
+                "sha256": "3b117c949a629dc409a6385984c10d5cfc622f148cb4f25adf067f041800c7eb",
             }
         },
         "net": {"network": "efficientformer_v1_l1", "tag": "il-common"},

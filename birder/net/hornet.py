@@ -217,6 +217,8 @@ class HorStage(nn.Module):
 
 
 class HorNet(DetectorBackbone):
+    block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
+
     square_only = True
 
     def __init__(

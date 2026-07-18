@@ -79,9 +79,48 @@ class TestTransforms(unittest.TestCase):
         self.assertEqual(detection.build_multiscale_sizes(481, max_size=513), (512,))
         self.assertEqual(detection.build_multiscale_sizes(500, max_size=620), (512, 544, 576, 608))
 
-        # Fixed DETR sizes
-        self.assertEqual(detection._get_fixed_detr_sizes(None, None), ((400, 500, 600), 384, 600))
-        self.assertEqual(detection._get_fixed_detr_sizes(1024, 1536, 128), ((1024, 1152, 1280, 1408, 1536), 1024, 1536))
+        # DETR intermediate sizes
+        self.assertEqual(detection.resolve_detr_intermediate_sizes((640, 640)), (400, 500, 600))
+        self.assertEqual(detection.resolve_detr_intermediate_sizes((1280, 1280)), (800, 1000, 1200))
+
+    def test_fixed_size_crop(self) -> None:
+        transform = detection.FixedSizeCrop((4, 4), [0.0, 0.0, 0.0])
+
+        # Smaller inputs are padded on the right and bottom without moving boxes
+        image = tv_tensors.Image(torch.ones((3, 3, 3), dtype=torch.uint8))
+        boxes = tv_tensors.BoundingBoxes(
+            [[0, 0, 1, 1], [1, 1, 3, 3]],
+            format=tv_tensors.BoundingBoxFormat.XYXY,
+            canvas_size=(3, 3),
+        )
+        output_image, output_target = transform(image, {"boxes": boxes})
+
+        expected_image = torch.zeros((3, 4, 4), dtype=torch.uint8)
+        expected_image[:, :3, :3] = 1
+        torch.testing.assert_close(output_image, expected_image)
+        torch.testing.assert_close(output_target["boxes"], boxes)
+        self.assertEqual(output_target["boxes"].canvas_size, (4, 4))
+
+        # A centered box remains aligned with its pixels for every possible crop offset
+        image = torch.zeros((3, 5, 5), dtype=torch.uint8)
+        image[:, 1:4, 1:4] = 1
+        image = tv_tensors.Image(image)
+        boxes = tv_tensors.BoundingBoxes(
+            [[1, 1, 4, 4]],
+            format=tv_tensors.BoundingBoxFormat.XYXY,
+            canvas_size=(5, 5),
+        )
+        output_image, output_target = transform(image, {"boxes": boxes})
+
+        left, top, right, bottom = output_target["boxes"][0].int().tolist()
+        self.assertEqual((right - left, bottom - top), (3, 3))
+        self.assertGreaterEqual(min(left, top), 0)
+        self.assertLessEqual(max(right, bottom), 4)
+        self.assertEqual(output_target["boxes"].canvas_size, (4, 4))
+
+        expected_image = torch.zeros((3, 4, 4), dtype=torch.uint8)
+        expected_image[:, top:bottom, left:right] = 1
+        torch.testing.assert_close(output_image, expected_image)
 
 
 class TestMosaic(unittest.TestCase):

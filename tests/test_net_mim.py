@@ -53,6 +53,8 @@ class TestNetMIM(unittest.TestCase):
             ("mae_vit", "vit_parallel_s16_18x2_ls"),
             ("mae_vit_dec512d12_npl", "vit_t32"),
             ("mae_vit_dec512d12_npl_lpe", "vit_s32"),
+            ("maskfeat", "regnet_y_200m"),
+            ("maskfeat", "vit_t16"),
             ("simmim", "hieradet_tiny"),
             ("simmim", "maxvit_t"),
             ("simmim", "nextvit_s"),
@@ -93,6 +95,7 @@ class TestNetMIM(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
+            ("maskfeat", "vit_moe_vs32_8e_2k_last2"),
             ("simmim", "rope_vit_moe_vs32_8e_2k_last2"),
             ("simmim", "rope_vit_moe_reg1_vs32_8e_2k_last2"),
             ("simmim", "vit_moe_vs32_8e_2k_last2"),

@@ -36,6 +36,8 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionBaseNet
+from birder.net.detection.base import aligned_box_iou
+from birder.net.detection.base import aligned_generalized_box_iou
 from birder.net.detection.deformable_detr import HungarianMatcher
 from birder.net.detection.deformable_detr import inverse_sigmoid
 from birder.net.detection.rt_detr_v1 import AIFI
@@ -367,30 +369,30 @@ class Integral(nn.Module):
         super().__init__()
         self.reg_max = reg_max
 
-    def forward(self, x: torch.Tensor, project: torch.Tensor) -> torch.Tensor:
-        shape = x.shape
-        x = F.softmax(x.reshape(-1, self.reg_max + 1), dim=1)
-        x = F.linear(x, project).reshape(-1, 4)  # pylint: disable=not-callable
+    def forward(self, x: torch.Tensor, project: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        probabilities = F.softmax(x.reshape(x.size(0), x.size(1), 4, self.reg_max + 1), dim=-1)
+        distances = F.linear(probabilities.reshape(-1, self.reg_max + 1), project)  # pylint: disable=not-callable
+        distances = distances.reshape(x.size(0), x.size(1), 4)
 
-        return x.reshape(list(shape[:-1]) + [-1])
+        return (distances, probabilities)
 
 
 class LQE(nn.Module):
-    """Localization Quality Estimation head"""
+    """
+    Localization Quality Estimation head
+    """
 
-    def __init__(self, topk: int, hidden_dim: int, reg_max: int) -> None:
+    def __init__(self, topk: int, hidden_dim: int) -> None:
         super().__init__()
         self.topk = topk
-        self.reg_max = reg_max
         self.reg_conf = MLP(4 * (topk + 1), [hidden_dim, 1], activation_layer=nn.ReLU)
 
         # Weights initialization
         nn.init.zeros_(self.reg_conf[-2].weight)
         nn.init.zeros_(self.reg_conf[-2].bias)
 
-    def forward(self, scores: torch.Tensor, pred_corners: torch.Tensor) -> torch.Tensor:
-        B, length = pred_corners.shape[:2]
-        probabilities = F.softmax(pred_corners.reshape(B, length, 4, self.reg_max + 1), dim=-1)
+    def forward(self, scores: torch.Tensor, probabilities: torch.Tensor) -> torch.Tensor:
+        B, length = probabilities.shape[:2]
         topk_probabilities = probabilities.topk(self.topk, dim=-1).values
         statistics = torch.concat([topk_probabilities, topk_probabilities.mean(dim=-1, keepdim=True)], dim=-1)
 
@@ -489,7 +491,7 @@ class D_FINEDecoder(nn.Module):
                 for _ in range(num_decoder_layers - self.eval_idx - 1)
             ]
         )
-        self.lqe = nn.ModuleList([LQE(4, 64, reg_max) for _ in range(num_decoder_layers)])
+        self.lqe = nn.ModuleList([LQE(4, 64) for _ in range(num_decoder_layers)])
         self.integral = Integral(reg_max)
         self.up = nn.Buffer(torch.tensor([0.5]))
         self.reg_scale = nn.Buffer(torch.tensor([reg_scale]))
@@ -631,7 +633,7 @@ class D_FINEDecoder(nn.Module):
         if self.query_select_method == "one2many":
             topk_indices = torch.topk(enc_logits.flatten(1), self.num_queries, dim=1).indices // self.num_classes
         else:
-            topk_indices = torch.topk(enc_logits.max(dim=-1).values, self.num_queries, dim=1).indices
+            topk_indices = torch.topk(enc_logits.amax(dim=-1), self.num_queries, dim=1).indices
 
         if anchors.size(0) != memory.size(0):
             anchors = anchors.expand(memory.size(0), -1, -1)
@@ -706,10 +708,10 @@ class D_FINEDecoder(nn.Module):
         output_detached: Optional[torch.Tensor] = None
         accumulated_corners: Optional[torch.Tensor] = None
         pre_bboxes = reference_points_detached
-        pre_logits = self.class_embed[0](output)
+        pre_logits = output
         final_bboxes = reference_points_detached
-        final_logits = pre_logits
-        final_corners = output.new_zeros((output.size(0), output.size(1), 4 * (self.reg_max + 1)))
+        final_logits = output
+        final_corners = output
 
         bbox_outputs = []
         logits_outputs = []
@@ -761,12 +763,15 @@ class D_FINEDecoder(nn.Module):
                 if accumulated_corners is not None:
                     pred_corners = pred_corners + accumulated_corners
 
-                refined_bboxes = _distance_to_bbox(
-                    initial_reference_points, self.integral(pred_corners, project), self.reg_scale
-                )
+                integral, corner_probabilities = self.integral(pred_corners, project)
+                refined_bboxes = _distance_to_bbox(initial_reference_points, integral, self.reg_scale)
 
                 if return_intermediates is True or layer_idx == self.eval_idx:
-                    logits = lqe(class_head(output), pred_corners)
+                    if layer_idx == 0:
+                        logits = lqe(pre_logits, corner_probabilities)
+                    else:
+                        logits = lqe(class_head(output), corner_probabilities)
+
                     if return_intermediates is True:
                         bbox_outputs.append(refined_bboxes)
                         logits_outputs.append(logits)
@@ -1007,11 +1012,9 @@ class D_FINE(DetectionBaseNet):
         idx = self._get_src_permutation_idx(indices)
         src_boxes = box_output[idx]
         target_boxes = torch.concat([target["boxes"][target_idx] for target, (_, target_idx) in zip(targets, indices)])
-        ious = torch.diag(
-            box_ops.box_iou(
-                _clamped_box_cxcywh_to_xyxy(src_boxes),
-                box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-            )
+        ious = aligned_box_iou(
+            _clamped_box_cxcywh_to_xyxy(src_boxes),
+            box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
         ).detach()
 
         target_labels = torch.concat(
@@ -1044,11 +1047,9 @@ class D_FINE(DetectionBaseNet):
         src_boxes = box_output[idx]
         target_boxes = torch.concat([target["boxes"][target_idx] for target, (_, target_idx) in zip(targets, indices)])
         loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction="none").sum() / num_boxes
-        loss_giou = 1 - torch.diag(
-            box_ops.generalized_box_iou(
-                _clamped_box_cxcywh_to_xyxy(src_boxes),
-                box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-            )
+        loss_giou = 1 - aligned_generalized_box_iou(
+            _clamped_box_cxcywh_to_xyxy(src_boxes),
+            box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
         )
 
         return (loss_bbox, loss_giou.sum() / num_boxes)
@@ -1086,15 +1087,13 @@ class D_FINE(DetectionBaseNet):
         loss = loss + F.cross_entropy(pred_corners, target_corners.long() + 1, reduction="none") * weight_right
 
         target_boxes = torch.concat([target["boxes"][target_idx] for target, (_, target_idx) in zip(targets, indices)])
-        ious = torch.diag(
-            box_ops.box_iou(
-                _clamped_box_cxcywh_to_xyxy(pred_boxes[idx]),
-                box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-            )
-        )
-        weights = ious.unsqueeze(-1).repeat(1, 4).reshape(-1).detach()
+        ious = aligned_box_iou(
+            _clamped_box_cxcywh_to_xyxy(pred_boxes[idx]),
+            box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
+        ).detach()
+        loss = loss.reshape(-1, 4)
 
-        return (loss * weights).sum() / num_boxes
+        return (loss * ious.unsqueeze(-1)).sum() / num_boxes
 
     def _ddf_loss(
         self,
@@ -1112,21 +1111,19 @@ class D_FINE(DetectionBaseNet):
 
         idx = self._get_src_permutation_idx(indices)
         target_boxes = torch.concat([target["boxes"][target_idx] for target, (_, target_idx) in zip(targets, indices)])
-        ious = torch.diag(
-            box_ops.box_iou(
-                _clamped_box_cxcywh_to_xyxy(pred_boxes[idx]),
-                box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-            )
+        ious = aligned_box_iou(
+            _clamped_box_cxcywh_to_xyxy(pred_boxes[idx]),
+            box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
         )
 
-        weights = teacher_logits.sigmoid().max(dim=-1).values
+        weights = teacher_logits.sigmoid().amax(dim=-1)
         matched_mask = torch.zeros_like(weights, dtype=torch.bool)
         matched_mask[idx] = True
         weights[idx] = ious.to(weights.dtype)
-        weights = weights.unsqueeze(-1).repeat(1, 1, 4).reshape(-1).detach()
-        matched_mask = matched_mask.unsqueeze(-1).repeat(1, 1, 4).reshape(-1)
+        weights = weights.detach()
 
         temperature = 5.0
+        batch_size, num_queries = pred_corners.shape[:2]
         pred_corners = pred_corners.reshape(-1, self.decoder.reg_max + 1)
         teacher_corners = teacher_corners.reshape(-1, self.decoder.reg_max + 1)
         loss = F.kl_div(
@@ -1134,7 +1131,8 @@ class D_FINE(DetectionBaseNet):
             F.softmax(teacher_corners.detach() / temperature, dim=1),
             reduction="none",
         ).sum(dim=-1)
-        loss = weights * (temperature**2) * loss
+        loss = loss.reshape(batch_size, num_queries, 4)
+        loss = weights.unsqueeze(-1) * (temperature**2) * loss
         matched_loss = loss[matched_mask].mean() if matched_mask.any() else loss.sum() * 0
         unmatched_loss = loss[~matched_mask].mean() if (~matched_mask).any() else loss.sum() * 0
 
@@ -1484,5 +1482,48 @@ registry.register_model_config(
         "num_decoder_layers": 6,
         "num_decoder_points": [3, 6, 3],
         "reg_scale": 8.0,
+    },
+)
+
+registry.register_weights(
+    "d_fine_l_objects365-coco_hgnet_v2_b4_pp-imagenet22k",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/d_fine_l_objects365-coco_hgnet_v2_b4_pp-imagenet22k/resolve/main"
+        ),
+        "description": (
+            "D-FINE large with a HGNet v2 B4 backbone pretrained on ImageNet 22K, "
+            "detection model trained on the Objects365-2020 dataset and fine-tuned on the COCO dataset"
+        ),
+        "resolution": (640, 640),
+        "formats": {
+            "pt": {
+                "file_size": 120.2,
+                "sha256": "b78ca3a7911aea09a6b16134247c831286596df59cb231823482402a4d8d8c70",
+            }
+        },
+        "net": {"network": "d_fine_l", "tag": "objects365-coco"},
+        "backbone": {"network": "hgnet_v2_b4", "tag": "pp-imagenet22k"},
+    },
+)
+registry.register_weights(
+    "d_fine_l_objects365-coco_hgnet_v2_b4_pp-imagenet22k_reparameterized",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/d_fine_l_objects365-coco_hgnet_v2_b4_pp-imagenet22k/resolve/main"
+        ),
+        "description": (
+            "D-FINE large (reparameterized) with a HGNet v2 B4 backbone pretrained on ImageNet 22K, "
+            "detection model trained on the Objects365-2020 dataset and fine-tuned on the COCO dataset"
+        ),
+        "resolution": (640, 640),
+        "formats": {
+            "pt": {
+                "file_size": 117.9,
+                "sha256": "ecc52c4dedcc376e36a115e7d797659d984777fccf3835fccaa41910807f8ced",
+            }
+        },
+        "net": {"network": "d_fine_l", "tag": "objects365-coco", "reparameterized": True},
+        "backbone": {"network": "hgnet_v2_b4", "tag": "pp-imagenet22k_reparameterized"},
     },
 )

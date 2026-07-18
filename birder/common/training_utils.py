@@ -431,7 +431,7 @@ def optimizer_parameter_groups(
     custom_layer_lr_scale: Optional[dict[str, float]] = None,
 ) -> list[dict[str, Any]]:
     """
-    Return parameter groups for optimizers with per-parameter group weight decay
+    Return parameter groups for optimizers with per-parameter weight decay
 
     This function creates parameter groups with customizable weight decay, layer-wise
     learning rate scaling and special handling for different parameter types. It supports
@@ -682,7 +682,22 @@ def optimizer_parameter_groups(
             child_prefix = f"{prefix}.{child_name}" if prefix != "" else child_name
             module_stack_with_prefix.append((child_module, child_prefix))
 
-    return params
+    # Coalesce parameters with identical optimizer settings. Keeping the first occurrence
+    # of each settings tuple makes group order stable, while appending preserves parameter
+    # order within each group.
+    merged_params: dict[tuple[Optional[float], float, float], dict[str, Any]] = {}
+    for param_group in params:
+        group_key = (
+            param_group.get("lr"),
+            param_group["weight_decay"],
+            param_group["lr_scale"],
+        )
+        if group_key not in merged_params:
+            merged_params[group_key] = {**param_group, "params": []}
+
+        merged_params[group_key]["params"].append(param_group["params"])
+
+    return list(merged_params.values())
 
 
 def get_wd_custom_keys(args: argparse.Namespace) -> list[tuple[str, float]]:

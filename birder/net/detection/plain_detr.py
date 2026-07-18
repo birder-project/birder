@@ -30,6 +30,7 @@ from birder.layers import LayerNorm2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
+from birder.net.detection.base import aligned_generalized_box_iou
 from birder.net.detection.deformable_detr import HungarianMatcher
 from birder.net.detection.deformable_detr import inverse_sigmoid
 from birder.net.detection.detr import PositionEmbeddingSine
@@ -692,11 +693,9 @@ class Plain_DETR(DetectionBaseNet):
         loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction="none")
         loss_bbox = loss_bbox.sum() / num_boxes
 
-        loss_giou = 1 - torch.diag(
-            box_ops.generalized_box_iou(
-                box_ops.box_convert(src_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-                box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
-            )
+        loss_giou = 1 - aligned_generalized_box_iou(
+            box_ops.box_convert(src_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
+            box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy"),
         )
         loss_giou = loss_giou.sum() / num_boxes
 

@@ -69,9 +69,27 @@ def _resolve_label_mapping(
     return build_label_mapping_indices(model_class_to_idx, label_mapping)
 
 
+def _sort_and_limit_detections(
+    detections: list[dict[str, torch.Tensor]], max_detections: int
+) -> list[dict[str, torch.Tensor]]:
+    limited_detections: list[dict[str, torch.Tensor]] = []
+    for detection in detections:
+        order = torch.argsort(detection["scores"], descending=True, stable=True)[:max_detections]
+        limited_detections.append({key: value[order] for key, value in detection.items()})
+
+    return limited_detections
+
+
 def save_output(
-    output_path: Path, sample_paths: list[str], class_to_idx: dict[str, int], detections: list[dict[str, torch.Tensor]]
+    output_path: Path,
+    sample_paths: list[str],
+    class_to_idx: dict[str, int],
+    detections: list[dict[str, torch.Tensor]],
+    max_detections: Optional[int] = None,
 ) -> None:
+    if max_detections is not None:
+        detections = _sort_and_limit_detections(detections, max_detections)
+
     detection_list = [{k: v.cpu().tolist() for k, v in detection.items()} for detection in detections]
     output = dict(zip(sample_paths, detection_list))
     output["class_to_idx"] = class_to_idx
@@ -336,7 +354,11 @@ def predict(args: argparse.Namespace) -> None:
     if args.suffix is not None:
         base_output_path = f"{base_output_path}_{args.suffix}"
 
-    output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}_output.json")
+    output_limit_suffix = ""
+    if args.save_output_max_detections is not None:
+        output_limit_suffix = f"_top{args.save_output_max_detections}"
+
+    output_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}{output_limit_suffix}_output.json")
 
     # Inference
     tic = time.time()
@@ -371,7 +393,7 @@ def predict(args: argparse.Namespace) -> None:
 
     # Save output
     if args.save_output is True:
-        save_output(output_path, sample_paths, class_to_idx, detections)
+        save_output(output_path, sample_paths, class_to_idx, detections, max_detections=args.save_output_max_detections)
 
     # Handle results
     if labeled is True:
@@ -568,6 +590,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         metavar=("N1", "N2", "N3"),
         help="COCO max detection thresholds for result metrics (defaults to settings.MAX_DETECTIONS)",
     )
+    parser.add_argument(
+        "--save-output-max-detections",
+        type=int,
+        metavar="N",
+        help="maximum detections per image across all categories to write with --save-output",
+    )
     parser.add_argument("--prefix", type=str, help="add prefix to output file")
     parser.add_argument("--suffix", type=str, help="add suffix to output file")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
@@ -609,6 +637,8 @@ def validate_args(args: argparse.Namespace) -> None:
         )
     if args.min_score >= 1 or args.min_score <= 0.0:
         raise cli.ValidationError(f"--min-score must be in range of (0, 1.0), got {args.min_score}")
+    if args.save_output_max_detections is not None and args.save_output is False:
+        raise cli.ValidationError("--save-output-max-detections requires --save-output")
     if args.sliding_window_filter_threshold < 0.0 or args.sliding_window_filter_threshold >= 1.0:
         raise cli.ValidationError(
             "--sliding-window-filter-threshold must be in range of [0, 1.0), "

@@ -4,6 +4,7 @@ import unittest
 
 import torch
 from parameterized import parameterized
+from torchvision.ops import boxes as box_ops
 
 from birder.common.lib import env_bool
 from birder.conf.settings import DEFAULT_NUM_CHANNELS
@@ -89,6 +90,40 @@ class TestBase(unittest.TestCase):
         self.assertIn("outputs", signature)
         self.assertIn("boxes", signature["outputs"][0][0])
 
+    def test_aligned_box_ious_match_torchvision(self) -> None:
+        boxes1_values = [[0, 0, 2, 2], [1, 1, 5, 4], [-2, -1, 1, 3], [3, 2, 7, 8]]
+        boxes2_values = [[0, 0, 2, 2], [0, 2, 4, 5], [2, 3, 4, 6], [4, 0, 6, 9]]
+        for dtype in (torch.float16, torch.bfloat16, torch.float32, torch.float64):
+            with self.subTest(dtype=dtype):
+                boxes1 = torch.tensor(boxes1_values, dtype=dtype)
+                boxes2 = torch.tensor(boxes2_values, dtype=dtype)
+
+                expected_iou = box_ops.box_iou(boxes1, boxes2).diag()
+                expected_giou = box_ops.generalized_box_iou(boxes1, boxes2).diag()
+
+                self.assertTrue(torch.equal(base.aligned_box_iou(boxes1, boxes2), expected_iou))
+                self.assertTrue(torch.equal(base.aligned_generalized_box_iou(boxes1, boxes2), expected_giou))
+
+    def test_aligned_box_ious_match_torchvision_gradients(self) -> None:
+        boxes1_values = [[0, 0, 2, 2], [1, 1, 5, 4], [-2, -1, 1, 3], [3, 2, 7, 8]]
+        boxes2_values = [[0, 0, 2, 2], [0, 2, 4, 5], [2, 3, 4, 6], [4, 0, 6, 9]]
+        function_pairs = (
+            (box_ops.box_iou, base.aligned_box_iou),
+            (box_ops.generalized_box_iou, base.aligned_generalized_box_iou),
+        )
+        for reference_function, aligned_function in function_pairs:
+            with self.subTest(function=aligned_function.__name__):
+                reference_boxes1 = torch.tensor(boxes1_values, dtype=torch.float64, requires_grad=True)
+                reference_boxes2 = torch.tensor(boxes2_values, dtype=torch.float64, requires_grad=True)
+                reference_function(reference_boxes1, reference_boxes2).diag().sum().backward()
+
+                aligned_boxes1 = torch.tensor(boxes1_values, dtype=torch.float64, requires_grad=True)
+                aligned_boxes2 = torch.tensor(boxes2_values, dtype=torch.float64, requires_grad=True)
+                aligned_function(aligned_boxes1, aligned_boxes2).sum().backward()
+
+                self.assertTrue(torch.equal(aligned_boxes1.grad, reference_boxes1.grad))
+                self.assertTrue(torch.equal(aligned_boxes2.grad, reference_boxes2.grad))
+
 
 class TestNetDetection(unittest.TestCase):
     @parameterized.expand(NET_DETECTION_TEST_CASES)  # type: ignore[untyped-decorator]
@@ -145,6 +180,25 @@ class TestNetDetection(unittest.TestCase):
         for detection in detections:
             for key in ["boxes", "labels", "scores"]:
                 self.assertTrue(torch.isfinite(detection[key]).all())
+
+        # Background-only images must produce a finite, non-zero learning signal
+        _, empty_losses = n(
+            torch.rand((1, DEFAULT_NUM_CHANNELS, *size)),
+            targets=[
+                {
+                    "boxes": torch.empty((0, 4), dtype=torch.float32),
+                    "labels": torch.empty((0,), dtype=torch.int64),
+                }
+            ],
+        )
+        self.assertGreater(len(empty_losses), 0)
+        for empty_loss_part in empty_losses.values():
+            self.assertTrue(torch.isfinite(empty_loss_part).all())
+
+        empty_loss = sum(empty_losses.values())
+        self.assertEqual(empty_loss.ndim, 0)
+        self.assertTrue(empty_loss.requires_grad)
+        self.assertGreater(empty_loss.detach().item(), 0.0)
 
         if n.scriptable is True:
             torch.jit.script(n)
@@ -228,6 +282,26 @@ class TestNetDetection(unittest.TestCase):
             self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
             self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}")
 
+        n.zero_grad()
+
+        # A batch containing no objects
+        _, empty_losses = n(
+            torch.rand((1, DEFAULT_NUM_CHANNELS, *size)),
+            targets=[
+                {
+                    "boxes": torch.empty((0, 4), dtype=torch.float32),
+                    "labels": torch.empty((0,), dtype=torch.int64),
+                }
+            ],
+        )
+        empty_loss = sum(empty_losses.values())
+        empty_loss.backward()
+        empty_gradients = [
+            param.grad for param in n.parameters() if param.requires_grad is True and param.grad is not None
+        ]
+        self.assertGreater(len(empty_gradients), 0)
+        self.assertTrue(all(torch.isfinite(grad).all().item() for grad in empty_gradients))
+        self.assertTrue(any(torch.count_nonzero(grad).item() > 0 for grad in empty_gradients))
         n.zero_grad()
 
         if reparameterize_available(n) is True:

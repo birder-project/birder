@@ -8,6 +8,9 @@
 **************************************************************************************************
 * Modified from https://github.com/huggingface/transformers/pull/35979/files
 **************************************************************************************************
+* Packed per-level point-count support added by:
+* Ofer Hasson — 2026-07-17
+**************************************************************************************************
 */
 
 #pragma once
@@ -40,6 +43,34 @@ ms_deform_attn_forward(
     AT_ERROR("Not implemented on the CPU");
 }
 
+at::Tensor
+ms_deform_attn_packed_forward(
+    const at::Tensor &value,
+    const at::Tensor &spatial_shapes,
+    const at::Tensor &level_start_index,
+    const at::Tensor &sampling_loc,
+    const at::Tensor &attn_weight,
+    const at::Tensor &num_points_per_level,
+    const int64_t im2col_step)
+{
+    if (value.is_cuda())
+    {
+#ifdef WITH_CUDA
+        return ms_deform_attn_cuda_packed_forward(
+            value,
+            spatial_shapes,
+            level_start_index,
+            sampling_loc,
+            attn_weight,
+            num_points_per_level,
+            static_cast<int>(im2col_step));
+#else
+        AT_ERROR("Not compiled with GPU support");
+#endif
+    }
+    AT_ERROR("Not implemented on the CPU");
+}
+
 std::vector<at::Tensor>
 ms_deform_attn_backward(
     const at::Tensor &value,
@@ -55,6 +86,37 @@ ms_deform_attn_backward(
 #ifdef WITH_CUDA
         return ms_deform_attn_cuda_backward(
             value, spatial_shapes, level_start_index, sampling_loc, attn_weight, grad_output, static_cast<int>(im2col_step));
+#else
+        AT_ERROR("Not compiled with GPU support");
+#endif
+    }
+    AT_ERROR("Not implemented on the CPU");
+}
+
+
+std::vector<at::Tensor>
+ms_deform_attn_packed_backward(
+    const at::Tensor &value,
+    const at::Tensor &spatial_shapes,
+    const at::Tensor &level_start_index,
+    const at::Tensor &sampling_loc,
+    const at::Tensor &attn_weight,
+    const at::Tensor &num_points_per_level,
+    const at::Tensor &grad_output,
+    const int64_t im2col_step)
+{
+    if (value.is_cuda())
+    {
+#ifdef WITH_CUDA
+        return ms_deform_attn_cuda_packed_backward(
+            value,
+            spatial_shapes,
+            level_start_index,
+            sampling_loc,
+            attn_weight,
+            num_points_per_level,
+            grad_output,
+            static_cast<int>(im2col_step));
 #else
         AT_ERROR("Not compiled with GPU support");
 #endif

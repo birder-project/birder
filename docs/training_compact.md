@@ -28,6 +28,7 @@ Examples use repo-root script names (e.g., `train.py`). If you installed Birder 
 - [GC ViT](#gc-vit)
 - [GhostNet v1](#ghostnet-v1)
 - [GhostNet v2](#ghostnet-v2)
+- [GhostNet v3](#ghostnet-v3)
 - [GroupMixFormer](#groupmixformer)
 - [HGNet v1](#hgnet-v1)
 - [HGNet v2](#hgnet-v2)
@@ -347,6 +348,14 @@ torchrun --nproc_per_node=2 train.py --network ghostnet_v1_1_0 --tag il-common -
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network ghostnet_v2_1_0 --tag il-common --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --warmup-epochs 3 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### GhostNet v3
+
+#### GhostNet v3: 1.0 (100)
+
+```sh
+torchrun --nproc_per_node=2 train.py --network ghostnet_v3_1_0 --tag il-common --batch-size 256 --opt adamw --lr 0.005 --wd 0.05 --lr-scheduler cosine --epochs 600 --warmup-epochs 3 --model-ema --model-ema-steps 1 --model-ema-decay 0.9999 --size 256 --aug-level 8 --smoothing-alpha 0.1 --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### GroupMixFormer

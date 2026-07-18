@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.6.8 - 2026-07-18
+
+### Added
+
+- **Packed MSDA CUDA Kernel**: Added forward and backward custom-kernel support for per-level sampling-point counts, enabling accelerated D-FINE variants with unequal decoder point counts.
+- **Benchmark Model Dtype**: Added `--model-dtype` support to model benchmarking.
+- **Selective EMA Resume**: Added `--load-ema` to classification, knowledge-distillation and detection training so EMA weights can be restored without optimizer or scaler state.
+- **Detection Background Images**: COCO detection training now keeps images without object annotations by default, use `--drop-empty` to exclude them.
+- **MaskFeat MIM**: Added [MaskFeat](https://arxiv.org/abs/2112.09133) masked image modeling.
+- **ViT hMLP Stem**: Added the optional [hMLP stem](https://arxiv.org/abs/2203.09795).
+- **Selective Custom Kernel Disabling**: Added environment variables and an API for disabling individual custom kernels.
+- **Pretrained Models**:
+    - `d_fine_l_objects365-coco_hgnet_v2_b4_pp-imagenet22k`: Added D-FINE large object detector with an HGNet v2 B4 backbone pretrained on Objects365-2020 and fine-tuned on COCO 2017.
+
+### Changed
+
+- **Optimizer Parameter Groups (Breaking)**: Coalesced parameters with identical learning-rate, weight-decay and layer-scale settings into shared optimizer groups, reducing optimizer and scheduler overhead and allowing foreach/fused optimizers to batch more parameters per group. Optimizer states saved with the previous one-group-per-parameter layout are not load-compatible.
+- **Sinkhorn Communication (Breaking)**: Simplified DINOv2 and Franca Sinkhorn-Knopp normalization by removing mathematically cancelling scalar operations and their associated distributed reductions. Removed the obsolete iBOT Sinkhorn masked-patch-count input from the loss API and training collators.
+- **Sinkhorn Queue State (Breaking)**: Moved DINOv2 and Franca queue ring metadata from device buffers to checkpointed Python state, eliminating pointer and fullness device-to-host synchronizations. Existing checkpoints using the previous queue-state buffers are not load-compatible.
+- **Transformer Detector Performance**: Reduced redundant computation and intermediate allocations across LW-DETR, RT-DETR v2 and D-FINE.
+- **Matched Box IoU Performance**: Replaced quadratic pairwise IoU and generalized-IoU matrices with aligned matched-pair calculations across D-FINE, LW-DETR, Plain DETR and RT-DETR.
+- **Detection Multiscale Augmentations**: Derived per-image and per-batch multiscale ranges and long-edge caps from the requested target size rather than hardcoded values.
+- **Pretrained Models**:
+    - **Breaking**: Updated `uniformer_s_eu-common` and `uniformer_s_eu-common256px` due to a UniFormer stage-layout change.
+
+### Fixed
+
+- **SSD Background Training**: Made SSD and SSDLite hard-negative mining produce a classification signal for images without objects.
+- **ConvNeXt V1 Isotropic Configurations**: Corrected the dimension key for the base and large model variants.
+- **Rectangular Detection Scale Jitter**: Corrected torchvision target-axis ordering to preserve the intended scale range for rectangular Birder and LSJ augmentations.
+- **RegionViT Padded Attention**: Combined bottom and right padding masks correctly for partially padded regional windows.
+- **ResMLP LayerScale Initialization**: Applied each model variant's configured initialization value.
+
 ## 0.6.7 - 2026-07-15
 
 ### Fixed
@@ -92,7 +125,7 @@
 
 - **Sparse MoE ViT**: Added [V-MoE](https://arxiv.org/abs/2106.05974)-style sparse mixture-of-experts Vision Transformer.
 - **Sparse MoE Training**: Added opt-in `--moe-aux-loss` support to classification training, enabling V-MoE auxiliary routing losses while logging classification and MoE auxiliary losses separately.
-- **Sparse MoE MIM**: Added ViT-MoE masked-token retention and omission encoder support, MoE auxiliary loss propagation through MIM heads, and opt-in `--moe-aux-loss` support to MIM training.
+- **Sparse MoE MIM**: Added ViT-MoE masked-token retention and omission encoder support, MoE auxiliary loss propagation through MIM heads and opt-in `--moe-aux-loss` support to MIM training.
 - **COCO Detection Tools**: Added `--coco-use-ids` to `predict_detection` for evaluating models that use raw COCO category ids and `--label-mapping` to `show-det-iterator`.
 
 ### Changed
@@ -163,7 +196,7 @@
 
 ### Changed
 
-- **BaseNet Feature API (Breaking)**: Added `feature_dim`, `flatten_features(include_special_tokens=True)`, and `embedding_from_features()` to `BaseNet`, replacing pretraining-only `encoding_size` metadata and defining the `forward_features()` to embedding path for all classification models.
+- **BaseNet Feature API (Breaking)**: Added `feature_dim`, `flatten_features(include_special_tokens=True)` and `embedding_from_features()` to `BaseNet`, replacing pretraining-only `encoding_size` metadata and defining the `forward_features()` to embedding path for all classification models.
 
 ## 0.5.6 - 2026-06-13
 

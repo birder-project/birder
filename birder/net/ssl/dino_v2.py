@@ -103,8 +103,22 @@ class SinkhornQueue(nn.Module):
         self.queue_size = queue_size
         self.active = True
         self.queue = nn.Buffer(torch.empty(queue_size, dim))
-        self.queue_ptr = nn.Buffer(torch.zeros(1, dtype=torch.long))
-        self.queue_full = nn.Buffer(torch.zeros(1, dtype=torch.bool))
+        self._queue_ptr = 0
+        self._queue_full = False
+
+    def get_extra_state(self) -> dict[str, int | bool]:
+        return {
+            "version": 1,
+            "queue_ptr": self._queue_ptr,
+            "queue_full": self._queue_full,
+        }
+
+    def set_extra_state(self, state: dict[str, int | bool]) -> None:
+        if state["version"] != 1:
+            raise ValueError(f"Unsupported SinkhornQueue state version: {state['version']}")
+
+        self._queue_ptr = int(state["queue_ptr"])
+        self._queue_full = bool(state["queue_full"])
 
     def set_active(self, active: bool) -> None:
         self.active = active
@@ -112,7 +126,7 @@ class SinkhornQueue(nn.Module):
     def get(self) -> Optional[torch.Tensor]:
         if self.active is False:
             return None
-        if self.queue_full.item() is False:
+        if self._queue_full is False:
             return None
 
         return self.queue
@@ -129,11 +143,11 @@ class SinkhornQueue(nn.Module):
         values = values.detach()
         if values.size(0) >= self.queue_size:
             self.queue.copy_(values[-self.queue_size :])
-            self.queue_ptr.zero_()
-            self.queue_full.fill_(True)
+            self._queue_ptr = 0
+            self._queue_full = True
             return
 
-        ptr = self.queue_ptr.item()
+        ptr = self._queue_ptr
         end = ptr + values.size(0)
         if end <= self.queue_size:
             self.queue[ptr:end].copy_(values)
@@ -142,9 +156,8 @@ class SinkhornQueue(nn.Module):
             self.queue[ptr:].copy_(values[:first])
             self.queue[: end - self.queue_size].copy_(values[first:])
 
-        self.queue_ptr.fill_(end % self.queue_size)
-        if end >= self.queue_size:
-            self.queue_full.fill_(True)
+        self._queue_ptr = end % self.queue_size
+        self._queue_full |= end >= self.queue_size
 
 
 class DINOLoss(nn.Module):
@@ -200,8 +213,6 @@ class DINOLoss(nn.Module):
     def sinkhorn_knopp_teacher(
         self, teacher_output: torch.Tensor, teacher_temp: float, n_iterations: int = 3
     ) -> torch.Tensor:
-        world_size = training_utils.get_world_size()
-
         current_output = teacher_output
         if self.sinkhorn_queue is not None:
             queue = self.sinkhorn_queue.get()
@@ -217,29 +228,17 @@ class DINOLoss(nn.Module):
 
         teacher_output.div_(teacher_temp).exp_()
         q = teacher_output.t()  # Q is K-by-B for consistency with notations from the paper
-        B = q.size(1) * world_size  # Number of samples to assign
-        k = q.size(0)  # How many prototypes
-
-        sum_q = torch.sum(q)
-        if training_utils.is_dist_available_and_initialized() is True:
-            dist.all_reduce(sum_q)
-
-        q /= sum_q
 
         for _ in range(n_iterations):
-            # Normalize each row: total weight per prototype must be 1/K
+            # Normalize each prototype globally
             sum_of_rows = torch.sum(q, dim=1, keepdim=True)
             if training_utils.is_dist_available_and_initialized() is True:
                 dist.all_reduce(sum_of_rows)
 
             q /= sum_of_rows
-            q /= k
 
-            # Normalize each column: total weight per sample must be 1/B
+            # Normalize each sample locally
             q /= torch.sum(q, dim=0, keepdim=True)
-            q /= B
-
-        q *= B  # The columns must sum to 1 so that Q is an assignment
 
         out = q.t()
         if queue is not None:
@@ -335,7 +334,6 @@ class iBOTPatchLoss(nn.Module):
         self,
         teacher_output: torch.Tensor,
         teacher_temp: float,
-        n_masked_patches_tensor: torch.Tensor,
         n_iterations: int = 3,
     ) -> torch.Tensor:
         current_output = teacher_output
@@ -345,45 +343,25 @@ class iBOTPatchLoss(nn.Module):
             queue = None
 
         if queue is not None:
-            queue_len = queue.size(0)
             # NOTE: Concat created a new tensor, can modify in-place
             teacher_output = torch.concat([teacher_output, queue], dim=0)
             teacher_output = teacher_output.float()
         else:
-            queue_len = 0
             teacher_output = teacher_output.float().clone()
 
         teacher_output.div_(teacher_temp).exp_()
         q = teacher_output.t()  # Q is K-by-B for consistency with notations from the paper
-        B = n_masked_patches_tensor
-        if queue_len > 0:
-            B = B + n_masked_patches_tensor.new_tensor([queue_len])
-
-        if training_utils.is_dist_available_and_initialized() is True:
-            dist.all_reduce(B)
-
-        K = q.size(0)  # How many prototypes
-
-        sum_q = torch.sum(q)
-        if training_utils.is_dist_available_and_initialized() is True:
-            dist.all_reduce(sum_q)
-
-        q /= sum_q
 
         for _ in range(n_iterations):
-            # Normalize each row: total weight per prototype must be 1/K
+            # Normalize each prototype globally
             sum_of_rows = torch.sum(q, dim=1, keepdim=True)
             if training_utils.is_dist_available_and_initialized() is True:
                 dist.all_reduce(sum_of_rows)
 
             q /= sum_of_rows
-            q /= K
 
-            # Normalize each column: total weight per sample must be 1/B
+            # Normalize each sample locally
             q /= torch.sum(q, dim=0, keepdim=True)
-            q /= B
-
-        q *= B  # The columns must sum to 1 so that Q is an assignment
 
         out = q.t()
         if queue is not None:

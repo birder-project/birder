@@ -10,6 +10,7 @@ Paper "Scale-Aware Modulation Meet Transformer", https://arxiv.org/abs/2307.0857
 import math
 from collections import OrderedDict
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -17,9 +18,13 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
 from birder.layers import LayerScale
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 from birder.net.base import staged_stochastic_depth_rates
 
 
@@ -266,13 +271,13 @@ class Stem(nn.Module):
         )
         self.norm = nn.LayerNorm(embed_dim)
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, int, int]:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv(x)
-        _, _, H, W = x.size()
-        x = x.flatten(2).transpose(1, 2)
+        x = x.permute(0, 2, 3, 1)
         x = self.norm(x)
+        x = x.permute(0, 3, 1, 2).contiguous()
 
-        return (x, H, W)
+        return x
 
 
 class SMTStage(nn.Module):
@@ -281,8 +286,7 @@ class SMTStage(nn.Module):
         dim: int,
         dim_out: int,
         depth: int,
-        downsample_stem: bool,
-        stem_conv: tuple[int, int],
+        downsample: bool,
         ca_num_heads: int,
         sa_num_heads: int,
         mlp_ratio: float,
@@ -295,12 +299,13 @@ class SMTStage(nn.Module):
         expand_ratio: int,
     ) -> None:
         super().__init__()
-        if downsample_stem is True:
-            self.downsample_block = Stem(kernel_size=stem_conv, stride=(2, 2), in_channels=dim, embed_dim=dim_out)
-        else:
-            self.downsample_block = OverlapPatchEmbed(
+        if downsample is True:
+            self.downsample: Optional[OverlapPatchEmbed] = OverlapPatchEmbed(
                 patch_size=(3, 3), stride=(2, 2), in_channels=dim, embed_dim=dim_out
             )
+        else:
+            assert dim == dim_out
+            self.downsample = None
 
         layers = []
         for i in range(depth):
@@ -330,7 +335,12 @@ class SMTStage(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B = x.size(0)
-        x, H, W = self.downsample_block(x)
+        if self.downsample is not None:
+            x, H, W = self.downsample(x)
+        else:
+            _, _, H, W = x.size()
+            x = x.flatten(2).transpose(1, 2)
+
         x = self.blocks(x, H, W)
         x = self.norm(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
@@ -338,7 +348,9 @@ class SMTStage(nn.Module):
         return x
 
 
-class SMT(DetectorBackbone):
+class SMT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
+    block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,
@@ -361,9 +373,16 @@ class SMT(DetectorBackbone):
         stem_conv: tuple[int, int] = self.config["stem_conv"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
+        self.stem = Stem(
+            kernel_size=stem_conv,
+            stride=(2, 2),
+            in_channels=self.input_channels,
+            embed_dim=embed_dims[0],
+        )
+
         num_stages = len(depths)
         dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
-        prev_dim = self.input_channels
+        prev_dim = embed_dims[0]
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         for i in range(num_stages):
@@ -371,8 +390,7 @@ class SMT(DetectorBackbone):
                 prev_dim,
                 embed_dims[i],
                 depth=depths[i],
-                downsample_stem=i == 0,
-                stem_conv=stem_conv,
+                downsample=i > 0,
                 ca_num_heads=ca_num_heads[i],
                 sa_num_heads=sa_num_heads[i],
                 mlp_ratio=mlp_ratios[i],
@@ -397,6 +415,9 @@ class SMT(DetectorBackbone):
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
+        self.stem_stride = 4
+        self.stem_width = embed_dims[0]
+
         # Weight initialization
         for m in self.modules():
             if isinstance(m, nn.Linear):
@@ -416,6 +437,8 @@ class SMT(DetectorBackbone):
                 nn.init.zeros_(m.bias)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
         out = {}
         for name, module in self.body.named_children():
             x = module(x)
@@ -425,6 +448,9 @@ class SMT(DetectorBackbone):
         return out
 
     def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad_(False)
+
         for idx, module in enumerate(self.body.children()):
             if idx >= up_to_stage:
                 break
@@ -432,7 +458,27 @@ class SMT(DetectorBackbone):
             for param in module.parameters():
                 param.requires_grad_(False)
 
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        x = self.stem(x)
+        x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token)
+        x = self.body(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
+
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
         return self.body(x)
 
     def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
@@ -492,7 +538,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 42.8,
-                "sha256": "5b6d2541ed382d85bda88cf19ebf2d8fb0adb1b6475209f17eacf4a2f428bcc0",
+                "sha256": "b0171abb8938b611dfb46fd9556a3c68e0e47ee54b7353cef20a1dddea28c58d",
             }
         },
         "net": {"network": "smt_t", "tag": "il-common"},

@@ -51,6 +51,46 @@ class TestKernels(unittest.TestCase):
         self.assertEqual(output_kernel.size(), (1, 34000, 256))
 
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+    def test_deformable_detr_packed(self) -> None:
+        device = torch.device("cuda")
+        msda = load_kernel.load_msda()
+        self.assertIsNotNone(msda)
+
+        value = torch.rand(2, 21, 2, 4, device=device)
+        value_spatial_shapes = torch.tensor([[4, 4], [2, 2], [1, 1]], dtype=torch.int64, device=device)
+        value_level_start_index = torch.tensor([0, 16, 20], dtype=torch.int64, device=device)
+        sampling_locations = torch.rand(2, 5, 2, 12, 2, device=device)
+        attention_weights = torch.rand(2, 5, 2, 12, device=device)
+        num_points_per_level = torch.tensor([3, 6, 3], dtype=torch.int64, device=device)
+
+        output = msda.ms_deform_attn_packed_forward(  # type: ignore
+            value,
+            value_spatial_shapes,
+            value_level_start_index,
+            sampling_locations,
+            attention_weights,
+            num_points_per_level,
+            64,
+        )
+        self.assertEqual(output.size(), (2, 5, 8))
+
+        grad_value, grad_sampling_locations, grad_attention_weights = (
+            msda.ms_deform_attn_packed_backward(  # type: ignore
+                value,
+                value_spatial_shapes,
+                value_level_start_index,
+                sampling_locations,
+                attention_weights,
+                num_points_per_level,
+                torch.rand_like(output),
+                64,
+            )
+        )
+        self.assertEqual(grad_value.size(), value.size())
+        self.assertEqual(grad_sampling_locations.size(), sampling_locations.size())
+        self.assertEqual(grad_attention_weights.size(), attention_weights.size())
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
     def test_swattention(self) -> None:
         device = torch.device("cuda")
         swattention = load_kernel.load_swattention()

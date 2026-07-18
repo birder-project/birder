@@ -185,10 +185,10 @@ registry.register_model_config(
 registry.register_model_config(
     "convnext_v1_iso_base",
     ConvNeXt_v1_Isotropic,
-    config={"in_channels": 768, "num_layers": 18, "drop_path_rate": 0.2},
+    config={"dim": 768, "num_layers": 18, "drop_path_rate": 0.2},
 )
 registry.register_model_config(
     "convnext_v1_iso_large",
     ConvNeXt_v1_Isotropic,
-    config={"in_channels": 1024, "num_layers": 36, "drop_path_rate": 0.5},
+    config={"dim": 1024, "num_layers": 36, "drop_path_rate": 0.5},
 )

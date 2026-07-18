@@ -441,6 +441,8 @@ class TransNeXtStage(nn.Module):
 
 
 class TransNeXt(DetectorBackbone):
+    block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,

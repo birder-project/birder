@@ -319,6 +319,8 @@ class PatchEmbed(nn.Module):
 
 
 class CoaT(DetectorBackbone):
+    block_group_regex = r"serial_blocks(\d+)\.(\d+)|parallel_blocks\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,
@@ -563,25 +565,32 @@ class CoaT(DetectorBackbone):
 
     def freeze_stages(self, up_to_stage: int) -> None:
         if up_to_stage >= 1:
+            self.cls_token1.requires_grad_(False)
             for param in self.patch_embed1.parameters():
                 param.requires_grad_(False)
             for param in self.serial_blocks1.parameters():
                 param.requires_grad_(False)
         if up_to_stage >= 2:
+            self.cls_token2.requires_grad_(False)
             for param in self.patch_embed2.parameters():
                 param.requires_grad_(False)
             for param in self.serial_blocks2.parameters():
                 param.requires_grad_(False)
         if up_to_stage >= 3:
+            self.cls_token3.requires_grad_(False)
             for param in self.patch_embed3.parameters():
                 param.requires_grad_(False)
             for param in self.serial_blocks3.parameters():
                 param.requires_grad_(False)
         if up_to_stage >= 4:
+            self.cls_token4.requires_grad_(False)
             for param in self.patch_embed4.parameters():
                 param.requires_grad_(False)
             for param in self.serial_blocks4.parameters():
                 param.requires_grad_(False)
+            if self.parallel_blocks is not None:
+                for param in self.parallel_blocks.parameters():
+                    param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         features = self._features(x)

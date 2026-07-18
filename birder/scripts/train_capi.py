@@ -439,6 +439,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     scaler, amp_dtype = training_utils.get_amp_scaler(device, args.amp, args.amp_dtype)
     clustering_scaler, _ = training_utils.get_amp_scaler(device, args.amp, args.amp_dtype)
 
+    if amp_dtype is not None and args.sinkhorn_queue_size is not None:
+        assert teacher.head.sinkhorn_queue is not None
+        teacher.head.sinkhorn_queue.to(amp_dtype)
+        logger.debug(f"Using {amp_dtype} storage for Sinkhorn queue")
+
     # Load states
     if args.load_states is True:
         if fsdp_mode is True:

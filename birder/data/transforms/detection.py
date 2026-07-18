@@ -7,13 +7,17 @@ from typing import Optional
 
 import torch
 from torch import nn
+from torchvision import tv_tensors
 from torchvision.transforms import v2
+from torchvision.transforms.v2 import functional as F
 
 from birder.data.transforms.classification import RGBType
 
 MULTISCALE_STEP = 32
 DEFAULT_MULTISCALE_MIN_SIZE = 480
+DEFAULT_MULTISCALE_BASE_SIZE = 640
 DEFAULT_MULTISCALE_MAX_SIZE = 800
+DEFAULT_MULTISCALE_LONG_EDGE_SIZE = 1333
 
 
 def build_multiscale_sizes(
@@ -35,19 +39,32 @@ def build_multiscale_sizes(
     return tuple(range(start, end + 1, multiscale_step))
 
 
-def _get_fixed_detr_sizes(
-    multiscale_min_size: Optional[int], multiscale_max_size: Optional[int], multiscale_step: int = MULTISCALE_STEP
-) -> tuple[tuple[int, ...], int, int]:
-    if multiscale_min_size is None and multiscale_max_size is None:
-        resize_sizes: tuple[int, ...] = (400, 500, 600)
-        crop_min_size = 384
-        crop_max_size = 600
-    else:
-        resize_sizes = build_multiscale_sizes(multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step)
-        crop_min_size = resize_sizes[0]
-        crop_max_size = resize_sizes[-1]
+def resolve_multiscale_sizes(
+    size: tuple[int, int],
+    multiscale_min_size: Optional[int],
+    multiscale_max_size: Optional[int],
+    multiscale_step: int = MULTISCALE_STEP,
+) -> tuple[int, ...]:
+    target_size = min(size)
+    if multiscale_min_size is None:
+        multiscale_min_size = math.ceil(target_size * DEFAULT_MULTISCALE_MIN_SIZE / DEFAULT_MULTISCALE_BASE_SIZE)
+    if multiscale_max_size is None:
+        multiscale_max_size = round(target_size * DEFAULT_MULTISCALE_MAX_SIZE / DEFAULT_MULTISCALE_BASE_SIZE)
 
-    return (resize_sizes, crop_min_size, crop_max_size)
+    return build_multiscale_sizes(multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step)
+
+
+def resolve_multiscale_long_edge_size(multiscale_sizes: tuple[int, ...], max_size: Optional[int]) -> int:
+    if max_size is not None:
+        return max_size
+
+    return round(multiscale_sizes[-1] * DEFAULT_MULTISCALE_LONG_EDGE_SIZE / DEFAULT_MULTISCALE_MAX_SIZE)
+
+
+def resolve_detr_intermediate_sizes(size: tuple[int, int]) -> tuple[int, ...]:
+    return tuple(
+        round(intermediate_size * min(size) / DEFAULT_MULTISCALE_BASE_SIZE) for intermediate_size in (400, 500, 600)
+    )
 
 
 class ResizeWithRandomInterpolation(nn.Module):
@@ -69,6 +86,66 @@ class ResizeWithRandomInterpolation(nn.Module):
     def forward(self, *x: Any) -> torch.Tensor:
         t = random.choice(self.transform)
         return t(x)
+
+
+class FixedSizeCrop(v2.Transform):
+    """
+    Crop or pad inputs to a fixed size
+
+    Adapted from:
+    https://github.com/pytorch/vision/blob/main/references/detection/transforms.py
+    """
+
+    def __init__(self, size: tuple[int, int], fill: list[float]) -> None:
+        super().__init__()
+        self.size = size
+        self.fill = fill
+
+    def make_params(self, flat_inputs: list[Any]) -> dict[str, Any]:
+        image_h, image_w = F.get_size(flat_inputs[0])
+        crop_h = min(image_h, self.size[0])
+        crop_w = min(image_w, self.size[1])
+
+        needs_crop = crop_h != image_h or crop_w != image_w
+        if needs_crop is True:
+            offset_h = max(image_h - self.size[0], 0)
+            offset_w = max(image_w - self.size[1], 0)
+            top = torch.randint(0, offset_h + 1, size=(1,)).item()
+            left = torch.randint(0, offset_w + 1, size=(1,)).item()
+        else:
+            top = 0
+            left = 0
+
+        return {
+            "needs_crop": needs_crop,
+            "top": top,
+            "left": left,
+            "height": crop_h,
+            "width": crop_w,
+            "pad_right": max(self.size[1] - crop_w, 0),
+            "pad_bottom": max(self.size[0] - crop_h, 0),
+        }
+
+    def transform(self, inpt: Any, params: dict[str, Any]) -> Any:
+        if params["needs_crop"] is True:
+            output = F.crop(
+                inpt,
+                top=params["top"],
+                left=params["left"],
+                height=params["height"],
+                width=params["width"],
+            )
+        else:
+            output = inpt
+        if params["pad_right"] > 0 or params["pad_bottom"] > 0:
+            fill = 0 if isinstance(inpt, (tv_tensors.BoundingBoxes, tv_tensors.Mask)) else self.fill
+            output = F.pad(
+                output,
+                padding=[0, 0, params["pad_right"], params["pad_bottom"]],
+                fill=fill,
+            )
+
+        return output
 
 
 class RandomSizeCrop(nn.Module):
@@ -99,10 +176,9 @@ def get_birder_augment(
     multiscale_step: int = MULTISCALE_STEP,
     post_mosaic: bool = False,
 ) -> Callable[..., torch.Tensor]:
-    if dynamic_size is True:
+    dynamic_resize = dynamic_size is True or max_size is not None
+    if dynamic_resize is True:
         target_size: Optional[int] | tuple[int, int] = min(size)
-    elif max_size is not None:
-        target_size = min(size)
     else:
         target_size = size
 
@@ -110,13 +186,20 @@ def get_birder_augment(
 
     # Base augmentations
     if level >= 1:
-        if dynamic_size is False and multiscale is False and post_mosaic is False:
+        if dynamic_resize is False and multiscale is False and post_mosaic is False:
             transformations.extend(
                 [
                     v2.RandomChoice(
                         [
-                            v2.ScaleJitter(
-                                target_size=size, scale_range=(max(0.1, 0.5 - (0.08 * level)), 2), antialias=True
+                            v2.Compose(
+                                [
+                                    v2.ScaleJitter(
+                                        target_size=(size[1], size[0]),  # ScaleJitter expects (width, height)
+                                        scale_range=(max(0.1, 0.5 - (0.08 * level)), 2),
+                                        antialias=True,
+                                    ),
+                                    FixedSizeCrop(size, fill_value),
+                                ]
                             ),
                             v2.RandomZoomOut(fill_value, side_range=(1, 3 + level * 0.1), p=0.5),
                         ]
@@ -135,13 +218,13 @@ def get_birder_augment(
 
     # Resize
     if multiscale is True:
+        multiscale_sizes = resolve_multiscale_sizes(
+            size, multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step
+        )
+        max_size = resolve_multiscale_long_edge_size(multiscale_sizes, max_size)
+
         transformations.append(
-            v2.RandomShortestSize(
-                min_size=build_multiscale_sizes(
-                    multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step
-                ),
-                max_size=max_size or 1333,
-            ),
+            v2.RandomShortestSize(min_size=multiscale_sizes, max_size=max_size),
         )
     else:
         transformations.append(
@@ -246,13 +329,15 @@ def training_preset(
             [
                 v2.ToImage(),
                 (
-                    v2.ScaleJitter(target_size=size, scale_range=(0.1, 2), antialias=True)
+                    v2.ScaleJitter(
+                        target_size=(size[1], size[0]),  # ScaleJitter expects (width, height)
+                        scale_range=(0.1, 2),
+                        antialias=True,
+                    )
                     if post_mosaic is False
                     else v2.Identity()
                 ),
-                ResizeWithRandomInterpolation(  # Supposed to be FixedSizeCrop
-                    target_size, max_size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
-                ),
+                FixedSizeCrop(size, fill_value),
                 v2.RandomHorizontalFlip(0.5),
                 v2.SanitizeBoundingBoxes(),
                 v2.ToDtype(torch.float32, scale=True),
@@ -262,15 +347,15 @@ def training_preset(
         )
 
     if aug_type == "multiscale":
+        multiscale_sizes = resolve_multiscale_sizes(
+            size, multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step
+        )
+        max_size = resolve_multiscale_long_edge_size(multiscale_sizes, max_size)
+
         return v2.Compose(  # type: ignore
             [
                 v2.ToImage(),
-                v2.RandomShortestSize(
-                    min_size=build_multiscale_sizes(
-                        multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step
-                    ),
-                    max_size=max_size or 1333,
-                ),
+                v2.RandomShortestSize(min_size=multiscale_sizes, max_size=max_size),
                 v2.RandomHorizontalFlip(0.5),
                 v2.SanitizeBoundingBoxes(),
                 v2.ToDtype(torch.float32, scale=True),
@@ -358,20 +443,23 @@ def training_preset(
         )
 
     if aug_type == "detr":
-        multiscale_sizes = build_multiscale_sizes(
-            multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step
+        multiscale_sizes = resolve_multiscale_sizes(
+            size, multiscale_min_size, multiscale_max_size, multiscale_step=multiscale_step
         )
+        max_size = resolve_multiscale_long_edge_size(multiscale_sizes, max_size)
+        intermediate_sizes = resolve_detr_intermediate_sizes(size)
+
         return v2.Compose(  # type: ignore
             [
                 v2.ToImage(),
                 v2.RandomChoice(
                     [
-                        v2.RandomShortestSize(min_size=multiscale_sizes, max_size=max_size or 1333),
+                        v2.RandomShortestSize(min_size=multiscale_sizes, max_size=max_size),
                         v2.Compose(
                             [
-                                v2.RandomShortestSize((400, 500, 600)),
+                                v2.RandomShortestSize(intermediate_sizes, max_size=max_size),
                                 v2.RandomIoUCrop() if post_mosaic is False else v2.Identity(),  # RandomSizeCrop
-                                v2.RandomShortestSize(min_size=multiscale_sizes, max_size=max_size or 1333),
+                                v2.RandomShortestSize(min_size=multiscale_sizes, max_size=max_size),
                             ]
                         ),
                     ]
@@ -385,9 +473,16 @@ def training_preset(
         )
 
     if aug_type == "fixed_detr":
-        resize_sizes, crop_min_size, crop_max_size = _get_fixed_detr_sizes(
-            multiscale_min_size, multiscale_max_size, multiscale_step
-        )
+        resize_sizes = resolve_detr_intermediate_sizes(size)
+        crop_min_size = round(384 * min(size) / DEFAULT_MULTISCALE_BASE_SIZE)
+        if multiscale_min_size is not None or multiscale_max_size is not None:
+            resolved_min_size = multiscale_min_size if multiscale_min_size is not None else resize_sizes[0]
+            resolved_max_size = multiscale_max_size if multiscale_max_size is not None else resize_sizes[-1]
+            resize_sizes = build_multiscale_sizes(resolved_min_size, resolved_max_size, multiscale_step=multiscale_step)
+            crop_min_size = resize_sizes[0]
+
+        crop_max_size = resize_sizes[-1]
+
         return v2.Compose(  # type: ignore
             [
                 v2.ToImage(),

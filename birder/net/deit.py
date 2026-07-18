@@ -120,11 +120,13 @@ class DeiT(DetectorBackbone):
 
         if isinstance(self.classifier, nn.Linear):
             nn.init.zeros_(self.classifier.weight)
-            nn.init.zeros_(self.classifier.bias)
+            if self.classifier.bias is not None:
+                nn.init.zeros_(self.classifier.bias)
 
         if isinstance(self.dist_classifier, nn.Linear):
             nn.init.zeros_(self.dist_classifier.weight)
-            nn.init.zeros_(self.dist_classifier.bias)
+            if self.dist_classifier.bias is not None:
+                nn.init.zeros_(self.dist_classifier.bias)
 
     def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
         if self.dynamic_size is False:

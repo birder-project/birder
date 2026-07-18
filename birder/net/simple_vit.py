@@ -140,7 +140,8 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
 
         if isinstance(self.classifier, nn.Linear):
             nn.init.zeros_(self.classifier.weight)
-            nn.init.zeros_(self.classifier.bias)
+            if self.classifier.bias is not None:
+                nn.init.zeros_(self.classifier.bias)
 
     def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
         if self.dynamic_size is False:

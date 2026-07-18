@@ -387,6 +387,17 @@ class EfficientViM(DetectorBackbone):
         )
         self.classifier = self.create_classifier(self.embed_dim[2])
 
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        super().freeze(freeze_classifier=freeze_classifier, unfreeze_features=unfreeze_features)
+
+        if freeze_classifier is False and self.num_classes > 0:
+            if self.weights is not None:
+                self.weights.requires_grad_(True)
+            for param in self.state_norms.parameters():
+                param.requires_grad_(True)
+            for param in self.state_classifiers.parameters():
+                param.requires_grad_(True)
+
     def transform_to_backbone(self) -> None:
         self.register_parameter("weights", None)
         self.state_norms = nn.ModuleList(
@@ -462,6 +473,9 @@ class EfficientViM(DetectorBackbone):
 
     def classify(self, x: torch.Tensor, hs: list[torch.Tensor]) -> torch.Tensor:  # type: ignore[override]
         # pylint: disable=arguments-differ
+
+        if self.num_classes == 0:
+            return x
 
         weights = F.softmax(self.weights, dim=-1)
         z = torch.zeros((x.size(0), self.num_classes), device=x.device)

@@ -484,6 +484,11 @@ def main(args: argparse.Namespace) -> None:
 
     elif args.resize_patch is not None:
         net.adjust_patch_size(args.resize_patch)
+        resized_config = {
+            **(custom_config or {}),
+            **(args.model_config or {}),
+            "patch_size": args.resize_patch,
+        }
         fs_ops.checkpoint_model(
             network_name,
             args.epoch,
@@ -495,7 +500,7 @@ def main(args: argparse.Namespace) -> None:
             scheduler=None,
             scaler=None,
             model_base=None,
-            external_config=custom_config,
+            external_config=resized_config,
             external_backbone_config=backbone_custom_config,
         )
 

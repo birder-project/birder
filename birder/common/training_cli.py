@@ -313,12 +313,17 @@ def add_detection_input_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="allow variable image sizes while preserving aspect ratios",
     )
-    group.add_argument("--multiscale", default=False, action="store_true", help="enable random scale per image")
+    group.add_argument(
+        "--multiscale",
+        default=False,
+        action="store_true",
+        help="enable target-relative random short-edge scaling per image",
+    )
     group.add_argument(
         "--batch-multiscale",
         default=False,
         action="store_true",
-        help="enable random square resize once per batch (capped by --multiscale-max-size or max(--size))",
+        help="enable target-relative random square resizing once per batch, centered on max(--size)",
     )
     group.add_argument(
         "--multiscale-step",
@@ -329,14 +334,17 @@ def add_detection_input_args(parser: argparse.ArgumentParser) -> None:
     group.add_argument(
         "--multiscale-min-size",
         type=int,
-        help="minimum short-edge size for multiscale lists (rounded up to nearest multiple of --multiscale-step)",
+        help=(
+            "minimum short-edge size for multiscale lists, when omitted, derived from --size by the selected "
+            "multiscale policy (rounded up to the nearest multiple of --multiscale-step)"
+        ),
     )
     group.add_argument(
         "--multiscale-max-size",
         type=int,
         help=(
-            "maximum short-edge size for multiscale lists, rounded down to nearest multiple of "
-            "--multiscale-step (defaults to the preset or max(--size) for --batch-multiscale)"
+            "maximum short-edge size for multiscale lists, when omitted, derived from --size by the selected "
+            "multiscale policy (rounded down to the nearest multiple of --multiscale-step)"
         ),
     )
 
@@ -358,7 +366,7 @@ def add_data_aug_args(
         type=int,
         choices=list(range(10 + 1)),
         default=default_level,
-        help="magnitude of birder augmentations (0 off -> 10 highest)",
+        help="magnitude of birder augmentations (0 uses only resize and horizontal flip -> 10 highest)",
     )
     group.add_argument(
         "--use-grayscale", default=False, action="store_true", help="use grayscale augmentation (birder aug only)"
@@ -621,7 +629,7 @@ def add_compile_args(parser: argparse.ArgumentParser, teacher: bool = False, bac
 
 
 def add_checkpoint_args(
-    parser: argparse.ArgumentParser, default_save_frequency: int = 1, pretrained: bool = False
+    parser: argparse.ArgumentParser, default_save_frequency: int = 1, pretrained: bool = False, load_ema: bool = False
 ) -> None:
     group = parser.add_argument_group("Checkpoint parameters")
     group.add_argument(
@@ -652,6 +660,10 @@ def add_checkpoint_args(
         help="load optimizer, scheduler and scaler states when resuming",
     )
     group.add_argument("--load-scheduler", default=False, action="store_true", help="load only scheduler when resuming")
+    if load_ema is True:
+        group.add_argument(
+            "--load-ema", default=False, action="store_true", help="load EMA model weights when resuming"
+        )
 
 
 def add_distributed_args(parser: argparse.ArgumentParser, fsdp: bool = False) -> None:
@@ -913,6 +925,12 @@ def add_detection_training_data_args(parser: argparse.ArgumentParser, wds_extra_
         "--ignore-file", type=str, metavar="FILE", help="ignore list file, list of samples to ignore in training"
     )
     group.add_argument(
+        "--drop-empty",
+        default=False,
+        action="store_true",
+        help="drop COCO training images that have no valid object annotations",
+    )
+    group.add_argument(
         "--label-mapping",
         type=str,
         metavar="FILE",
@@ -991,6 +1009,11 @@ def common_args_validation(args: argparse.Namespace) -> None:
     # Checkpoint args, shared by all scripts
     if args.load_states is True and args.resume_epoch is None:
         raise ValidationError("--load-states requires --resume-epoch to be set")
+    if hasattr(args, "load_ema") is True and args.load_ema is True:
+        if args.resume_epoch is None:
+            raise ValidationError("--load-ema requires --resume-epoch to be set")
+        if args.model_ema is False:
+            raise ValidationError("--load-ema requires --model-ema")
     if args.load_scheduler is True and args.resume_epoch is None:
         raise ValidationError("--load-scheduler requires --resume-epoch to be set")
     if hasattr(args, "pretrained") is True and args.pretrained is True and args.resume_epoch is not None:

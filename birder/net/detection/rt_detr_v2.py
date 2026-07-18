@@ -25,6 +25,8 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionBaseNet
+from birder.net.detection.base import aligned_box_iou
+from birder.net.detection.base import aligned_generalized_box_iou
 from birder.net.detection.deformable_detr import HungarianMatcher
 from birder.net.detection.deformable_detr import inverse_sigmoid
 from birder.net.detection.rt_detr_v1 import HybridEncoder
@@ -130,6 +132,9 @@ class MultiScaleDeformableAttention(nn.Module):
         self.offset_scale = offset_scale
 
         self.num_points = n_points
+        self.num_points_per_level = nn.Buffer(torch.tensor(n_points, dtype=torch.int64), persistent=False)
+        point_level_indices = [level for level, points in enumerate(self.num_points) for _ in range(points)]
+        self.point_level_indices = nn.Buffer(torch.tensor(point_level_indices, dtype=torch.int64), persistent=False)
         num_points_scale = [1.0 / n for n in self.num_points for _ in range(n)]
         self.num_points_scale = nn.Buffer(torch.tensor(num_points_scale, dtype=torch.float32))
         self.total_points = sum(self.num_points)
@@ -207,33 +212,19 @@ class MultiScaleDeformableAttention(nn.Module):
                     f"reference_points must have {self.n_levels} levels, but got {reference_points.shape[2]}"
                 )
 
+        packed_reference_points = reference_points.index_select(2, self.point_level_indices).unsqueeze(2)
         if reference_points.shape[-1] == 2:
             offset_normalizer = torch.stack([input_spatial_shapes[..., 1], input_spatial_shapes[..., 0]], -1)
-            sampling_locations_list = []
-            offset_idx = 0
-            for lvl in range(self.n_levels):
-                n_pts = self.num_points[lvl]
-                ref = reference_points[:, :, None, lvl : lvl + 1, :].expand(-1, -1, self.n_heads, n_pts, -1)
-                off = sampling_offsets[:, :, :, offset_idx : offset_idx + n_pts, :]
-                norm = offset_normalizer[lvl : lvl + 1].view(1, 1, 1, 1, 2)
-                sampling_locations_list.append(ref + off / norm)
-                offset_idx += n_pts
-
-            sampling_locations = torch.concat(sampling_locations_list, dim=3)
+            packed_offset_normalizer = offset_normalizer.index_select(0, self.point_level_indices)
+            packed_offset_normalizer = packed_offset_normalizer.view(1, 1, 1, self.total_points, 2)
+            sampling_locations = packed_reference_points + sampling_offsets / packed_offset_normalizer
 
         elif reference_points.shape[-1] == 4:
-            sampling_locations_list = []
-            offset_idx = 0
-            num_points_scale = self.num_points_scale.to(dtype=query.dtype)
-            for lvl in range(self.n_levels):
-                n_pts = self.num_points[lvl]
-                ref = reference_points[:, :, None, lvl : lvl + 1, :].expand(-1, -1, self.n_heads, n_pts, -1)
-                off = sampling_offsets[:, :, :, offset_idx : offset_idx + n_pts, :]
-                scale = num_points_scale[offset_idx : offset_idx + n_pts].view(1, 1, 1, n_pts, 1)
-                sampling_locations_list.append(ref[..., :2] + off * scale * ref[..., 2:] * self.offset_scale)
-                offset_idx += n_pts
-
-            sampling_locations = torch.concat(sampling_locations_list, dim=3)
+            num_points_scale = self.num_points_scale.to(dtype=query.dtype).view(1, 1, 1, self.total_points, 1)
+            sampling_locations = (
+                packed_reference_points[..., :2]
+                + sampling_offsets * num_points_scale * packed_reference_points[..., 2:] * self.offset_scale
+            )
 
         else:
             raise ValueError(
@@ -241,14 +232,13 @@ class MultiScaleDeformableAttention(nn.Module):
             )
 
         if self.method == "discrete":
-            output = self._forward_fallback(
+            output = self._forward_discrete(
                 value,
                 src_shapes,
                 src_split_sizes,
                 sampling_locations,
                 attention_weights,
                 valid_ratios=input_valid_ratios,
-                method="discrete",
             )
         else:
             if self.uniform_points is True:
@@ -265,14 +255,22 @@ class MultiScaleDeformableAttention(nn.Module):
                     src_shapes,
                 )
             else:
-                output = self._forward_fallback(
-                    value, src_shapes, src_split_sizes, sampling_locations, attention_weights, method="default"
+                output = self.msda.forward_packed(
+                    value,
+                    input_spatial_shapes,
+                    input_level_start_index,
+                    sampling_locations,
+                    attention_weights,
+                    self.num_points_per_level,
+                    self.im2col_step,
+                    src_shapes,
+                    self.num_points,
                 )
 
         output = self.output_proj(output)
         return output
 
-    def _forward_fallback(
+    def _forward_discrete(
         self,
         value: torch.Tensor,
         src_shapes: list[list[int]],
@@ -280,7 +278,6 @@ class MultiScaleDeformableAttention(nn.Module):
         sampling_locations: torch.Tensor,
         attention_weights: torch.Tensor,
         valid_ratios: Optional[torch.Tensor] = None,
-        method: str = "default",
     ) -> torch.Tensor:
         B, _, n_heads, head_dim = value.size()
         num_queries = sampling_locations.size(1)
@@ -294,51 +291,41 @@ class MultiScaleDeformableAttention(nn.Module):
             value_l = value_list[level].reshape(B * n_heads, head_dim, H, W)
             sampling_location_l = sampling_locations_list[level]
 
-            if method == "default":
-                sampling_grid_l = (2 * sampling_location_l - 1).flatten(0, 1)
-                sampling_value_l = F.grid_sample(
-                    value_l,
-                    sampling_grid_l,
-                    mode="bilinear",
-                    padding_mode="zeros",
-                    align_corners=False,
+            if valid_ratios is not None:
+                one_pixel = torch.tensor(
+                    [1.0 / W, 1.0 / H], dtype=sampling_location_l.dtype, device=sampling_location_l.device
                 )
-            else:
-                if valid_ratios is not None:
-                    one_pixel = torch.tensor(
-                        [1.0 / W, 1.0 / H], dtype=sampling_location_l.dtype, device=sampling_location_l.device
-                    )
-                    max_location = (valid_ratios[:, level] - one_pixel).clamp(min=0)
-                    sampling_location_l = torch.minimum(
-                        sampling_location_l.clamp(min=0), max_location[:, None, None, None, :]
-                    )
-
-                sampling_grid_l = (2 * sampling_location_l - 1).flatten(0, 1)
-                sampling_grid_l[..., 0] += 1.0 / W
-                sampling_grid_l[..., 1] += 1.0 / H
-                sampling_value_l = F.grid_sample(
-                    value_l,
-                    sampling_grid_l,
-                    mode="nearest",
-                    padding_mode="border",
-                    align_corners=False,
+                max_location = (valid_ratios[:, level] - one_pixel).clamp(min=0)
+                sampling_location_l = torch.minimum(
+                    sampling_location_l.clamp(min=0), max_location[:, None, None, None, :]
                 )
 
-                # Original upstream code (expected grid of [0, 1])
-                # e.g. without the 'sampling_grids = 2 * sampling_locations - 1'
-                #
-                # n_pts = self.num_points[level]
-                # sampling_coord = (sampling_grid_l * torch.tensor([[W, H]], device=value.device) + 0.5).to(torch.int64)
-                # sampling_coord[..., 0] = sampling_coord[..., 0].clamp(0, W - 1)
-                # sampling_coord[..., 1] = sampling_coord[..., 1].clamp(0, H - 1)
-                # sampling_coord = sampling_coord.reshape(B * n_heads, num_queries * n_pts, 2)
-                # s_idx = (
-                #     torch.arange(sampling_coord.shape[0], device=value.device)
-                #     .unsqueeze(-1)
-                #     .repeat(1, sampling_coord.shape[1])
-                # )
-                # sampling_value_l = value_l[s_idx, :, sampling_coord[..., 1], sampling_coord[..., 0]]
-                # ... = sampling_value_l.permute(0, 2, 1).reshape(B * n_heads, head_dim, num_queries, n_pts)
+            sampling_grid_l = (2 * sampling_location_l - 1).flatten(0, 1)
+            sampling_grid_l[..., 0] += 1.0 / W
+            sampling_grid_l[..., 1] += 1.0 / H
+            sampling_value_l = F.grid_sample(
+                value_l,
+                sampling_grid_l,
+                mode="nearest",
+                padding_mode="border",
+                align_corners=False,
+            )
+
+            # Original upstream code (expected grid of [0, 1])
+            # e.g. without the 'sampling_grids = 2 * sampling_locations - 1'
+            #
+            # n_pts = self.num_points[level]
+            # sampling_coord = (sampling_grid_l * torch.tensor([[W, H]], device=value.device) + 0.5).to(torch.int64)
+            # sampling_coord[..., 0] = sampling_coord[..., 0].clamp(0, W - 1)
+            # sampling_coord[..., 1] = sampling_coord[..., 1].clamp(0, H - 1)
+            # sampling_coord = sampling_coord.reshape(B * n_heads, num_queries * n_pts, 2)
+            # s_idx = (
+            #     torch.arange(sampling_coord.shape[0], device=value.device)
+            #     .unsqueeze(-1)
+            #     .repeat(1, sampling_coord.shape[1])
+            # )
+            # sampling_value_l = value_l[s_idx, :, sampling_coord[..., 1], sampling_coord[..., 0]]
+            # ... = sampling_value_l.permute(0, 2, 1).reshape(B * n_heads, head_dim, num_queries, n_pts)
 
             sampling_value_list.append(sampling_value_l)
 
@@ -581,15 +568,16 @@ class RT_DETRDecoder(nn.Module):
         if memory_padding_mask is not None:
             enc_outputs_class = enc_outputs_class.masked_fill(memory_padding_mask[..., None], float("-inf"))
 
-        enc_outputs_coord_unact = self.enc_bbox_head(output_memory) + anchors
-
         # Select top-k queries based on classification confidence
-        _, topk_ind = torch.topk(enc_outputs_class.max(dim=-1).values, self.num_queries, dim=1)
+        _, topk_ind = torch.topk(enc_outputs_class.amax(dim=-1), self.num_queries, dim=1)
 
-        # Gather reference points
-        reference_points_unact = enc_outputs_coord_unact.gather(
-            dim=1, index=topk_ind.unsqueeze(-1).expand(-1, -1, enc_outputs_coord_unact.shape[-1])
-        )
+        # Run the bbox head on the selected region features
+        topk_memory = output_memory.gather(dim=1, index=topk_ind.unsqueeze(-1).expand(-1, -1, output_memory.shape[-1]))
+        if anchors.size(0) != output_memory.size(0):
+            anchors = anchors.expand(output_memory.size(0), -1, -1)
+
+        topk_anchors = anchors.gather(dim=1, index=topk_ind.unsqueeze(-1).expand(-1, -1, anchors.shape[-1]))
+        reference_points_unact = self.enc_bbox_head(topk_memory) + topk_anchors
 
         enc_topk_bboxes = reference_points_unact.sigmoid()
 
@@ -598,9 +586,7 @@ class RT_DETRDecoder(nn.Module):
             dim=1, index=topk_ind.unsqueeze(-1).expand(-1, -1, enc_outputs_class.shape[-1])
         )
 
-        # Extract region features
-        target = output_memory.gather(dim=1, index=topk_ind.unsqueeze(-1).expand(-1, -1, output_memory.shape[-1]))
-        target = target.detach()
+        target = topk_memory.detach()
 
         return (target, reference_points_unact.detach(), enc_topk_bboxes, enc_topk_logits)
 
@@ -679,16 +665,13 @@ class RT_DETRDecoder(nn.Module):
             inter_ref_bbox = inverse_sigmoid(reference_points_detached) + bbox_delta
             inter_ref_bbox = inter_ref_bbox.sigmoid()
 
-            # Classification
-            class_logits = class_head(target)
-
             if return_intermediates is True:
                 if layer_idx == 0:
                     bboxes_list.append(inter_ref_bbox)
                 else:
                     bboxes_list.append((inverse_sigmoid(reference_points) + bbox_delta).sigmoid())
 
-                logits_list.append(class_logits)
+                logits_list.append(class_head(target))
 
             # Detached refs are used for iterative decoding, while aux box outputs for
             # deeper layers keep the upstream training gradient path through previous refs.
@@ -700,7 +683,7 @@ class RT_DETRDecoder(nn.Module):
             out_logits = torch.stack(logits_list)
         else:
             out_bboxes = inter_ref_bbox
-            out_logits = class_logits
+            out_logits = self.class_embed[-1](target)
 
         return (out_bboxes, out_logits, enc_topk_bboxes, enc_topk_logits)
 
@@ -857,7 +840,7 @@ class RT_DETR_v2(DetectionBaseNet):
         target_boxes_xyxy = box_ops.box_convert(target_boxes, in_fmt="cxcywh", out_fmt="xyxy")
 
         # IoU for varifocal loss (class loss)
-        ious = torch.diag(box_ops.box_iou(src_boxes_xyxy, target_boxes_xyxy)).detach()
+        ious = aligned_box_iou(src_boxes_xyxy, target_boxes_xyxy).detach()
 
         # Classification loss
         target_classes_o = torch.concat([t["labels"][J] for t, (_, J) in zip(targets, indices)], dim=0)
@@ -884,7 +867,7 @@ class RT_DETR_v2(DetectionBaseNet):
         loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction="none").sum() / num_boxes
 
         # GIoU loss
-        loss_giou = (1 - torch.diag(box_ops.generalized_box_iou(src_boxes_xyxy, target_boxes_xyxy))).sum() / num_boxes
+        loss_giou = (1 - aligned_generalized_box_iou(src_boxes_xyxy, target_boxes_xyxy)).sum() / num_boxes
 
         return (loss_ce, loss_bbox, loss_giou)
 

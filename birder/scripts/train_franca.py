@@ -82,10 +82,10 @@ class FrancaInverseRollBlockMasking(RollBlockMasking):
     def __call__(self, num_masking_patches: int) -> torch.Tensor:
         total_patches = self.height * self.width
         if num_masking_patches == 0:
-            return torch.zeros(self.height, self.width)
+            return torch.zeros(self.height, self.width, dtype=torch.bool)
 
         if num_masking_patches >= total_patches:
-            return torch.ones(self.height, self.width)
+            return torch.ones(self.height, self.width, dtype=torch.bool)
 
         # Calculate complement (visible) patches - this is the block we'll create then invert
         complement_patches = total_patches - num_masking_patches
@@ -103,13 +103,13 @@ class FrancaInverseRollBlockMasking(RollBlockMasking):
         w = int(np.ceil(math.sqrt(complement_patches / aspect_ratio)))
         top = random.randint(0, self.height - h)
         left = random.randint(0, self.width - w)
-        b_mask = np.zeros((self.height, self.width))
-        b_mask[top : top + h, left : left + w] = 1
+        b_mask = np.zeros((self.height, self.width), dtype=np.bool_)
+        b_mask[top : top + h, left : left + w] = True
 
         # Truncate to exact complement_patches
         ids = np.where(b_mask.flatten())[0][:complement_patches]
-        mask = np.zeros((self.height, self.width)).flatten()
-        mask[ids] = 1
+        mask = np.zeros((self.height, self.width), dtype=np.bool_).flatten()
+        mask[ids] = True
         mask_2d = mask.reshape((self.height, self.width))
 
         # Roll to random position
@@ -118,7 +118,7 @@ class FrancaInverseRollBlockMasking(RollBlockMasking):
         mask = np.roll(mask_2d, (shift_x, shift_y), (0, 1))
 
         # Inverse
-        return torch.from_numpy(1 - mask)
+        return torch.from_numpy(np.logical_not(mask))
 
 
 class TrainTransform:
@@ -197,12 +197,11 @@ class TrainCollator:
 
         random.shuffle(masks_list)
 
-        collated_masks = torch.stack(masks_list).flatten(1)
+        collated_masks = torch.stack(masks_list).flatten(1).to(torch.bool)
         mask_indices_list = collated_masks.flatten().nonzero().flatten()
 
-        masks_weight = (
-            (1 / collated_masks.sum(-1).clamp(min=1.0)).unsqueeze(-1).expand_as(collated_masks)[collated_masks.bool()]
-        )
+        per_sample_weight = collated_masks.sum(dim=-1, dtype=torch.float32).clamp_min_(1.0).reciprocal_()
+        masks_weight = per_sample_weight.unsqueeze(-1).expand_as(collated_masks)[collated_masks]
 
         return {
             "collated_global_crops": collated_global_crops,
@@ -211,7 +210,6 @@ class TrainCollator:
             "mask_indices_list": mask_indices_list,
             "masks_weight": masks_weight,
             "upper_bound": upper_bound,
-            "n_masked_patches": torch.full((1,), fill_value=mask_indices_list.size(0), dtype=torch.long),
         }
 
 
@@ -603,6 +601,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     # Gradient scaler and AMP related tasks
     scaler, amp_dtype = training_utils.get_amp_scaler(device, args.amp, args.amp_dtype)
 
+    if amp_dtype is not None and args.sinkhorn_queue_size is not None:
+        assert dino_loss.sinkhorn_queue is not None
+        assert ibot_patch_loss.sinkhorn_queue is not None
+        dino_loss.sinkhorn_queue.to(amp_dtype)
+        ibot_patch_loss.sinkhorn_queue.to(amp_dtype)
+        logger.debug(f"Using {amp_dtype} storage for Sinkhorn queues")
+
     # Load states
     if args.load_states is True:
         if fsdp_mode is True:
@@ -791,7 +796,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
             masks = data["collated_masks"].to(device, non_blocking=True)
             mask_indices_list = data["mask_indices_list"].to(device, non_blocking=True)
-            n_masked_patches_tensor = data["n_masked_patches"].to(device, non_blocking=True)
             n_masked_patches = mask_indices_list.size(0)
             upper_bound = data["upper_bound"]
             masks_weight = data["masks_weight"].to(device, non_blocking=True)
@@ -816,7 +820,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
                             teacher_masked_patch_tokens_after_head,
                             teacher_temp=teacher_temp,
-                            n_masked_patches_tensor=n_masked_patches_tensor,
                         )
 
                     # Student
@@ -840,12 +843,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
                     # Global DINO loss
                     loss_scales = n_global_crops
-                    student_global_concat = [  # Concatenate all nesting levels for global crops
-                        torch.concat(list(t.chunk(n_global_crops)), dim=0) for t in student_global_embedding_after_head
-                    ]
                     loss_dino_global_crops = (
                         dino_loss(
-                            student_global_concat,
+                            list(student_global_embedding_after_head),
                             teacher_dino_softmax_centered_list,
                             n_crops=n_global_crops,
                             teacher_global=True,

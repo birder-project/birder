@@ -14,6 +14,8 @@ from birder.net.base import DetectorBackbone
 
 
 class Vgg(DetectorBackbone):
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,

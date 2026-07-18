@@ -5,7 +5,7 @@ This file contains *only* model variant definitions and their registration
 with the global model registry. The actual ViT implementation lives in vit.py.
 
 Naming:
-- All model names must follow the ViT / RoPE ViT naming convention documented in rope_vit_configs.py.
+- All model names must follow the ViT / RoPE ViT naming convention documented in _rope_vit_configs.py.
 """
 
 from birder.model_registry import registry
@@ -123,6 +123,16 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         "vit_b16",
         vit,
         config={"patch_size": 16, **BASE},
+    )
+    registry.register_model_config(  # From "Three things everyone should know about Vision Transformers"
+        "vit_b16_hmlp",
+        vit,
+        config={"patch_size": 16, **BASE, "stem_type": "hmlp"},
+    )
+    registry.register_model_config(
+        "vit_b16_hmlp_bn",
+        vit,
+        config={"patch_size": 16, **BASE, "stem_type": "hmlp", "stem_norm_layer_type": "BatchNorm2d"},
     )
     registry.register_model_config(
         "vit_b16_avg",

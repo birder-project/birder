@@ -12,7 +12,9 @@ from birder.introspection.attention_rollout import AttentionRollout
 from birder.introspection.feature_pca import FeaturePCA
 from birder.introspection.gradcam import GradCAM
 from birder.introspection.guided_backprop import GuidedBackprop
+from birder.introspection.transformer_attribution import AttributionGatherer
 from birder.introspection.transformer_attribution import TransformerAttribution
+from birder.introspection.transformer_attribution import compute_attribution_rollout
 from birder.model_registry import registry
 
 logging.disable(logging.CRITICAL)
@@ -329,6 +331,36 @@ class TestInterpreters(unittest.TestCase):
 
         self.assertIs(net.relu, original_relu)
         self.assertTrue(net.relu.inplace)
+
+    def test_transformer_attribution_uses_elementwise_attention_gradients(self) -> None:
+        attention = torch.full((1, 2, 3, 3), 1.0 / 3.0)
+        attention_gradients = torch.zeros_like(attention)
+
+        # The first patch has opposing head gradients
+        # Clamping each edge before head fusion preserves its positive contribution
+        attention_gradients[0, 0, 0, 1] = 3.0
+        attention_gradients[0, 1, 0, 1] = -3.0
+        attention_gradients[0, :, 0, 2] = 1.0
+
+        result = compute_attribution_rollout(
+            [(attention, attention_gradients)], num_special_tokens=1, patch_grid_shape=(1, 2)
+        )
+
+        torch.testing.assert_close(result, torch.tensor([[1.0, 2.0 / 3.0]]))
+
+    def test_transformer_attribution_captures_attention_gradients(self) -> None:
+        net = registry.net_factory("vit_t16", 2, size=(32, 32))
+        gatherer = AttributionGatherer(net, attention_layer_name="attn")
+        self.addCleanup(gatherer.release)
+
+        logits = net(torch.randn(1, 3, 32, 32))
+        logits[0, 0].backward()
+        attributions = gatherer.get_captured_data()
+
+        self.assertEqual(len(attributions), net.num_layers)
+        for attn_weights, attn_gradients in attributions:
+            self.assertEqual(attn_weights.shape, (1, 3, 5, 5))
+            self.assertEqual(attn_gradients.shape, attn_weights.shape)
 
     def test_transformer_attribution_result_structure(self) -> None:
         net = registry.net_factory("vit_t16", 2, size=(160, 160))

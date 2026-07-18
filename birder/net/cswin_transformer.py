@@ -281,6 +281,8 @@ class CSWinStage(nn.Module):
 
 
 class CSWin_Transformer(DetectorBackbone):
+    block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
+
     square_only = True
 
     def __init__(

@@ -64,8 +64,7 @@ def convert_to_flatten_layout(
         right[1:, 0] = torch.tensor([1.0] * (ws - p_r) + [0.0] * p_r).repeat(ws).to(right.device)
         bottom = torch.zeros_like(right)
         bottom[0 : ws * (ws - p_b) + 1, 0 : ws * (ws - p_b) + 1] = 1.0
-        bottom_right = right.clone()
-        bottom_right[0 : ws * (ws - p_b) + 1, 0 : ws * (ws - p_b) + 1] = 1.0
+        bottom_right = right * bottom
 
         mask[w_s - 1 : (h_s - 1) * w_s : w_s, ...] = right
         mask[(h_s - 1) * w_s :, ...] = bottom
@@ -397,6 +396,7 @@ class ConvAttStage(nn.Module):
 
 class RegionViT(DetectorBackbone):
     default_size = (256, 256)
+    block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
 
     def __init__(
         self,

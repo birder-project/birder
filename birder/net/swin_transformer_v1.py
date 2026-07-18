@@ -15,6 +15,7 @@ import logging
 import math
 from collections import OrderedDict
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -27,8 +28,12 @@ from torchvision.ops import MLP
 from torchvision.ops import Permute
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 from birder.net.base import stochastic_depth_rates
 
 logger = logging.getLogger(__name__)
@@ -283,7 +288,7 @@ class SwinTransformerBlock(nn.Module):
         return x
 
 
-class Swin_Transformer_v1(DetectorBackbone):
+class Swin_Transformer_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
     def __init__(
@@ -370,6 +375,9 @@ class Swin_Transformer_v1(DetectorBackbone):
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
+        self.stem_stride = patch_size
+        self.stem_width = embed_dim
+
         # Weight initialization
         for m in self.modules():
             if isinstance(m, nn.Linear):
@@ -423,6 +431,41 @@ class Swin_Transformer_v1(DetectorBackbone):
 
             for param in module.parameters():
                 param.requires_grad_(False)
+
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        x = self.stem(x)
+        x = mask_tensor(
+            x, mask, channels_last=True, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token
+        )
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self._grad_checkpointing_blocks)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self._grad_checkpointing_blocks))
+
+            x = checkpoint_sequential(
+                self._grad_checkpointing_blocks,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+        else:
+            x = self.body(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x.permute(0, 3, 1, 2).contiguous()
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

@@ -33,13 +33,13 @@ class Affine(nn.Module):
 
 
 class LayerScaleMLP(nn.Module):
-    def __init__(self, dim: int, num_patches: int, drop: float, drop_path: float, init_value: float) -> None:
+    def __init__(self, dim: int, num_patches: int, dropout: float, drop_path: float, init_value: float) -> None:
         super().__init__()
         self.norm1 = Affine(dim)
         self.attn = nn.Linear(num_patches, num_patches)
         self.drop_path = StochasticDepth(drop_path, mode="row")
         self.norm2 = Affine(dim)
-        self.mlp = MLP(dim, [int(dim * 4.0), dim], activation_layer=nn.GELU, dropout=drop)
+        self.mlp = MLP(dim, [int(dim * 4.0), dim], activation_layer=nn.GELU, dropout=dropout)
         self.gamma_1 = nn.Parameter(init_value * torch.ones((dim)))
         self.gamma_2 = nn.Parameter(init_value * torch.ones((dim)))
 
@@ -51,6 +51,8 @@ class LayerScaleMLP(nn.Module):
 
 
 class ResMLP(BaseNet):
+    block_group_regex = r"body\.(\d+)"
+
     def __init__(
         self,
         input_channels: int,
@@ -62,11 +64,11 @@ class ResMLP(BaseNet):
         super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
 
-        init_value = 1e-4
-        drop_rate = 0.0
+        dropout = 0.0
         embed_dim: int = self.config["embed_dim"]
         depth: int = self.config["depth"]
         patch_size: tuple[int, int] = self.config["patch_size"]
+        init_value: float = self.config["init_value"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
         self.patch_embed = PatchEmbed(self.input_channels, embed_dim, patch_size)
@@ -77,7 +79,7 @@ class ResMLP(BaseNet):
         for _ in range(depth):
             blocks.append(
                 LayerScaleMLP(
-                    embed_dim, num_patches=num_patches, drop=drop_rate, drop_path=drop_path_rate, init_value=init_value
+                    embed_dim, num_patches=num_patches, dropout=dropout, drop_path=drop_path_rate, init_value=init_value
                 )
             )
 

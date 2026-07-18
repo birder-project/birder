@@ -364,6 +364,7 @@ class SSD(DetectionBaseNet):
 
         # Match original targets with default boxes
         num_foreground = 0
+        num_empty_images = 0
         bbox_loss_list = []
         cls_targets_list = []
         for (
@@ -376,7 +377,10 @@ class SSD(DetectionBaseNet):
             # Produce the matching between boxes and targets
             foreground_idxs_per_image = torch.where(matched_idxs_per_image >= 0)[0]
             foreground_matched_idxs_per_image = matched_idxs_per_image[foreground_idxs_per_image]
-            num_foreground += foreground_matched_idxs_per_image.numel()
+            num_foreground_per_image = foreground_matched_idxs_per_image.numel()
+            num_foreground += num_foreground_per_image
+            if num_foreground_per_image == 0:
+                num_empty_images += 1
 
             # Calculate regression loss
             matched_gt_boxes_per_image = targets_per_image["boxes"][foreground_matched_idxs_per_image]
@@ -408,19 +412,20 @@ class SSD(DetectionBaseNet):
         # Hard negative sampling
         foreground_idxs = cls_targets > 0
         num_negative = self.neg_to_pos_ratio * foreground_idxs.sum(1, keepdim=True)
-        # num_negative[num_negative < self.neg_to_pos_ratio] = self.neg_to_pos_ratio
+        num_negative = torch.clamp(num_negative, min=self.neg_to_pos_ratio)
         negative_loss = cls_loss.clone()
         negative_loss[foreground_idxs] = -float("inf")  # Use -inf to detect positive values that creeped in the sample
 
         _values, idx = negative_loss.sort(1, descending=True)
-        # background_idxs = torch.logical_and(idx.sort(1)[1] < num_negative, torch.isfinite(values))
-        background_idxs = idx.sort(1)[1] < num_negative
+        background_idxs = torch.logical_and(idx.sort(1)[1] < num_negative, torch.logical_not(foreground_idxs))
 
-        N = max(1, num_foreground)
+        bbox_normalizer = max(1, num_foreground)
+        classification_normalizer = max(1, num_foreground + num_empty_images)
 
         return {
-            "bbox_regression": bbox_loss.sum() / N,
-            "classification": (cls_loss[foreground_idxs].sum() + cls_loss[background_idxs].sum()) / N,
+            "bbox_regression": bbox_loss.sum() / bbox_normalizer,
+            "classification": (cls_loss[foreground_idxs].sum() + cls_loss[background_idxs].sum())
+            / classification_normalizer,
         }
 
     def postprocess_detections(

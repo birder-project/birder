@@ -29,10 +29,10 @@ Training used multi-resolution inputs sampled from 512px to 672px, followed by a
     - Perception Encoder: The best visual embeddings are not at the output of the network: <https://arxiv.org/abs/2504.13181>
 
 - **Metrics:**
-    - mAP @ 576x576px: 53.25 (mAP @ 0.50 72.52, mAP @ 0.75 57.55)
-    - mAP @ 608x608px: 53.96 (mAP @ 0.50 73.05, mAP @ 0.75 58.33)
-    - mAP @ 640x640px: 54.58 (mAP @ 0.50 73.56, mAP @ 0.75 59.06)
-    - mAP @ 672x672px: 54.74 (mAP @ 0.50 73.92, mAP @ 0.75 59.52)
+    - mAP @ 576x576px: 53.21 (mAP @ 0.50 72.43, mAP @ 0.75 57.74)
+    - mAP @ 608x608px: 53.96 (mAP @ 0.50 73.06, mAP @ 0.75 58.34)
+    - mAP @ 640x640px: 54.61 (mAP @ 0.50 73.54, mAP @ 0.75 59.00)
+    - mAP @ 672x672px: 54.73 (mAP @ 0.50 73.83, mAP @ 0.75 59.54)
 
 ## Model Usage
 

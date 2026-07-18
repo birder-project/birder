@@ -226,6 +226,7 @@ class InceptionBlockC(nn.Module):
 class Inception_v4(DetectorBackbone):
     default_size = (299, 299)
     auto_register = True
+    block_group_regex = r"body\.stage1|body\.stage([234])\.(\d+)"
 
     def __init__(
         self,

@@ -154,8 +154,22 @@ class SinkhornQueue(nn.Module):
         self.queue_size = queue_size
         self.active = True
         self.queue = nn.Buffer(torch.empty(queue_size, dim))
-        self.queue_ptr = nn.Buffer(torch.zeros(1, dtype=torch.long))
-        self.queue_full = nn.Buffer(torch.zeros(1, dtype=torch.bool))
+        self._queue_ptr = 0
+        self._queue_full = False
+
+    def get_extra_state(self) -> dict[str, int | bool]:
+        return {
+            "version": 1,
+            "queue_ptr": self._queue_ptr,
+            "queue_full": self._queue_full,
+        }
+
+    def set_extra_state(self, state: dict[str, int | bool]) -> None:
+        if state["version"] != 1:
+            raise ValueError(f"Unsupported SinkhornQueue state version: {state['version']}")
+
+        self._queue_ptr = int(state["queue_ptr"])
+        self._queue_full = bool(state["queue_full"])
 
     def set_active(self, active: bool) -> None:
         self.active = active
@@ -163,7 +177,7 @@ class SinkhornQueue(nn.Module):
     def get(self) -> Optional[torch.Tensor]:
         if self.active is False:
             return None
-        if self.queue_full.item() is False:
+        if self._queue_full is False:
             return None
 
         return self.queue
@@ -180,11 +194,11 @@ class SinkhornQueue(nn.Module):
         values = values.detach()
         if values.size(0) >= self.queue_size:
             self.queue.copy_(values[-self.queue_size :])
-            self.queue_ptr.zero_()
-            self.queue_full.fill_(True)
+            self._queue_ptr = 0
+            self._queue_full = True
             return
 
-        ptr = self.queue_ptr.item()
+        ptr = self._queue_ptr
         end = ptr + values.size(0)
         if end <= self.queue_size:
             self.queue[ptr:end].copy_(values)
@@ -193,9 +207,8 @@ class SinkhornQueue(nn.Module):
             self.queue[ptr:].copy_(values[:first])
             self.queue[: end - self.queue_size].copy_(values[first:])
 
-        self.queue_ptr.fill_(end % self.queue_size)
-        if end >= self.queue_size:
-            self.queue_full.fill_(True)
+        self._queue_ptr = end % self.queue_size
+        self._queue_full |= end >= self.queue_size
 
 
 class DINOLossMRL(nn.Module):
@@ -227,15 +240,16 @@ class DINOLossMRL(nn.Module):
     ) -> torch.Tensor:
         total_loss = 0.0
         if teacher_global is False:
+            n_student_crops, n_teacher_crops = n_crops  # type: ignore[misc]
             for student_outputs, teacher_outputs in zip(student_output_list, teacher_out_softmax_centered_list):
-                s = torch.stack(student_outputs.chunk(n_crops[0]), 0).float()  # type: ignore[index]
-                t = teacher_outputs.view(n_crops[1], -1, teacher_outputs.shape[-1]).float()  # type: ignore[index]
+                s = student_outputs.view(n_student_crops, -1, student_outputs.size(-1)).float()
+                t = teacher_outputs.view(n_teacher_crops, -1, teacher_outputs.size(-1)).float()
                 lsm = F.log_softmax(s / self.student_temp, dim=-1)
-                total_loss -= torch.einsum("tbk,sbk->tsb", t, lsm).mean(-1).sum()
+                total_loss -= torch.sum(t.sum(dim=0) * lsm.sum(dim=0), dim=-1).mean()
 
         else:
             for student_outputs, teacher_outputs in zip(student_output_list, teacher_out_softmax_centered_list):
-                teacher_outputs = teacher_outputs.view(n_crops, -1, teacher_outputs.shape[-1]).float()
+                teacher_outputs = teacher_outputs.view(n_crops, -1, teacher_outputs.size(-1)).float()
                 lsm = F.log_softmax(student_outputs.float() / self.student_temp, dim=-1)
                 loss = torch.sum(teacher_outputs.flatten(0, 1) * lsm, dim=-1)
                 total_loss -= loss.mean()
@@ -253,7 +267,7 @@ class DINOLossMRL(nn.Module):
         if teacher_global is False:
             for student_outputs, teacher_outputs in zip(student_output_list, teacher_out_softmax_centered_list):
                 student_feat = student_outputs.chunk(n_crops[0])  # type: ignore[index]
-                teacher_feat = teacher_outputs.view(n_crops[1], -1, teacher_outputs.shape[-1])  # type: ignore[index]
+                teacher_feat = teacher_outputs.view(n_crops[1], -1, teacher_outputs.size(-1))  # type: ignore[index]
                 for s in student_feat:
                     lsm = F.log_softmax(s.float() / self.student_temp, dim=-1)
                     for t in teacher_feat:
@@ -262,7 +276,7 @@ class DINOLossMRL(nn.Module):
 
         else:
             for student_outputs, teacher_outputs in zip(student_output_list, teacher_out_softmax_centered_list):
-                teacher_outputs = teacher_outputs.view(n_crops, -1, teacher_outputs.shape[-1]).float()
+                teacher_outputs = teacher_outputs.view(n_crops, -1, teacher_outputs.size(-1)).float()
                 lsm = F.log_softmax(student_outputs.float() / self.student_temp, dim=-1)
                 loss = torch.sum(teacher_outputs.flatten(0, 1) * lsm, dim=-1)
                 total_loss -= loss.mean()
@@ -279,8 +293,6 @@ class DINOLossMRL(nn.Module):
     def sinkhorn_knopp_teacher(
         self, teacher_output: tuple[torch.Tensor, ...], teacher_temp: float, n_iterations: int = 3
     ) -> tuple[torch.Tensor, ...]:
-        world_size = training_utils.get_world_size()
-
         results = []
         for idx, t_out in enumerate(teacher_output):
             current_output = t_out
@@ -299,20 +311,18 @@ class DINOLossMRL(nn.Module):
 
             t_out.div_(teacher_temp).exp_()
             q = t_out.t()
-            B = q.size(1) * world_size  # Number of samples to assign
-            k = q.size(0)  # How many prototypes
 
             for _ in range(n_iterations):
+                # Normalize each prototype globally
                 sum_of_rows = torch.sum(q, dim=1, keepdim=True)
                 if training_utils.is_dist_available_and_initialized() is True:
                     dist.all_reduce(sum_of_rows)
 
                 q /= sum_of_rows
-                q /= k
-                q /= torch.sum(q, dim=0, keepdim=True)
-                q /= B
 
-            q *= B
+                # Normalize each sample locally
+                q /= torch.sum(q, dim=0, keepdim=True)
+
             out = q.t()
             if queue is not None:
                 out = out[: current_output.size(0)]
@@ -366,7 +376,7 @@ class iBOTPatchLossMRL(nn.Module):
                 loss = loss[:n_masked_patches]
 
             loss = loss * masks_weight
-            total_loss -= loss.sum() / student_masks_flat.shape[0]
+            total_loss -= loss.sum() / student_masks_flat.size(0)
 
         return total_loss
 
@@ -381,7 +391,6 @@ class iBOTPatchLossMRL(nn.Module):
         self,
         teacher_outputs: tuple[torch.Tensor, ...],
         teacher_temp: float,
-        n_masked_patches_tensor: torch.Tensor,
         n_iterations: int = 3,
     ) -> tuple[torch.Tensor, ...]:
         result = []
@@ -393,45 +402,26 @@ class iBOTPatchLossMRL(nn.Module):
                 queue = None
 
             if queue is not None:
-                queue_len = queue.size(0)
                 # NOTE: Concat created a new tensor, can modify in-place
                 teacher_output = torch.concat([teacher_output, queue], dim=0)
                 teacher_output = teacher_output.float()
             else:
-                queue_len = 0
                 teacher_output = teacher_output.float().clone()
 
             teacher_output.div_(teacher_temp).exp_()
             q = teacher_output.t()
-            B = n_masked_patches_tensor
-            if queue_len > 0:
-                B = B + n_masked_patches_tensor.new_tensor([queue_len])
-
-            if training_utils.is_dist_available_and_initialized() is True:
-                dist.all_reduce(B)
-
-            K = q.size(0)  # How many prototypes
-
-            sum_q = torch.sum(q)
-            if training_utils.is_dist_available_and_initialized() is True:
-                dist.all_reduce(sum_q)
-
-            q /= sum_q
 
             for _ in range(n_iterations):
-                # Normalize each row: total weight per prototype must be 1/K
+                # Normalize each prototype globally
                 sum_of_rows = torch.sum(q, dim=1, keepdim=True)
                 if training_utils.is_dist_available_and_initialized() is True:
                     dist.all_reduce(sum_of_rows)
 
                 q /= sum_of_rows
-                q /= K
 
-                # Normalize each column: total weight per sample must be 1/B
+                # Normalize each sample locally
                 q /= torch.sum(q, dim=0, keepdim=True)
-                q /= B
 
-            q *= B
             out = q.t()
             if queue is not None:
                 out = out[: current_output.size(0)]

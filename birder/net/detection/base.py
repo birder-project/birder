@@ -11,6 +11,7 @@ import torch
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import FeaturePyramidNetwork
+from torchvision.ops import boxes as box_ops
 from torchvision.ops.feature_pyramid_network import ExtraFPNBlock
 
 from birder.model_registry import Task
@@ -342,6 +343,51 @@ class SimpleFeaturePyramidNetwork(nn.Module):
         out = OrderedDict(list(zip(names, results)))
 
         return out
+
+
+###############################################################################
+# Box operations
+###############################################################################
+
+
+def _upcast_box_tensor(tensor: torch.Tensor) -> torch.Tensor:
+    # Match torchvision's _upcast
+    if tensor.is_floating_point() is True:
+        return tensor if tensor.dtype in (torch.float32, torch.float64) else tensor.float()
+
+    return tensor if tensor.dtype in (torch.int32, torch.int64) else tensor.int()
+
+
+def _aligned_box_inter_union(boxes1: torch.Tensor, boxes2: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    area1 = box_ops.box_area(boxes1)
+    area2 = box_ops.box_area(boxes2)
+    left_top = torch.max(boxes1[..., :2], boxes2[..., :2])
+    right_bottom = torch.min(boxes1[..., 2:], boxes2[..., 2:])
+    width_height = _upcast_box_tensor(right_bottom - left_top).clamp(min=0)
+    intersection = width_height[..., 0] * width_height[..., 1]
+    union = area1 + area2 - intersection
+
+    return (intersection, union)
+
+
+def aligned_box_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
+    intersection, union = _aligned_box_inter_union(boxes1, boxes2)
+    return intersection / union
+
+
+def aligned_generalized_box_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
+    """
+    Compute generalized IoU for corresponding xyxy box pairs
+    """
+
+    intersection, union = _aligned_box_inter_union(boxes1, boxes2)
+    iou = intersection / union
+    left_top = torch.min(boxes1[..., :2], boxes2[..., :2])
+    right_bottom = torch.max(boxes1[..., 2:], boxes2[..., 2:])
+    width_height = _upcast_box_tensor(right_bottom - left_top).clamp(min=0)
+    enclosing_area = width_height[..., 0] * width_height[..., 1]
+
+    return iou - (enclosing_area - union) / enclosing_area
 
 
 ###############################################################################

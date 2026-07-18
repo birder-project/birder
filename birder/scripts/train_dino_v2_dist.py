@@ -614,7 +614,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
             masks = data["collated_masks"].to(device, non_blocking=True)
             mask_indices_list = data["mask_indices_list"].to(device, non_blocking=True)
-            n_masked_patches_tensor = data["n_masked_patches"].to(device, non_blocking=True)
             n_masked_patches = mask_indices_list.size(0)
             upper_bound = data["upper_bound"]
             masks_weight = data["masks_weight"].to(device, non_blocking=True)
@@ -661,7 +660,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                             masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
                                 teacher_masked_patch_tokens_after_head,
                                 teacher_temp=teacher_temp,
-                                n_masked_patches_tensor=n_masked_patches_tensor,
                             )
 
                     # Student

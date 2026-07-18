@@ -28,25 +28,16 @@ from birder.net.vit import Encoder
 def compute_attribution_rollout(
     attributions: list[tuple[torch.Tensor, torch.Tensor]], num_special_tokens: int, patch_grid_shape: tuple[int, int]
 ) -> torch.Tensor:
-    """
-    NOTE: Uses gradient norm per token instead of element-wise grad * attention multiplication.
-    """
-
     # Assume batch size = 1
     num_tokens = attributions[0][0].size(-1)
     device = attributions[0][0].device
 
     result = torch.eye(num_tokens, device=device)
     with torch.no_grad():
-        for attn_weights, output_grad in attributions:
-            # Compute token importance from output gradient norm across embedding dimension
-            token_importance = output_grad.norm(dim=-1, keepdim=True)
-
-            # Weight each query token's attention pattern by its importance
-            weighted_attn = attn_weights * token_importance.unsqueeze(1)
-
-            # Fuse attention heads and apply non-negativity constraint
-            relevance = weighted_attn.mean(dim=1).clamp(min=0)
+        for attn_weights, attn_gradients in attributions:
+            # Weight every attention edge by its class-specific gradient, discard
+            # negative contributions, then fuse the attention heads.
+            relevance = (attn_weights * attn_gradients).clamp(min=0).mean(dim=1)
 
             # Add residual connection and normalize
             eye = torch.eye(num_tokens, device=device)
@@ -80,8 +71,8 @@ class AttributionGatherer:
 
         self.net = net
         self.handles: list[torch.utils.hooks.RemovableHandle] = []
-        self._gradients: list[torch.Tensor] = []
         self._attention_weights: list[torch.Tensor] = []
+        self._attention_gradients: list[Optional[torch.Tensor]] = []
 
         for name, module in self.net.named_modules():
             if name.endswith(attention_layer_name) is True:
@@ -89,35 +80,41 @@ class AttributionGatherer:
                 self.handles.append(handle)
 
     def _capture_forward(
-        self, _module: nn.Module, _inputs: tuple[torch.Tensor, ...], output: tuple[torch.Tensor, ...] | torch.Tensor
+        self, _module: nn.Module, _inputs: tuple[torch.Tensor, ...], output: tuple[torch.Tensor, Optional[torch.Tensor]]
     ) -> None:
-        output_tensor = output[0]
         attn_weights = output[1]
+        if attn_weights is None:
+            raise RuntimeError("Attention layer did not return attention weights")
+        if attn_weights.requires_grad is False:
+            raise RuntimeError("Attention weights do not require gradients")
 
+        index = len(self._attention_weights)
         self._attention_weights.append(attn_weights.detach())
-        if output_tensor.requires_grad:
+        self._attention_gradients.append(None)
 
-            def _store_grad(grad: torch.Tensor) -> None:
-                self._gradients.append(grad.detach())
+        def _store_grad(grad: torch.Tensor) -> None:
+            self._attention_gradients[index] = grad.detach()
 
-            output_tensor.register_hook(_store_grad)
+        attn_weights.register_hook(_store_grad)
 
     def get_captured_data(self) -> list[tuple[torch.Tensor, torch.Tensor]]:
-        if len(self._attention_weights) != len(self._gradients):
-            raise RuntimeError(
-                f"Mismatch between attention weights ({len(self._attention_weights)}) "
-                f"and gradients ({len(self._gradients)}). Ensure backward() was called."
-            )
-
         if len(self._attention_weights) == 0:
             raise RuntimeError("No attention data captured. Ensure the model has attention layers.")
 
-        # Pair attention weights with output gradients (gradients reversed to match forward order)
-        results = [(attn.cpu(), grad.cpu()) for attn, grad in zip(self._attention_weights, reversed(self._gradients))]
+        missing_gradients = [idx for idx, gradient in enumerate(self._attention_gradients) if gradient is None]
+        if len(missing_gradients) > 0:
+            raise RuntimeError(
+                f"Missing attention gradients for layers {missing_gradients}. Ensure backward() was called."
+            )
+
+        results = []
+        for attn_weights, attn_gradients in zip(self._attention_weights, self._attention_gradients, strict=True):
+            assert attn_gradients is not None
+            results.append((attn_weights.cpu(), attn_gradients.cpu()))
 
         # Clear storage for next forward pass
-        self._gradients = []
         self._attention_weights = []
+        self._attention_gradients = []
 
         return results
 

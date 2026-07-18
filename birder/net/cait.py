@@ -11,6 +11,7 @@ Paper "Going deeper with Image Transformers", https://arxiv.org/abs/2103.17239
 
 import logging
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -21,8 +22,11 @@ from torch.utils.checkpoint import checkpoint_sequential
 from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
-from birder.net.base import BaseNet
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 from birder.net.vit import adjust_position_embedding
 
 logger = logging.getLogger(__name__)
@@ -160,7 +164,7 @@ class LayerScaleBlock(nn.Module):
         return x
 
 
-class CaiT(BaseNet):
+class CaiT(PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"block1\.(\d+)"  # ClassAttentionBlock combined with the head
 
     def __init__(
@@ -238,6 +242,10 @@ class CaiT(BaseNet):
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
 
+        self.max_stride = patch_size[0]
+        self.stem_stride = patch_size[0]
+        self.stem_width = embed_dim
+
         # Weights initialization
         for m in self.modules():
             if isinstance(m, nn.Linear):
@@ -272,6 +280,64 @@ class CaiT(BaseNet):
         self.grad_checkpointing_segments = segments
         self.grad_checkpointing_preserve_rng_state = preserve_rng_state
         self.grad_checkpointing_use_reentrant = use_reentrant
+
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        H, W = x.shape[-2:]
+
+        x = self.patch_embed.proj(x)
+        x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token)
+        x = x.flatten(2).transpose(1, 2)
+        x = x + self.pos_embed
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self.block1)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self.block1))
+
+            x = checkpoint_sequential(
+                self.block1,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+        else:
+            x = self.block1(x)
+
+        cls_tokens = self.cls_token.expand(x.shape[0], -1, -1)
+        for blk in self.block2:
+            if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+                cls_tokens = checkpoint(
+                    blk,
+                    x,
+                    cls_tokens,
+                    use_reentrant=self.grad_checkpointing_use_reentrant,
+                    preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+                )
+            else:
+                cls_tokens = blk(x, cls_tokens)
+
+        x = torch.concat((cls_tokens, x), dim=1)
+        x = self.norm(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            features = x[:, self.num_special_tokens :]
+            features = features.permute(0, 2, 1)
+            B, C, _ = features.size()
+            features = features.reshape(B, C, H // self.patch_size[0], W // self.patch_size[1])
+            result["features"] = features
+
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.embedding_from_features(x)
+
+        return result
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)

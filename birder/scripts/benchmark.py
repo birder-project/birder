@@ -43,6 +43,7 @@ def prepare_model(net: torch.nn.Module) -> None:
 def init_plain_model(
     model_name: str, sample_shape: tuple[int, ...], device: torch.device, args: argparse.Namespace
 ) -> torch.nn.Module:
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     size = (sample_shape[2], sample_shape[3])
     input_channels = sample_shape[1]
     if args.backbone is not None:
@@ -51,7 +52,7 @@ def init_plain_model(
     else:
         net = registry.net_factory(model_name, args.num_classes, input_channels, size=size)
 
-    net.to(device)
+    net.to(device, dtype=model_dtype)
     if args.channels_last is True:
         net = net.to(memory_format=torch.channels_last)
         logger.debug("Using channels-last memory format")
@@ -86,8 +87,9 @@ def get_weights_size(spec: WeightsSpec) -> tuple[int, int]:
 
 
 def init_weights_model(spec: WeightsSpec, device: torch.device, args: argparse.Namespace) -> torch.nn.Module:
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     net, _ = fs_ops.load_model_with_cfg(spec.cfg_path, spec.weights_path)
-    net.to(device)
+    net.to(device, dtype=model_dtype)
     if args.size is not None:
         net.adjust_size(args.size)
     if args.channels_last is True:
@@ -102,8 +104,10 @@ def init_weights_model(spec: WeightsSpec, device: torch.device, args: argparse.N
 def throughput_benchmark(
     net: torch.nn.Module, device: torch.device, sample_shape: tuple[int, ...], model_name: str, args: argparse.Namespace
 ) -> tuple[float, int]:
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
+
     def _make_sample() -> torch.Tensor:
-        sample = torch.rand(sample_shape, device=device)
+        sample = torch.rand(sample_shape, device=device, dtype=model_dtype)
         if args.channels_last is True:
             sample = sample.to(memory_format=torch.channels_last)
 
@@ -117,7 +121,7 @@ def throughput_benchmark(
 
     logger.info(
         f"Sanity check for {model_name}: size={sample_shape[2:]} device={device.type} compile={args.compile} "
-        f"amp={args.amp} amp_dtype={amp_dtype} channels_last={args.channels_last}"
+        f"model_dtype={model_dtype} amp={args.amp} amp_dtype={amp_dtype} channels_last={args.channels_last}"
     )
 
     batch_size = sample_shape[0]
@@ -178,6 +182,7 @@ def throughput_benchmark(
 def memory_benchmark(
     sync_peak_memory: Any, sample_shape: tuple[int, ...], model_spec: str | WeightsSpec, args: argparse.Namespace
 ) -> None:
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     if args.gpu is True:
         device = torch.device("cuda")
     else:
@@ -198,7 +203,8 @@ def memory_benchmark(
 
     logger.info(
         f"Memory benchmark for {model_name}: batch={sample_shape[0]} size={sample_shape[2:]} device={device.type} "
-        f"compile={args.compile} amp={args.amp} amp_dtype={amp_dtype} channels_last={args.channels_last}"
+        f"compile={args.compile} model_dtype={model_dtype} amp={args.amp} amp_dtype={amp_dtype} "
+        f"channels_last={args.channels_last}"
     )
 
     if args.plain is True:
@@ -207,7 +213,7 @@ def memory_benchmark(
         net = init_weights_model(model_spec, device, args)
 
     else:
-        net, _ = birder.load_pretrained_model(model_name, inference=True, device=device)
+        net, _ = birder.load_pretrained_model(model_name, inference=True, device=device, dtype=model_dtype)
         if args.size is not None:
             size = (sample_shape[2], sample_shape[3])
             net.adjust_size(size)
@@ -219,7 +225,7 @@ def memory_benchmark(
     torch.cuda.reset_peak_memory_stats(device)
     with torch.inference_mode():
         with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
-            sample = torch.rand(sample_shape, device=device)
+            sample = torch.rand(sample_shape, device=device, dtype=model_dtype)
             if args.channels_last is True:
                 sample = sample.to(memory_format=torch.channels_last)
             for _ in range(5):
@@ -233,6 +239,7 @@ def benchmark(args: argparse.Namespace) -> None:
     mp.set_start_method("spawn")
 
     torch_version = torch.__version__
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     if args.plain is True:
         output_path = "benchmark_plain"
     else:
@@ -322,6 +329,7 @@ def benchmark(args: argparse.Namespace) -> None:
                     "device": device.type,
                     "single_thread": args.single_thread,
                     "compile": args.compile,
+                    "model_dtype": args.model_dtype,
                     "amp": args.amp,
                     "fast_matmul": args.fast_matmul,
                     "channels_last": args.channels_last,
@@ -351,7 +359,7 @@ def benchmark(args: argparse.Namespace) -> None:
             elif args.plain is True:
                 net = init_plain_model(model_name, sample_shape, device, args)
             else:
-                net, _ = birder.load_pretrained_model(model_name, inference=True, device=device)
+                net, _ = birder.load_pretrained_model(model_name, inference=True, device=device, dtype=model_dtype)
                 if args.size is not None:
                     net.adjust_size(size)
                 if args.channels_last is True:
@@ -381,6 +389,7 @@ def benchmark(args: argparse.Namespace) -> None:
                 "device": device.type,
                 "single_thread": args.single_thread,
                 "compile": args.compile,
+                "model_dtype": args.model_dtype,
                 "amp": args.amp,
                 "fast_matmul": args.fast_matmul,
                 "channels_last": args.channels_last,
@@ -444,6 +453,13 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     parser.add_argument("--channels-last", default=False, action="store_true", help="use channels-last memory format")
     parser.add_argument(
+        "--model-dtype",
+        type=str,
+        choices=["float32", "float16", "bfloat16"],
+        default="float32",
+        help="model dtype to use",
+    )
+    parser.add_argument(
         "--amp", default=False, action="store_true", help="use torch.amp.autocast for mixed precision inference"
     )
     parser.add_argument(
@@ -484,6 +500,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--memory requires --gpu")
     if args.memory is True and args.compile is True:
         raise cli.ValidationError("--memory cannot be used with --compile")
+    if args.amp is True and args.model_dtype != "float32":
+        raise cli.ValidationError("--amp can only be used with --model-dtype float32")
     if len(args.weights) > 0 and args.plain is True:
         raise cli.ValidationError("--weights cannot be used with --plain")
     if len(args.weights) > 0 and args.filter is not None:

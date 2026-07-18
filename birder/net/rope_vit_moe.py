@@ -18,6 +18,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
 from birder.layers import FFN
+from birder.layers import LayerNorm2d
 from birder.layers import LayerScale
 from birder.layers.activations import get_activation_module
 from birder.layers.rope import RoPE
@@ -37,6 +38,7 @@ from birder.net.rope_vit import MAEDecoderBlock
 from birder.net.rope_vit import RoPEAttention
 from birder.net.vit import PatchEmbed
 from birder.net.vit import adjust_position_embedding
+from birder.net.vit import hMLPStem
 from birder.net.vit_moe import V_MOE_SMALL
 from birder.net.vit_moe import AuxLossesType
 from birder.net.vit_moe import SparseMoE_FFN
@@ -377,6 +379,10 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         image_size = self.size
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", True)
         patch_size: int = self.config["patch_size"]
+        stem_type: Literal["patchify", "hmlp"] = self.config.get("stem_type", "patchify")
+        stem_norm_layer_type: Optional[Literal["BatchNorm2d", "LayerNorm2d"]] = self.config.get(
+            "stem_norm_layer_type", None
+        )
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
         hidden_dim: int = self.config["hidden_dim"]
@@ -417,6 +423,31 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         router_importance_loss_weight: float = self.config.get("router_importance_loss_weight", 0.005)
         router_load_loss_weight: float = self.config.get("router_load_loss_weight", 0.005)
 
+        if stem_type == "patchify":
+            if stem_norm_layer_type is not None:
+                raise ValueError("stem_norm_layer_type is only supported with stem_type='hmlp'")
+
+            self.conv_proj = nn.Conv2d(
+                self.input_channels,
+                hidden_dim,
+                kernel_size=(patch_size, patch_size),
+                stride=(patch_size, patch_size),
+                padding=(0, 0),
+            )
+        elif stem_type == "hmlp":
+            assert patch_size == 16, "The hMLP stem requires patch_size=16"
+
+            if stem_norm_layer_type is None:
+                self.conv_proj = hMLPStem(self.input_channels, hidden_dim)
+            elif stem_norm_layer_type == "BatchNorm2d":
+                self.conv_proj = hMLPStem(self.input_channels, hidden_dim, norm_layer=nn.BatchNorm2d)
+            elif stem_norm_layer_type == "LayerNorm2d":
+                self.conv_proj = hMLPStem(self.input_channels, hidden_dim, norm_layer=LayerNorm2d)
+            else:
+                raise ValueError(f"Unknown stem_norm_layer_type '{stem_norm_layer_type}'")
+        else:
+            raise ValueError(f"Unknown stem_type '{stem_type}'")
+
         if norm_layer_type == "LayerNorm":
             norm_layer = nn.LayerNorm
         elif norm_layer_type == "RMSNorm":
@@ -452,13 +483,6 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         self.pt_grid_size = pt_grid_size
         dpr = stochastic_depth_rates(drop_path_rate, num_layers)
 
-        self.conv_proj = nn.Conv2d(
-            self.input_channels,
-            hidden_dim,
-            kernel_size=(patch_size, patch_size),
-            stride=(patch_size, patch_size),
-            padding=(0, 0),
-        )
         self.patch_embed = PatchEmbed()
 
         seq_length = (image_size[0] // patch_size) * (image_size[1] // patch_size)
@@ -546,10 +570,11 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         )
 
         # Weight initialization
-        fan_in = self.conv_proj.in_channels * self.conv_proj.kernel_size[0] * self.conv_proj.kernel_size[1]
-        nn.init.trunc_normal_(self.conv_proj.weight, std=math.sqrt(1 / fan_in))
-        if self.conv_proj.bias is not None:
-            nn.init.zeros_(self.conv_proj.bias)
+        if isinstance(self.conv_proj, nn.Conv2d):
+            fan_in = self.conv_proj.in_channels * self.conv_proj.kernel_size[0] * self.conv_proj.kernel_size[1]
+            nn.init.trunc_normal_(self.conv_proj.weight, std=math.sqrt(1 / fan_in))
+            if self.conv_proj.bias is not None:
+                nn.init.zeros_(self.conv_proj.bias)
 
         head_bias_init = -math.log(num_classes) if num_classes > 0 else 0.0
         if isinstance(self.classifier, nn.Linear):
