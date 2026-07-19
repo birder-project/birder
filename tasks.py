@@ -29,6 +29,7 @@ COLOR_RED = 91
 DEFAULT_COLOR = COLOR_GRAY
 
 PROJECT_DIR = "birder"
+KERNELS_DIR = pathlib.Path(PROJECT_DIR).joinpath("kernels")
 HF_DOCS_DIR = "docs/internal/hf_model_cards"
 HF_MODEL_CARD_TEMPLATE = "docs/internal/model_card_template.md.j2"
 HF_MODEL_CARD_DETECTION_TEMPLATE = "docs/internal/model_card_detection_template.md.j2"
@@ -82,6 +83,12 @@ def ci(ctx, coverage=False, failfast=False):
 
     return_code = 0
 
+    if clang_format(ctx) != 0:
+        return_code = 1
+        if failfast is True:
+            echo("CI Failed", color=COLOR_RED)
+            raise Exit(code=return_code)
+
     if pylint(ctx) != 0:
         return_code = 1
         if failfast is True:
@@ -113,6 +120,28 @@ def ci(ctx, coverage=False, failfast=False):
 
 
 @task
+def clang_format(ctx):
+    """
+    Check C++ and CUDA kernel source formatting
+    """
+
+    return_code = 0
+
+    source_files = sorted(
+        path for pattern in ("*.cpp", "*.h", "*.hpp", "*.cu", "*.cuh") for path in KERNELS_DIR.rglob(pattern)
+    )
+    command = ["clang-format", "--style=file", "--dry-run", "--Werror", *(str(path) for path in source_files)]
+    result = ctx.run(_shell_join(command), echo=True, pty=True, warn=True)
+    if result.exited != 0:
+        return_code = 1
+        echo("Failed", color=COLOR_RED)
+    else:
+        echo("Passed", color=COLOR_GREEN)
+
+    return return_code
+
+
+@task
 def pylint(ctx):
     """
     Run pylint & flake8 on all Python files, type check and formatting check
@@ -121,12 +150,7 @@ def pylint(ctx):
     return_code = 0
 
     # pylint
-    result = ctx.run(
-        f"python -m pylint *.py tests tests_flow {PROJECT_DIR}",
-        echo=True,
-        pty=True,
-        warn=True,
-    )
+    result = ctx.run(f"python -m pylint *.py tests tests_flow {PROJECT_DIR}", echo=True, pty=True, warn=True)
     if result.exited != 0:
         return_code = 1
         echo("Failed", color=COLOR_RED)

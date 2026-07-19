@@ -8,6 +8,7 @@ RUN sed -i -e's/ main/ main contrib non-free/g' /etc/apt/sources.list.d/debian.s
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y --no-install-recommends \
     ca-certificates \
     build-essential \
+    clang-format \
     libjpeg-dev \
     libpng-dev \
     libmkl-dev \

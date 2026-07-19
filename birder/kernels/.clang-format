@@ -1,0 +1,55 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Layout
+AccessModifierOffset: -2
+AlignAfterOpenBracket: Align
+AlignEscapedNewlines: Right
+AlignOperands: Align
+BreakBeforeBraces: Attach
+ColumnLimit: 120
+ContinuationIndentWidth: 4
+IndentWidth: 4
+TabWidth: 8
+UseTab: Never
+
+# Line breaking
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortBlocksOnASingleLine: Never
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+BreakConstructorInitializers: BeforeColon
+BreakInheritanceList: BeforeColon
+AlwaysBreakTemplateDeclarations: true
+ConstructorInitializerIndentWidth: 8
+
+# Includes
+IncludeBlocks: Preserve
+SortIncludes: CaseSensitive
+SortUsingDeclarations: true
+
+# Indentation
+IndentCaseLabels: false
+IndentPPDirectives: None
+NamespaceIndentation: None
+
+# Types
+DerivePointerAlignment: false
+PointerAlignment: Right
+ReferenceAlignment: Pointer
+
+# Spacing
+SpaceAfterCStyleCast: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeParens: ControlStatements
+SpacesInContainerLiterals: true
+
+# Output and parsing
+DeriveLineEnding: true
+Standard: Latest
+UseCRLF: false
+...

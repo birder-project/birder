@@ -15,7 +15,7 @@
 
 using namespace torch::indexing;
 
-torch::Tensor calculate_area(const torch::Tensor& boxes) {
+torch::Tensor calculate_area(const torch::Tensor &boxes) {
     /*
     Computes the area of the boxes.
 
@@ -30,7 +30,7 @@ torch::Tensor calculate_area(const torch::Tensor& boxes) {
     return areas;
 }
 
-torch::Tensor calculate_iou(const torch::Tensor& boxes, const torch::Tensor& areas, const int& idx) {
+torch::Tensor calculate_iou(const torch::Tensor &boxes, const torch::Tensor &areas, const int &idx) {
     /*
     Computes the IOU between the box at index idx and all boxes "below" it (i.e. idx+1 until the end of the tensor).
 
@@ -52,7 +52,7 @@ torch::Tensor calculate_iou(const torch::Tensor& boxes, const torch::Tensor& are
     return iou;
 }
 
-void update_sorting_order(torch::Tensor& boxes, torch::Tensor& scores, torch::Tensor& areas, const int& idx) {
+void update_sorting_order(torch::Tensor &boxes, torch::Tensor &scores, torch::Tensor &areas, const int &idx) {
     /*
     Since the scores get updated with soft-nms we need to "re-sort" them and their corresponding boxes.
 
@@ -83,19 +83,16 @@ void update_sorting_order(torch::Tensor& boxes, torch::Tensor& scores, torch::Te
     areas.index_put_({max_idx}, torch::where(should_swap, areas_idx, areas_max));
 }
 
-std::tuple<torch::Tensor, torch::Tensor> soft_nms(
-    const torch::Tensor& boxes,
-    const torch::Tensor& scores,
-    const double sigma,
-    const double score_threshold) {
+std::tuple<torch::Tensor, torch::Tensor> soft_nms(const torch::Tensor &boxes, const torch::Tensor &scores,
+                                                  const double sigma, const double score_threshold) {
     /*
     Performs soft-nms on the boxes (with the Gaussian function).
 
     Args:
         boxes (Tensor[N, 4]): Boxes to perform NMS on. They are expected to be in (x_min, y_min, x_max, y_max) format.
         scores (Tensor[N]): Scores for each one of the boxes.
-        sigma (double): The sigma parameter described in the paper which controls how much the score is decreased on overlap.
-        score_threshold (double): Will filter out all updated-scores which has value than score_threshold.
+        sigma (double): The sigma parameter described in the paper which controls how much the score is decreased on
+    overlap. score_threshold (double): Will filter out all updated-scores which has value than score_threshold.
 
     Returns:
         updated_scores (Tensor): float tensor with the updated scores, i.e.

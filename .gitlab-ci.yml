@@ -14,6 +14,8 @@ all-test-job:
   # variables:
   #   NETWORK_TESTS: 1
   script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends clang-format
     - pip install -r requirements/requirements-pytorch-cpu.txt
     - pip install -r requirements/requirements-dev.txt
     - inv ci --coverage --failfast
