@@ -237,6 +237,7 @@ class EfficientNet_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMix
         self.embedding_size = last_channels
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 2
         self.stem_width = in_channels[0]
         self.feature_dim = out_channels[-1]

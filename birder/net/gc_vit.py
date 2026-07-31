@@ -250,7 +250,9 @@ class WindowAttentionGlobal(nn.Module):
             kv = kv.reshape(B, N, 2, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
             k, v = kv.unbind(0)
 
-            q_global = q_global.repeat(B // q_global.size(0), 1, 1, 1)
+            # repeat_interleave can create CPU indices during CUDA export, causing a device mismatch
+            # https://github.com/pytorch/pytorch/issues/107591
+            q_global = q_global.unsqueeze(1).expand(-1, B // q_global.size(0), -1, -1, -1).reshape(B, N, C)
             q = q_global.reshape(B, N, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
 
         else:
@@ -476,6 +478,7 @@ class GC_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.embedding_size = return_channels[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 4 * 2 ** (num_stages - 1)
         self.stem_stride = 4
         self.stem_width = embed_dim
         self.feature_dim = return_channels[-1]
@@ -677,7 +680,7 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 47.9,
-                "sha256": "5326a53903759e32178a6c2994639e6d0172faa51e1573a700f8d12b4f447c61",
+                "sha256": "1481c00fdbc3a2f75bfa59cfb663fc480ce4592c9fbcae1b589e79bbd476ab45",
             }
         },
         "net": {"network": "gc_vit_xxt", "tag": "il-common"},

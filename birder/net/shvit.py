@@ -102,6 +102,8 @@ class NormLinear(nn.Sequential):
             self.add_module("bn", nn.BatchNorm1d(in_dim))
 
         self.add_module("li", nn.Linear(in_dim, out_dim))
+
+        # Weights initialization
         nn.init.trunc_normal_(self.li.weight, std=0.02)
         nn.init.zeros_(self.li.bias)
 
@@ -468,9 +470,13 @@ class SHViT(DetectorBackbone):
         )
         self.return_stages = self.return_stages[: len(depths)]
         self.return_channels = return_channels
-        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 64
+        self.stem_stride = 16
+        self.stem_width = stem_dim
+        self.feature_dim = embed_dims[-1]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

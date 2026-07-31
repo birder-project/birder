@@ -74,6 +74,7 @@ class ConvNeXt_v1_Isotropic(DetectorBackbone, PreTrainEncoder, MaskedTokenRetent
         torch._assert(self.size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(self.size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         self.patch_size = patch_size
+        self.num_layers = num_layers
         self.out_indices = normalize_out_indices(out_indices, num_layers)
 
         self.stem = nn.Conv2d(
@@ -134,11 +135,17 @@ class ConvNeXt_v1_Isotropic(DetectorBackbone, PreTrainEncoder, MaskedTokenRetent
         for param in self.stem.parameters():
             param.requires_grad_(False)
 
-        for idx, module in enumerate(self.body.children()):
-            if idx >= up_to_stage:
-                break
+        if up_to_stage <= 0:
+            return
 
-            for param in module.parameters():
+        if self.out_indices is None:
+            stage_boundaries = [self.num_layers - 1]
+        else:
+            stage_boundaries = sorted(set(self.out_indices))
+
+        last_block = stage_boundaries[min(up_to_stage, len(stage_boundaries)) - 1]
+        for block in self.body[: last_block + 1]:
+            for param in block.parameters():
                 param.requires_grad_(False)
 
     def masked_encoding_retention(

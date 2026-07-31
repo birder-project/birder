@@ -156,7 +156,7 @@ def _load_embeddings_with_split(embeddings_path: str) -> tuple[
     val_df = emb_df.filter(pl.col("split") == "validation")
     test_df = emb_df.filter(pl.col("split") == "testing")
     if train_df.is_empty() is True or val_df.is_empty() is True or test_df.is_empty() is True:
-        raise RuntimeError("Expected non-empty training, validation, and testing splits")
+        raise RuntimeError("Expected non-empty training, validation and testing splits")
 
     x_train = train_df.get_column("embedding").to_numpy().astype(np.float32, copy=False)
     y_train = train_df.get_column("label").to_numpy().astype(np.int_, copy=False)

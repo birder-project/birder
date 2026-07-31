@@ -155,9 +155,13 @@ class HGNet_v2(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = out_ch
         self.embedding_size = feature_dim
         self.classifier = self.create_classifier()
+
+        self.max_stride = 4 * 2 ** (len(stages_cfg) - 1)
+        self.stem_stride = 4
+        self.stem_width = stem_channels[-1]
+        self.feature_dim = out_ch
 
         # Weight initialization
         for m in self.modules():

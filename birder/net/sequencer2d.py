@@ -12,6 +12,7 @@ Changes from original:
 
 # Reference license: Apache-2.0 (both)
 
+import math
 from typing import Any
 from typing import Optional
 
@@ -23,7 +24,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.model_registry import registry
 from birder.net.base import BaseNet
-from birder.net.base import stochastic_depth_rates
+from birder.net.base import staged_stochastic_depth_rates
 
 
 class LSTM2d(nn.Module):
@@ -127,7 +128,7 @@ class Sequencer2dStage(nn.Module):
         downsample: bool,
         num_layers: int,
         drop: float,
-        drop_path: float,
+        drop_path: list[float],
     ) -> None:
         super().__init__()
         if downsample is True:
@@ -137,7 +138,7 @@ class Sequencer2dStage(nn.Module):
             self.downsample = nn.Identity()
 
         blocks = []
-        for _ in range(depth):
+        for block_idx in range(depth):
             blocks.append(
                 Sequencer2dBlock(
                     dim_out,
@@ -145,7 +146,7 @@ class Sequencer2dStage(nn.Module):
                     mlp_ratio=mlp_ratio,
                     num_layers=num_layers,
                     drop=drop,
-                    drop_path=drop_path,
+                    drop_path=drop_path[block_idx],
                 )
             )
 
@@ -196,7 +197,7 @@ class Sequencer2d(BaseNet):
 
         stages = []
         prev_dim = embed_dims[0]
-        dpr = stochastic_depth_rates(drop_path_rate, len(layers), endpoint=False)
+        dpr = staged_stochastic_depth_rates(drop_path_rate, layers)
         for idx, embed_dim in enumerate(embed_dims):
             stages += [
                 Sequencer2dStage(
@@ -221,9 +222,38 @@ class Sequencer2d(BaseNet):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
-        self.feature_dim = prev_dim
         self.embedding_size = prev_dim
         self.classifier = self.create_classifier()
+
+        self.max_stride = math.prod(patch_sizes)
+        self.stem_stride = patch_sizes[0]
+        self.stem_width = embed_dims[0]
+        self.feature_dim = prev_dim
+
+        # Weight initialization
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Conv2d):
+                fan_in = m.weight.size(1) * math.prod(m.weight.shape[2:])
+                truncated_normal_std = math.sqrt(
+                    1.0 - 4.0 * math.exp(-2.0) / (math.sqrt(2.0 * math.pi) * math.erf(math.sqrt(2.0)))
+                )
+                std = math.sqrt(1.0 / fan_in) / truncated_normal_std
+                nn.init.trunc_normal_(m.weight, std=std, a=-2.0 * std, b=2.0 * std)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.LayerNorm):
+                if m.weight is not None:
+                    nn.init.ones_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.LSTM):
+                std = 1.0 / math.sqrt(m.hidden_size)
+                for parameter in m.parameters():
+                    nn.init.uniform_(parameter, -std, std)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

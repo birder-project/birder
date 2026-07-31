@@ -53,8 +53,8 @@ class StemBlock(nn.Module):
         branch1 = self.branch1(x)
         x = torch.concat((branch0, branch1), dim=1)
 
-        branch0 = self.max_pool2(x)
-        branch1 = self.conv2(x)
+        branch0 = self.conv2(x)
+        branch1 = self.max_pool2(x)
         x = torch.concat((branch0, branch1), dim=1)
 
         return x
@@ -291,11 +291,15 @@ class Inception_v4(DetectorBackbone):
             nn.Flatten(1),
             nn.Dropout(p=0.2),
         )
-        self.return_channels = return_channels[1:]
         self.return_stages = self.return_stages[1:]
-        self.feature_dim = 1536
+        self.return_channels = return_channels[1:]
         self.embedding_size = 1536
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = 64
+        self.feature_dim = 1536
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

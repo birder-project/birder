@@ -219,9 +219,13 @@ class MNASNet(DetectorBackbone):
             nn.Dropout(p=0.2),
         )
         self.return_channels = return_channels
-        self.feature_dim = depths[7]
         self.embedding_size = 1280
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = depths[1]
+        self.feature_dim = depths[7]
 
         # Weights initialization
         for m in self.modules():

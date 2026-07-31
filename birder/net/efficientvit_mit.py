@@ -4,6 +4,9 @@ https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/effici
 
 Paper "EfficientViT: Multi-Scale Linear Attention for High-Resolution Dense Prediction",
 https://arxiv.org/abs/2205.14756
+
+Changes from original:
+* Use the default normalization epsilon (1e-5) for all variants
 """
 
 # Reference license: Apache-2.0
@@ -602,9 +605,13 @@ class EfficientViT_MIT(DetectorBackbone):
             act_layer(),
         )
         self.return_channels = return_channels
-        self.feature_dim = widths[-1]
         self.embedding_size = head_widths[1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = widths[0]
+        self.feature_dim = widths[-1]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

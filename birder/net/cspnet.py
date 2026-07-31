@@ -52,6 +52,11 @@ class BottleneckBlock(nn.Module):
             groups=groups,
             activation_layer=nn.LeakyReLU,
         )
+        if drop_block > 0.0:
+            self.drop_block = DropBlock2d(p=drop_block, block_size=drop_block_size)
+        else:
+            self.drop_block = nn.Identity()
+
         if squeeze_excitation is True:
             self.se = SqueezeExcitation(mid_channels, mid_channels // 16)
         else:
@@ -60,10 +65,6 @@ class BottleneckBlock(nn.Module):
         self.conv3 = Conv2dNormActivation(
             mid_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), activation_layer=None
         )
-        if drop_block > 0.0:
-            self.drop_block = DropBlock2d(p=drop_block, block_size=drop_block_size)
-        else:
-            self.drop_block = nn.Identity()
 
         self.act = nn.LeakyReLU()
 
@@ -74,9 +75,9 @@ class BottleneckBlock(nn.Module):
         shortcut = x
         x = self.conv1(x)
         x = self.conv2(x)
+        x = self.drop_block(x)
         x = self.se(x)
         x = self.conv3(x)
-        x = self.drop_block(x)
         x = x + shortcut
         x = self.act(x)
 
@@ -325,9 +326,17 @@ class CSPNet(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels[-4:]
-        self.feature_dim = filters[-1]
         self.embedding_size = filters[-1]
         self.classifier = self.create_classifier()
+
+        max_stride = stem_stride[0] * (2 if stem_max_pool is True else 1)
+        for stride in strides:
+            max_stride *= stride
+
+        self.max_stride = max_stride
+        self.stem_stride = stem_stride[0] * (2 if stem_max_pool is True else 1)
+        self.stem_width = stem_channels
+        self.feature_dim = filters[-1]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

@@ -354,9 +354,26 @@ class CSWin_Transformer(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = curr_dim
         self.embedding_size = curr_dim
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = embed_dim
+        self.feature_dim = curr_dim
+
+        # Weights initialization
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.trunc_normal_(m.weight, std=0.02)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+            elif isinstance(m, (nn.LayerNorm, nn.BatchNorm2d)):
+                if m.weight is not None:
+                    nn.init.ones_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def set_grad_checkpointing(
         self,
@@ -444,6 +461,12 @@ class CSWin_Transformer(DetectorBackbone):
         super().adjust_size(new_size)
 
         new_base = (new_size[0] // 4, new_size[1] // 4)
+        self.split_size = [
+            (1, 1),
+            (2, 2),
+            (new_size[0] // 32, new_size[1] // 32),
+            (new_size[0] // 32, new_size[1] // 32),
+        ]
         idx = 0
         for stage in self.body.modules():
             if isinstance(stage, CSWinStage):
@@ -454,11 +477,10 @@ class CSWin_Transformer(DetectorBackbone):
                     elif isinstance(m, CSWinBlock):
                         for attn in m.attentions:
                             attn.resolution = new_base
-                            attn.split_size = (new_size[0] // 32, new_size[1] // 32)
+                            attn.split_size = self.split_size[idx]
                             attn.assign_sp_shape()
 
                 new_base = (new_base[0] // 2, new_base[1] // 2)
-                self.split_size[idx] = (new_size[0] // 32, new_size[1] // 32)
                 idx += 1
 
 

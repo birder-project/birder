@@ -28,13 +28,13 @@ The project features:
 - Advanced error analysis tools
 - Documentation and tutorials
 
-Unlike projects that aim to reproduce ImageNet training results from common papers, Birder is tailored specifically for practical applications in wildlife monitoring, conservation efforts, ecological research, and nature photography.
+Unlike projects that aim to reproduce ImageNet training results from common papers, Birder is tailored specifically for practical applications in wildlife monitoring, conservation efforts, ecological research and nature photography.
 
 As Ross Wightman eloquently stated in the [timm README](https://github.com/huggingface/pytorch-image-models#introduction):
 
 > The work of many others is present here. I've tried to make sure all source material is acknowledged via links to github, arXiv papers, etc. in the README, documentation, and code docstrings. Please let me know if I missed anything.
 
-The same principle applies to Birder. We stand on the shoulders of giants in the fields of computer vision, machine learning, and ecology. We've made every effort to acknowledge and credit the work that has influenced and contributed to this project. If you believe we've missed any attributions, please let us know by opening an issue.
+The same principle applies to Birder. We stand on the shoulders of giants in the fields of computer vision, machine learning and ecology. We've made every effort to acknowledge and credit the work that has influenced and contributed to this project. If you believe we've missed any attributions, please let us know by opening an issue.
 
 ## Setup
 
@@ -128,7 +128,7 @@ This approach allows our models to learn rich, general-purpose visual representa
 
 The pretraining dataset is composed of a mix of general images and bird-specific imagery to improve downstream performance on the bird classification tasks.
 
-For detailed information about these datasets, including descriptions, citations, and licensing details, please refer to [docs/public_datasets.md](docs/public_datasets.md).
+For detailed information about these datasets, including descriptions, citations and licensing details, please refer to [docs/public_datasets.md](docs/public_datasets.md).
 
 ## Detection
 
@@ -179,7 +179,7 @@ It's the user's responsibility to ensure that their use of this project, includi
 
 ## Acknowledgments
 
-Birder owes much to the work of others in computer vision, machine learning, and ornithology.
+Birder owes much to the work of others in computer vision, machine learning and ornithology.
 
 Special thanks to:
 

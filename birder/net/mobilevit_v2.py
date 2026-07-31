@@ -8,7 +8,7 @@ Paper "Separable Self-attention for Mobile Vision Transformers",
 https://arxiv.org/abs/2206.02680
 """
 
-# Reference license: Apache-2.0 and Apple open source (see license at reference)
+# Reference license: Apache-2.0 and Apple MIT License
 
 import math
 from collections import OrderedDict
@@ -211,7 +211,7 @@ class MobileViT_v2(DetectorBackbone):
         width_factor: float = self.config["width_factor"]
 
         patch_size = (2, 2)
-        attn_drop = 0.1
+        attn_drop = 0.0
         depths = [2, 4, 3]
         expansion = 2
         stem_channels = int(32 * width_factor)
@@ -297,9 +297,13 @@ class MobileViT_v2(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = channels[-1]
         self.embedding_size = channels[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = stem_channels
+        self.feature_dim = channels[-1]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

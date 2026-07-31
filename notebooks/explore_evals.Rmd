@@ -6,7 +6,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.19.4
+      jupytext_version: 1.19.5
   kernelspec:
     display_name: birder
     language: python
@@ -62,6 +62,7 @@ MODEL_SUFFIX_RE = re.compile(r"(?:_(?:e\d+|\d+))?_\d+px_crop[\d.]+(?:_\d+)?(?:_s
 # PREFIX = "bio-dino-"
 # PREFIX = "bio-dino-dist-s14-"
 PREFIX = ""
+
 # MARK_EPOCHS = {185: "224px", 245: "252px", 250: "336px"}
 # MARK_EPOCHS = {260: "252px"}
 MARK_EPOCHS = None
@@ -85,6 +86,7 @@ MODEL_LABELS = {
     "vit_reg4_l14_nps_ls_dino-v2-lvd142m": "DINOv2 L14",
     "vit_so400m_p14_ap_siglip-v2-webli": "SigLIP 2 SO400M",
     "vit_reg1_b14_tips-v2": "TIPS v2 B14",
+    "davit_fl_base_florence-v2": "Florence 2",
 }
 METRIC_NAMES = {
     "ami_score": "Adjusted Mutual Information",

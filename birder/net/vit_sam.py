@@ -161,13 +161,14 @@ class EncoderBlock(nn.Module):
         activation_layer: Callable[..., nn.Module] = nn.GELU,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
     ) -> None:
         super().__init__()
         self.window_size = window_size
 
         # Attention block
-        self.norm1 = norm_layer(dim)
+        self.norm1 = norm_layer(dim, eps=norm_layer_eps)
         self.attn = Attention(
             dim,
             num_heads=num_heads,
@@ -182,7 +183,7 @@ class EncoderBlock(nn.Module):
             self.layer_scale_1 = nn.Identity()
 
         # MLP block
-        self.norm2 = norm_layer(dim)
+        self.norm2 = norm_layer(dim, eps=norm_layer_eps)
         self.mlp = mlp_layer(dim, mlp_dim, act_layer=activation_layer, dropout=0.0)
         self.drop_path2 = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
@@ -235,7 +236,9 @@ class ViT_SAM(DetectorBackbone):
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
+        post_norm: bool = self.config.get("post_norm", False)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
+        norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
         window_size: tuple[int, int] = self.config["window_size"]
         global_attn_indexes: list[int] = self.config["global_attn_indexes"]
@@ -301,6 +304,7 @@ class ViT_SAM(DetectorBackbone):
                     activation_layer=act_layer,
                     layer_scale_init_value=layer_scale_init_value,
                     norm_layer=norm_layer,
+                    norm_layer_eps=norm_layer_eps,
                     mlp_layer=mlp_layer,
                 )
             )
@@ -316,7 +320,7 @@ class ViT_SAM(DetectorBackbone):
                     padding=(0, 0),
                     bias=False,
                 ),
-                LayerNorm2d(neck_channels, eps=1e-6),
+                LayerNorm2d(neck_channels, eps=norm_layer_eps),
                 nn.Conv2d(
                     neck_channels,
                     neck_channels,
@@ -325,11 +329,14 @@ class ViT_SAM(DetectorBackbone):
                     padding=(1, 1),
                     bias=False,
                 ),
-                LayerNorm2d(neck_channels, eps=1e-6),
+                LayerNorm2d(neck_channels, eps=norm_layer_eps),
             )
         else:
             neck_channels = hidden_dim
-            self.neck = LayerNorm2d(neck_channels)
+            if post_norm is True:
+                self.neck = LayerNorm2d(neck_channels, eps=norm_layer_eps)
+            else:
+                self.neck = nn.Identity()
 
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
@@ -340,9 +347,13 @@ class ViT_SAM(DetectorBackbone):
         self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
         self.return_channels = [hidden_dim] * num_return_stages
         self.return_channels[-1] = neck_channels
-        self.feature_dim = neck_channels
         self.embedding_size = neck_channels
         self.classifier = self.create_classifier()
+
+        self.max_stride = patch_size
+        self.stem_stride = patch_size
+        self.stem_width = hidden_dim
+        self.feature_dim = neck_channels
 
         self.decoder_block = partial(
             MAEDecoderBlock,
@@ -366,10 +377,24 @@ class ViT_SAM(DetectorBackbone):
         orig_dtype = self.pos_embedding.dtype
         pos_embedding = self.pos_embedding.float()
         pos_embedding = pos_embedding.permute(0, 3, 1, 2)
-        pos_embedding = F.interpolate(pos_embedding, size=(base_h, base_w), mode="bicubic", antialias=True)
+        pos_embedding = F.interpolate(pos_embedding, size=(base_h, base_w), mode="bicubic", antialias=False)
         pos_embedding = pos_embedding.permute(0, 2, 3, 1)
 
         return pos_embedding.to(orig_dtype)
+
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        for param in self.parameters():
+            param.requires_grad_(False)
+
+        if freeze_classifier is False:
+            for param in self.classifier.parameters():
+                param.requires_grad_(True)
+
+        if unfreeze_features is True:
+            for param in self.neck.parameters():
+                param.requires_grad_(True)
+            for param in self.features.parameters():
+                param.requires_grad_(True)
 
     def set_grad_checkpointing(
         self,
@@ -430,11 +455,17 @@ class ViT_SAM(DetectorBackbone):
 
         self.pos_embedding.requires_grad_(False)
 
-        for idx, module in enumerate(self.body.children()):
-            if idx >= up_to_stage:
-                break
+        if up_to_stage <= 0:
+            return
 
-            for param in module.parameters():
+        if self.out_indices is None:
+            stage_boundaries = [self.num_layers - 1]
+        else:
+            stage_boundaries = sorted(set(self.out_indices))
+
+        last_block = stage_boundaries[min(up_to_stage, len(stage_boundaries)) - 1]
+        for block in self.body[: last_block + 1]:
+            for param in block.parameters():
                 param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:

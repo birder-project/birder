@@ -57,7 +57,7 @@ class MAE_ViT(MIMBaseNet):
         if learnable_pos_embed is True:
             seq_len = (self.size[0] // self.patch_size) * (self.size[1] // self.patch_size)
             seq_len += self.encoder.num_special_tokens
-            self.decoder_pos_embed = nn.Parameter(torch.empty(1, seq_len, decoder_embed_dim).normal_(std=0.02))
+            self.decoder_pos_embed = nn.Parameter(torch.empty(1, seq_len, decoder_embed_dim))
         else:
             # Fixed sin-cos embeddings
             pos_embedding = pos_embedding_sin_cos_2d(
@@ -65,6 +65,7 @@ class MAE_ViT(MIMBaseNet):
                 w=self.size[1] // self.patch_size,
                 dim=decoder_embed_dim,
                 num_special_tokens=self.encoder.num_special_tokens,
+                include_frequency_endpoint=False,
             )
             self.decoder_pos_embed = nn.Buffer(pos_embedding)
 
@@ -75,6 +76,21 @@ class MAE_ViT(MIMBaseNet):
         layers.append(nn.LayerNorm(decoder_embed_dim, eps=1e-6))
         layers.append(nn.Linear(decoder_embed_dim, self.patch_size**2 * self.input_channels))  # Decoder to patch
         self.decoder = nn.Sequential(*layers)
+
+        # Weight initialization
+        nn.init.normal_(self.mask_token, std=0.02)
+        if learnable_pos_embed is True:
+            nn.init.trunc_normal_(self.decoder_pos_embed, std=0.02)
+
+        for m in (self.decoder_embed, *self.decoder.modules()):
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+            elif isinstance(m, nn.LayerNorm):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
 
     def patchify(self, imgs: torch.Tensor) -> torch.Tensor:
         """

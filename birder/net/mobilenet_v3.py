@@ -5,7 +5,7 @@ https://github.com/pytorch/vision/blob/main/torchvision/models/mobilenetv3.py
 Paper "Searching for MobileNetV3", https://arxiv.org/abs/1905.02244
 
 Changes from original:
-* Using nn.BatchNorm2d with eps 1e-5 instead of 1e-3
+* Using nn.BatchNorm2d with eps 1e-5 and momentum 0.1 instead of 1e-3 and 0.01
 """
 
 # Reference license: BSD 3-Clause
@@ -132,7 +132,7 @@ class MobileNet_v3(DetectorBackbone):
         self.mlp_head = self.config.get("mlp_head", True)
 
         if large is True:
-            last_channels = int(round(1280 * max(1.0, alpha)))
+            last_channels = make_divisible(1280 * alpha, 8)
             net_settings = [
                 InvertedResidualConfig(16, 16, 16, (3, 3), (1, 1), (1, 1), alpha, False, nn.ReLU),
                 InvertedResidualConfig(16, 24, 64, (3, 3), (2, 2), (1, 1), alpha, False, nn.ReLU),
@@ -151,7 +151,7 @@ class MobileNet_v3(DetectorBackbone):
                 InvertedResidualConfig(160, 160, 960, (5, 5), (1, 1), (2, 2), alpha, True, nn.Hardswish),
             ]
         else:
-            last_channels = int(round(1024 * max(1.0, alpha)))
+            last_channels = make_divisible(1024 * alpha, 8)
             net_settings = [
                 InvertedResidualConfig(16, 16, 16, (3, 3), (2, 2), (1, 1), alpha, True, nn.ReLU),
                 InvertedResidualConfig(16, 24, 72, (3, 3), (2, 2), (1, 1), alpha, False, nn.ReLU),
@@ -207,10 +207,14 @@ class MobileNet_v3(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels[1:5]
-        self.feature_dim = net_settings[-1].out_channels
         self.embedding_size = net_settings[-1].out_channels * 6
         self.last_channels = last_channels
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = net_settings[0].in_channels
+        self.feature_dim = net_settings[-1].out_channels
 
         # Weight initialization
         for m in self.modules():
@@ -311,20 +315,6 @@ registry.register_weights(
             }
         },
         "net": {"network": "mobilenet_v3_small_1_0", "tag": "il-common"},
-    },
-)
-registry.register_weights(
-    "mobilenet_v3_large_0_75_il-common",
-    {
-        "description": "MobileNet v3 large (0.75 multiplier) model trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 12.1,
-                "sha256": "92412316f3dbcc41e4f3186acb50027e87ce0ea3ea1d6b5a726ea883fea20b8e",
-            }
-        },
-        "net": {"network": "mobilenet_v3_large_0_75", "tag": "il-common"},
     },
 )
 registry.register_weights(

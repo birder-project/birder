@@ -4,6 +4,9 @@ https://github.com/megvii-model/ShuffleNet-Series/blob/master/ShuffleNetV1/netwo
 
 Paper "ShuffleNet: An Extremely Efficient Convolutional Neural Network for Mobile Devices",
 https://arxiv.org/abs/1707.01083
+
+Changes from original:
+* Follow the paper for channel shuffle ordering and placement where it differs from the reference implementation
 """
 
 # Reference license: MIT
@@ -38,24 +41,14 @@ def channel_shuffle(x: torch.Tensor, groups: int) -> torch.Tensor:
     return x
 
 
-class ChannelShuffle(nn.Module):
-    def __init__(self, groups: int) -> None:
-        super().__init__()
-        self.groups = groups
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return channel_shuffle(x, groups=self.groups)
-
-
 class ShuffleUnit(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, groups: int, grouped_conv: bool) -> None:
+    def __init__(self, in_channels: int, out_channels: int, groups: int, first_group: bool) -> None:
         super().__init__()
         assert in_channels <= out_channels
 
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.groups = groups
-        self.grouped_conv = grouped_conv
         bottleneck_channels = out_channels // 4
 
         if in_channels == out_channels:
@@ -66,10 +59,10 @@ class ShuffleUnit(nn.Module):
         else:
             raise ValueError("in_channels must be smaller or equal to out_channels")
 
-        if grouped_conv is True:
-            first_groups = groups
-        else:
+        if first_group is True:
             first_groups = 1
+        else:
+            first_groups = groups
 
         self.bottleneck = Conv2dNormActivation(
             in_channels,
@@ -107,20 +100,20 @@ class ShuffleUnit(nn.Module):
         residual = x
 
         x = self.bottleneck(x)
-        if self.grouped_conv is True:
+        if self.groups > 1:
             x = channel_shuffle(x, groups=self.groups)
 
         x = self.expand(x)
         if self.in_channels == self.out_channels:
             x = x + residual
+            x = F.relu(x)
 
         else:
             residual = F.avg_pool2d(  # pylint: disable=not-callable
                 residual, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)
             )
-            x = torch.concat((x, residual), dim=1)
+            x = torch.concat((residual, F.relu(x)), dim=1)
 
-        x = F.relu(x)
         return x
 
 
@@ -137,6 +130,7 @@ class ShuffleNet_v1(DetectorBackbone):
         assert self.config is not None, "must set config"
 
         groups: int = self.config["groups"]
+        self.head_bias = self.config.get("head_bias", False)
         if groups == 1:
             stage_repeats = [3, 7, 3]
             out_channels = [24, 144, 288, 576]
@@ -160,8 +154,13 @@ class ShuffleNet_v1(DetectorBackbone):
         else:
             raise ValueError(f"groups = {groups} not supported")
 
-        self.stem = nn.Conv2d(
-            self.input_channels, out_channels[0], kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False
+        self.stem = Conv2dNormActivation(
+            self.input_channels,
+            out_channels[0],
+            kernel_size=(3, 3),
+            stride=(2, 2),
+            padding=(1, 1),
+            bias=False,
         )
 
         stages: OrderedDict[str, nn.Module] = OrderedDict()
@@ -171,17 +170,12 @@ class ShuffleNet_v1(DetectorBackbone):
         return_channels.append(out_channels[0])
         for i, repeat in enumerate(stage_repeats):
             layers = []
-            if i == 0:
-                grouped_conv = False
-            else:
-                grouped_conv = True
-
             layers.append(
                 ShuffleUnit(
                     out_channels[i],
                     out_channels[i + 1],
                     groups=groups,
-                    grouped_conv=grouped_conv,
+                    first_group=i == 0,
                 )
             )
             for _ in range(repeat):
@@ -190,7 +184,7 @@ class ShuffleNet_v1(DetectorBackbone):
                         out_channels[i + 1],
                         out_channels[i + 1],
                         groups=groups,
-                        grouped_conv=True,
+                        first_group=False,
                     )
                 )
 
@@ -203,9 +197,13 @@ class ShuffleNet_v1(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = out_channels[-1]
         self.embedding_size = out_channels[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = out_channels[0]
+        self.feature_dim = out_channels[-1]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
@@ -242,18 +240,3 @@ registry.register_model_config("shufflenet_v1_2", ShuffleNet_v1, config={"groups
 registry.register_model_config("shufflenet_v1_3", ShuffleNet_v1, config={"groups": 3})
 registry.register_model_config("shufflenet_v1_4", ShuffleNet_v1, config={"groups": 4})
 registry.register_model_config("shufflenet_v1_8", ShuffleNet_v1, config={"groups": 8})
-
-registry.register_weights(
-    "shufflenet_v1_4_il-common",
-    {
-        "description": "ShuffleNet v1 (g=4) model trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 5.1,
-                "sha256": "b3e816c4dfe75526ff38f3b276fd3d9bcea2776261caedacab78305750b98d7e",
-            }
-        },
-        "net": {"network": "shufflenet_v1_4", "tag": "il-common"},
-    },
-)

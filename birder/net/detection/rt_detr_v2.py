@@ -27,8 +27,8 @@ from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import aligned_box_iou
 from birder.net.detection.base import aligned_generalized_box_iou
-from birder.net.detection.deformable_detr import HungarianMatcher
 from birder.net.detection.deformable_detr import inverse_sigmoid
+from birder.net.detection.hungarian_matcher import HungarianMatcher
 from birder.net.detection.rt_detr_v1 import HybridEncoder
 from birder.net.detection.rt_detr_v1 import get_contrastive_denoising_training_group
 from birder.net.detection.rt_detr_v1 import varifocal_loss
@@ -300,16 +300,21 @@ class MultiScaleDeformableAttention(nn.Module):
                     sampling_location_l.clamp(min=0), max_location[:, None, None, None, :]
                 )
 
-            sampling_grid_l = (2 * sampling_location_l - 1).flatten(0, 1)
-            sampling_grid_l[..., 0] += 1.0 / W
-            sampling_grid_l[..., 1] += 1.0 / H
-            sampling_value_l = F.grid_sample(
-                value_l,
-                sampling_grid_l,
-                mode="nearest",
-                padding_mode="border",
-                align_corners=False,
+            sampling_grid_l = sampling_location_l.flatten(0, 1)
+            n_pts = self.num_points[level]
+            sampling_coord = (
+                sampling_grid_l * torch.tensor([[W, H]], dtype=sampling_grid_l.dtype, device=value.device) + 0.5
+            ).to(torch.int64)
+            sampling_coord[..., 0] = sampling_coord[..., 0].clamp(0, W - 1)
+            sampling_coord[..., 1] = sampling_coord[..., 1].clamp(0, H - 1)
+            sampling_coord = sampling_coord.reshape(B * n_heads, num_queries * n_pts, 2)
+            s_idx = (
+                torch.arange(sampling_coord.shape[0], device=value.device)
+                .unsqueeze(-1)
+                .repeat(1, sampling_coord.shape[1])
             )
+            sampling_value_l = value_l[s_idx, :, sampling_coord[..., 1], sampling_coord[..., 0]]
+            sampling_value_l = sampling_value_l.permute(0, 2, 1).reshape(B * n_heads, head_dim, num_queries, n_pts)
 
             # Original upstream code (expected grid of [0, 1])
             # e.g. without the 'sampling_grids = 2 * sampling_locations - 1'
@@ -423,6 +428,7 @@ class RT_DETRDecoder(nn.Module):
 
     def __init__(
         self,
+        in_channels: list[int],
         hidden_dim: int,
         num_classes: int,
         num_queries: int,
@@ -439,6 +445,15 @@ class RT_DETRDecoder(nn.Module):
         self.hidden_dim = hidden_dim
         self.num_queries = num_queries
         self.num_levels = num_levels
+
+        self.input_proj = nn.ModuleList()
+        for ch in in_channels:
+            self.input_proj.append(
+                nn.Sequential(
+                    nn.Conv2d(ch, hidden_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+                    nn.BatchNorm2d(hidden_dim),
+                )
+            )
 
         self.enc_output = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
@@ -470,6 +485,9 @@ class RT_DETRDecoder(nn.Module):
         # Weights initialization
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
+        for input_proj in self.input_proj:
+            nn.init.xavier_uniform_(input_proj[0].weight)
+
         nn.init.xavier_uniform_(self.enc_output[0].weight)
         nn.init.xavier_uniform_(self.enc_score_head.weight)
         nn.init.constant_(self.enc_score_head.bias, bias_value)
@@ -603,7 +621,8 @@ class RT_DETRDecoder(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         memory = []
         mask_flatten = []
-        for idx, feat in enumerate(feats):
+        for idx, input_proj in enumerate(self.input_proj):
+            feat = input_proj(feats[idx])
             feat_flat = feat.flatten(2).permute(0, 2, 1)  # (B, H*W, C)
             memory.append(feat_flat)
             if padding_mask is not None:
@@ -708,9 +727,11 @@ class RT_DETR_v2(DetectionBaseNet):
         # Sigmoid based classification (no background class in predictions)
         self.num_classes = self.num_classes - 1
 
-        hidden_dim = self.config.get("hidden_dim", 256)
-        num_heads = self.config.get("num_heads", 8)
-        dim_feedforward = self.config.get("dim_feedforward", 1024)
+        hidden_dim: int = self.config.get("hidden_dim", 256)
+        encoder_hidden_dim: int = self.config.get("encoder_hidden_dim", hidden_dim)
+        num_heads: int = self.config.get("num_heads", 8)
+        dim_feedforward: int = self.config.get("dim_feedforward", 1024)
+        encoder_dim_feedforward: int = self.config.get("encoder_dim_feedforward", dim_feedforward)
         dropout: float = self.config.get("dropout", 0.0)
         num_encoder_layers: int = self.config.get("num_encoder_layers", 1)
         num_decoder_layers: int = self.config["num_decoder_layers"]
@@ -737,15 +758,16 @@ class RT_DETR_v2(DetectionBaseNet):
 
         self.encoder = HybridEncoder(
             in_channels=self.backbone.return_channels,
-            hidden_dim=hidden_dim,
+            hidden_dim=encoder_hidden_dim,
             num_encoder_layers=num_encoder_layers,
-            dim_feedforward=dim_feedforward,
+            dim_feedforward=encoder_dim_feedforward,
             dropout=dropout,
             num_heads=num_heads,
             expansion=expansion,
             depth_multiplier=depth_multiplier,
         )
         self.decoder = RT_DETRDecoder(
+            in_channels=[encoder_hidden_dim] * self.num_levels,
             hidden_dim=hidden_dim,
             num_classes=self.num_classes,
             num_queries=self.num_queries,
@@ -759,7 +781,7 @@ class RT_DETR_v2(DetectionBaseNet):
             offset_scale=offset_scale,
         )
 
-        self.matcher = HungarianMatcher(cost_class=2.0, cost_bbox=5.0, cost_giou=2.0, use_giou=use_giou)
+        self.matcher = HungarianMatcher(class_weight=2.0, bbox_weight=5.0, giou_weight=2.0, use_giou=use_giou)
 
         # Denoising class embedding for Contrastive denoising (CDN) training
         if self.num_denoising > 0:
@@ -941,8 +963,8 @@ class RT_DETR_v2(DetectionBaseNet):
         loss_giou_list = []
 
         # Decoder losses (all layers)
-        for layer_idx in range(out_logits.shape[0]):
-            indices = self.matcher(out_logits[layer_idx], out_bboxes[layer_idx], targets)
+        indices_per_layer = self.matcher.match_grouped(out_logits.movedim(0, 1), out_bboxes.movedim(0, 1), targets)
+        for layer_idx, indices in enumerate(indices_per_layer):
             loss_ce, loss_bbox, loss_giou = self._compute_layer_losses(
                 out_logits[layer_idx], out_bboxes[layer_idx], targets, indices, num_boxes
             )
@@ -951,7 +973,7 @@ class RT_DETR_v2(DetectionBaseNet):
             loss_giou_list.append(loss_giou)
 
         # Encoder auxiliary loss
-        enc_indices = self.matcher(enc_topk_logits, enc_topk_bboxes, targets)
+        enc_indices = self.matcher.match(enc_topk_logits, enc_topk_bboxes, targets)
         loss_ce, loss_bbox, loss_giou = self._compute_layer_losses(
             enc_topk_logits, enc_topk_bboxes, targets, enc_indices, num_boxes
         )
@@ -1172,21 +1194,10 @@ registry.register_model_config(
 registry.register_model_config(
     "rt_detr_v2_l",
     RT_DETR_v2,
-    config={
-        "num_decoder_layers": 6,
-        "num_heads": 12,  # Deviates from upstream to keep head_dim=32 (power of 2) for MSDA kernel
-        "hidden_dim": 384,
-        "dim_feedforward": 2048,
-    },
+    config={"num_decoder_layers": 6, "encoder_hidden_dim": 384, "encoder_dim_feedforward": 2048},
 )
 registry.register_model_config(
     "rt_detr_v2_l_dsp",
     RT_DETR_v2,
-    config={
-        "num_decoder_layers": 6,
-        "num_heads": 12,  # Deviates from upstream to keep head_dim=32 (power of 2) for MSDA kernel
-        "hidden_dim": 384,
-        "dim_feedforward": 2048,
-        "method": "discrete",
-    },
+    config={"num_decoder_layers": 6, "encoder_hidden_dim": 384, "encoder_dim_feedforward": 2048, "method": "discrete"},
 )

@@ -9,7 +9,6 @@ from typing import Optional
 
 import torch
 
-from birder.common import masking
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.ssl.capi import CAPIStudent
@@ -66,8 +65,7 @@ class CAPI_DINOStudent(CAPIStudent):
         tokens = out["tokens"]
         embedding = out["embedding"]
 
-        mask = masking.mask_from_indices(ids_predict, self.seq_len)
-        patch_logits = self.decoder(tokens, mask)
+        patch_logits = self.decoder(tokens, ids_predict)
         patch_logits = self.head(patch_logits.flatten(0, 1))
 
         global_logits = self.dino_head(embedding)

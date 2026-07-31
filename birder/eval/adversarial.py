@@ -65,12 +65,17 @@ def _print_summary_table(results: list[dict[str, Any]]) -> None:
 
     for result in results:
         step_size = result["step_size"]
+        if step_size is None:
+            step_size_text = "-"
+        else:
+            step_size_text = f"{float(step_size):g}"
+
         table.add_row(
             str(result["network"]),
             str(result["attack_method"]),
             f"{float(result['epsilon']):g}",
             str(result["steps"]),
-            f"{float(step_size):g}",
+            step_size_text,
             f"{float(result['clean_accuracy']):.4f}",
             f"{float(result['accuracy']):.4f}",
             f"{float(result['accuracy_drop']):.4f}",
@@ -140,7 +145,9 @@ def evaluate_adversarial_robustness(args: argparse.Namespace) -> None:
     total_tic = time.time()
     for network_name, is_checkpoint in model_runs:
         if is_checkpoint is False:
-            net, model_info = birder.load_pretrained_model(network_name, inference=True, device=device)
+            net, model_info = birder.load_pretrained_model(
+                network_name, inference=True, device=device, new_size=args.size
+            )
         else:
             net, model_info = fs_ops.load_model(
                 device,

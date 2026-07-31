@@ -4,6 +4,9 @@ https://github.com/raoyongming/HorNet/blob/master/hornet.py
 
 Paper "HorNet: Efficient High-Order Spatial Interactions with Recursive Gated Convolutions",
 https://arxiv.org/abs/2207.14284
+
+Changes from original:
+* Return detection features without per-stage normalization
 """
 
 # Reference license: MIT
@@ -278,9 +281,13 @@ class HorNet(DetectorBackbone):
             nn.LayerNorm(dims[-1], eps=1e-6),
         )
         self.return_channels = return_channels
-        self.feature_dim = dims[-1]
         self.embedding_size = dims[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 4 * 2 ** (num_stages - 1)
+        self.stem_stride = 4
+        self.stem_width = dims[0]
+        self.feature_dim = dims[-1]
 
         # Weight initialization
         for m in self.modules():

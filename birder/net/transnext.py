@@ -10,6 +10,7 @@ Paper "TransNeXt: Robust Foveal Visual Perception for Vision Transformers", http
 import math
 from collections import OrderedDict
 from typing import Any
+from typing import NamedTuple
 from typing import Optional
 
 import torch
@@ -26,9 +27,14 @@ from birder.ops.swattention import SWAttention_QK_RPB
 
 @torch.no_grad()  # type: ignore[untyped-decorator]
 def get_relative_position_cpb(
-    query_size: tuple[int, int], key_size: tuple[int, int], device: Optional[torch.device] = None
+    query_size: tuple[int, int],
+    key_size: tuple[int, int],
+    device: Optional[torch.device] = None,
+    pretrain_size: Optional[tuple[int, int]] = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    pretrain_size = query_size
+    if pretrain_size is None:
+        pretrain_size = query_size
+
     axis_qh = torch.arange(query_size[0], dtype=torch.float32, device=device)
     axis_kh = F.adaptive_avg_pool1d(axis_qh.unsqueeze(0), key_size[0]).squeeze(0)  # pylint: disable=not-callable
     axis_qw = torch.arange(query_size[1], dtype=torch.float32, device=device)
@@ -57,7 +63,7 @@ def get_relative_position_cpb(
 
 
 @torch.no_grad()  # type: ignore[untyped-decorator]
-def get_seqlen_and_mask(
+def get_seq_len_and_mask(
     input_resolution: tuple[int, int], window_size: int, device: Optional[torch.device] = None
 ) -> tuple[torch.Tensor, torch.Tensor]:
     attn_map = F.unfold(
@@ -71,6 +77,56 @@ def get_seqlen_and_mask(
     attn_mask = (attn_map.squeeze(0).permute(1, 0)) == 0
 
     return (attn_local_length, attn_mask)
+
+
+class TransNeXtResolutionState(NamedTuple):
+    pool_size: tuple[int, int]
+    relative_pos_index: torch.Tensor
+    relative_coords_table: torch.Tensor
+    seq_length_scale: torch.Tensor
+    padding_mask: torch.Tensor
+
+
+def get_stage_resolution(image_size: tuple[int, int], stage_index: int) -> tuple[int, int]:
+    stride = 2 ** (stage_index + 2)
+    return ((image_size[0] + stride - 1) // stride, (image_size[1] + stride - 1) // stride)
+
+
+@torch.no_grad()  # type: ignore[untyped-decorator]
+def get_resolution_state(
+    input_resolution: tuple[int, int],
+    sr_ratio: int,
+    window_size: int,
+    device: Optional[torch.device] = None,
+    dtype: Optional[torch.dtype] = None,
+    pretrain_resolution: Optional[tuple[int, int]] = None,
+) -> TransNeXtResolutionState:
+    pool_size = (input_resolution[0] // sr_ratio, input_resolution[1] // sr_ratio)
+    relative_pos_index, relative_coords_table = get_relative_position_cpb(
+        query_size=input_resolution, key_size=pool_size, device=device, pretrain_size=pretrain_resolution
+    )
+
+    if sr_ratio == 1:
+        seq_length_scale = torch.log(
+            torch.tensor(input_resolution[0] * input_resolution[1], dtype=torch.float32, device=device)
+        )
+        padding_mask = torch.empty((0, 0), dtype=torch.bool, device=device)
+
+    else:
+        local_seq_length, padding_mask = get_seq_len_and_mask(input_resolution, window_size, device=device)
+        seq_length_scale = torch.log(local_seq_length + pool_size[0] * pool_size[1])
+
+    if dtype is not None:
+        relative_coords_table = relative_coords_table.to(dtype=dtype)
+        seq_length_scale = seq_length_scale.to(dtype=dtype)
+
+    return TransNeXtResolutionState(
+        pool_size,
+        relative_pos_index,
+        relative_coords_table,
+        seq_length_scale,
+        padding_mask,
+    )
 
 
 class ConvolutionalGLU(nn.Module):
@@ -106,7 +162,6 @@ class Attention(nn.Module):
     def __init__(
         self,
         dim: int,
-        input_resolution: tuple[int, int],
         num_heads: int,
         qkv_bias: bool,
         attn_drop: float,
@@ -120,11 +175,6 @@ class Attention(nn.Module):
         self.head_dim = dim // num_heads
         self.temperature = nn.Parameter(  # Initialize softplus(temperature) to 1/0.24
             torch.log((torch.ones(num_heads, 1, 1) / 0.24).exp() - 1)
-        )
-
-        # Generate sequence length scale
-        self.seq_length_scale = nn.Buffer(
-            torch.log(torch.tensor(input_resolution[0] * input_resolution[1])), persistent=False
         )
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
@@ -142,7 +192,15 @@ class Attention(nn.Module):
         self.cpb_fc2 = nn.Linear(512, num_heads)
 
     def forward(
-        self, x: torch.Tensor, _h: int, _w: int, relative_pos_index: torch.Tensor, relative_coords_table: torch.Tensor
+        self,
+        x: torch.Tensor,
+        _h: int,
+        _w: int,
+        _pool_size: tuple[int, int],
+        relative_pos_index: torch.Tensor,
+        relative_coords_table: torch.Tensor,
+        seq_length_scale: torch.Tensor,
+        _padding_mask: torch.Tensor,
     ) -> torch.Tensor:
         B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, -1, 3 * self.num_heads, self.head_dim).permute(0, 2, 1, 3)
@@ -159,7 +217,7 @@ class Attention(nn.Module):
         attn = (
             (F.normalize(q, dim=-1) + self.query_embedding)
             * F.softplus(self.temperature)  # pylint: disable=not-callable
-            * self.seq_length_scale
+            * seq_length_scale
         ) @ F.normalize(k, dim=-1).transpose(-2, -1) + rel_bias
 
         attn = attn.softmax(dim=-1)
@@ -175,13 +233,11 @@ class AggregatedAttention(nn.Module):
     def __init__(
         self,
         dim: int,
-        input_resolution: tuple[int, int],
         num_heads: int,
         window_size: int,
         qkv_bias: bool,
         attn_drop: float,
         proj_drop: float,
-        sr_ratio: int,
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0, f"dim {dim} should be divided by num_heads {num_heads}"
@@ -192,10 +248,6 @@ class AggregatedAttention(nn.Module):
 
         self.window_size = window_size
         self.local_len = window_size**2
-
-        pool_h = input_resolution[0] // sr_ratio
-        pool_w = input_resolution[1] // sr_ratio
-        self.pool_len = pool_h * pool_w
 
         self.swa_qk_rpb = SWAttention_QK_RPB()
         self.swa_av = SWAttention_AV()
@@ -211,7 +263,6 @@ class AggregatedAttention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
         # Components to generate pooled features
-        self.pool = nn.AdaptiveAvgPool2d((pool_h, pool_w))
         self.sr = nn.Conv2d(dim, dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
         self.norm = nn.LayerNorm(dim)
         self.act = nn.GELU()
@@ -226,11 +277,6 @@ class AggregatedAttention(nn.Module):
             nn.init.trunc_normal_(torch.empty(num_heads, self.local_len), mean=0, std=0.0004)
         )
 
-        # Generate padding_mask and sequence length scale
-        local_seq_length, padding_mask = get_seqlen_and_mask(input_resolution, self.window_size)
-        self.seq_length_scale = nn.Buffer(torch.log(local_seq_length + self.pool_len), persistent=False)
-        self.padding_mask = nn.Buffer(padding_mask, persistent=False)
-
         # Dynamic local bias
         self.learnable_tokens = nn.Parameter(
             nn.init.trunc_normal_(torch.empty(num_heads, self.head_dim, self.local_len), mean=0, std=0.02)
@@ -238,9 +284,18 @@ class AggregatedAttention(nn.Module):
         self.learnable_bias = nn.Parameter(torch.zeros(num_heads, 1, self.local_len))
 
     def forward(
-        self, x: torch.Tensor, H: int, W: int, relative_pos_index: torch.Tensor, relative_coords_table: torch.Tensor
+        self,
+        x: torch.Tensor,
+        H: int,
+        W: int,
+        pool_size: tuple[int, int],
+        relative_pos_index: torch.Tensor,
+        relative_coords_table: torch.Tensor,
+        seq_length_scale: torch.Tensor,
+        padding_mask: torch.Tensor,
     ) -> torch.Tensor:
         B, N, C = x.size()
+        pool_len = pool_size[0] * pool_size[1]
 
         # Generate queries, normalize them with L2, add query embedding,
         # and then magnify with sequence length scale and temperature.
@@ -249,14 +304,14 @@ class AggregatedAttention(nn.Module):
         q_norm_scaled = (
             (q_norm + self.query_embedding)
             * F.softplus(self.temperature)  # pylint: disable=not-callable
-            * self.seq_length_scale
+            * seq_length_scale
         )
 
         attn_local, v_local = self.swa_qk_rpb(
             self.kv(x),
             q_norm_scaled.contiguous(),
             self.relative_pos_bias_local,
-            self.padding_mask,
+            padding_mask,
             self.num_heads,
             self.head_dim,
             self.window_size,
@@ -267,18 +322,18 @@ class AggregatedAttention(nn.Module):
 
         # Generate pooled features
         x_ = x.permute(0, 2, 1).reshape(B, -1, H, W).contiguous()
-        x_ = self.pool(self.act(self.sr(x_))).reshape(B, -1, self.pool_len).permute(0, 2, 1)
+        x_ = F.adaptive_avg_pool2d(self.act(self.sr(x_)), pool_size).reshape(B, -1, pool_len).permute(0, 2, 1)
         x_ = self.norm(x_)
 
         # Generate pooled keys and values
-        kv_pool = self.kv(x_).reshape(B, self.pool_len, 2 * self.num_heads, self.head_dim).permute(0, 2, 1, 3)
+        kv_pool = self.kv(x_).reshape(B, pool_len, 2 * self.num_heads, self.head_dim).permute(0, 2, 1, 3)
         k_pool, v_pool = kv_pool.chunk(2, dim=1)
 
         # Use MLP to generate continuous relative positional bias for pooled features.
         pool_bias = (
             self.cpb_fc2(self.cpb_act(self.cpb_fc1(relative_coords_table)))
             .transpose(0, 1)[:, relative_pos_index.view(-1)]
-            .view(-1, N, self.pool_len)
+            .view(-1, N, pool_len)
         )
         # Compute pooled similarity
         attn_pool = q_norm_scaled @ F.normalize(k_pool, dim=-1).transpose(-2, -1) + pool_bias
@@ -288,7 +343,7 @@ class AggregatedAttention(nn.Module):
         attn = self.attn_drop(attn)
 
         # Split the attention weights and separately aggregate the values of local & pooled features
-        attn_local, attn_pool = torch.split(attn, [self.local_len, self.pool_len], dim=-1)
+        attn_local, attn_pool = torch.split(attn, [self.local_len, pool_len], dim=-1)
 
         x_local = self.swa_av(
             q_norm, attn_local, v_local.contiguous(), self.learnable_tokens, self.learnable_bias, self.window_size, H, W
@@ -309,7 +364,6 @@ class AttentionBlock(nn.Module):
         self,
         dim: int,
         num_heads: int,
-        input_resolution: tuple[int, int],
         window_size: int,
         mlp_ratio: float,
         qkv_bias: bool,
@@ -321,19 +375,15 @@ class AttentionBlock(nn.Module):
         super().__init__()
         self.norm1 = nn.LayerNorm(dim, eps=1e-6)
         if sr_ratio == 1:
-            self.attn = Attention(
-                dim, input_resolution, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=proj_drop
-            )
+            self.attn = Attention(dim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=proj_drop)
         else:
             self.attn = AggregatedAttention(
                 dim,
-                input_resolution,
                 window_size=window_size,
                 num_heads=num_heads,
                 qkv_bias=qkv_bias,
                 attn_drop=attn_drop,
                 proj_drop=proj_drop,
-                sr_ratio=sr_ratio,
             )
 
         self.norm2 = nn.LayerNorm(dim, eps=1e-6)
@@ -343,9 +393,21 @@ class AttentionBlock(nn.Module):
         self.drop_path = StochasticDepth(drop_path, mode="row")
 
     def forward(
-        self, x: torch.Tensor, H: int, W: int, relative_pos_index: torch.Tensor, relative_coords_table: torch.Tensor
+        self,
+        x: torch.Tensor,
+        H: int,
+        W: int,
+        pool_size: tuple[int, int],
+        relative_pos_index: torch.Tensor,
+        relative_coords_table: torch.Tensor,
+        seq_length_scale: torch.Tensor,
+        padding_mask: torch.Tensor,
     ) -> torch.Tensor:
-        x = x + self.drop_path(self.attn(self.norm1(x), H, W, relative_pos_index, relative_coords_table))
+        attn_output = self.attn(
+            self.norm1(x), H, W, pool_size, relative_pos_index, relative_coords_table, seq_length_scale, padding_mask
+        )
+
+        x = x + self.drop_path(attn_output)
         x = x + self.drop_path(self.mlp(self.norm2(x), H, W))
 
         return x
@@ -378,6 +440,7 @@ class TransNeXtStage(nn.Module):
     def __init__(
         self,
         input_resolution: tuple[int, int],
+        pretrain_resolution: Optional[tuple[int, int]],
         sr_ratio: int,
         patch_size: int,
         stride: int,
@@ -394,13 +457,18 @@ class TransNeXtStage(nn.Module):
     ) -> None:
         super().__init__()
 
-        # Generate relative positional coordinate table and index for each stage
-        # to compute continuous relative positional bias
-        relative_pos_index, relative_coords_table = get_relative_position_cpb(
-            query_size=input_resolution, key_size=(input_resolution[0] // sr_ratio, input_resolution[1] // sr_ratio)
+        self.sr_ratio = sr_ratio
+        self.window_size = window_size
+        self.input_resolution = input_resolution
+
+        resolution_state = get_resolution_state(
+            input_resolution, sr_ratio, window_size, pretrain_resolution=pretrain_resolution
         )
-        self.relative_pos_index = nn.Buffer(relative_pos_index, persistent=False)
-        self.relative_coords_table = nn.Buffer(relative_coords_table, persistent=False)
+        self.pool_size = resolution_state.pool_size
+        self.relative_pos_index = nn.Buffer(resolution_state.relative_pos_index, persistent=False)
+        self.relative_coords_table = nn.Buffer(resolution_state.relative_coords_table, persistent=False)
+        self.seq_length_scale = nn.Buffer(resolution_state.seq_length_scale, persistent=False)
+        self.padding_mask = nn.Buffer(resolution_state.padding_mask, persistent=False)
 
         self.patch_embed = OverlapPatchEmbed(
             patch_size=patch_size,
@@ -415,7 +483,6 @@ class TransNeXtStage(nn.Module):
                 AttentionBlock(
                     embed_dim,
                     num_heads=num_heads,
-                    input_resolution=input_resolution,
                     window_size=window_size,
                     mlp_ratio=mlp_ratio,
                     qkv_bias=qkv_bias,
@@ -432,7 +499,16 @@ class TransNeXtStage(nn.Module):
         B = x.size(0)
         x, H, W = self.patch_embed(x)
         for blk in self.blocks:
-            x = blk(x, H, W, self.relative_pos_index, self.relative_coords_table)
+            x = blk(
+                x,
+                H,
+                W,
+                self.pool_size,
+                self.relative_pos_index,
+                self.relative_coords_table,
+                self.seq_length_scale,
+                self.padding_mask,
+            )
 
         x = self.norm(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
@@ -461,8 +537,15 @@ class TransNeXt(DetectorBackbone):
         depth: list[int] = self.config["depth"]
         embed_dim: list[int] = self.config["embed_dim"]
         num_heads: list[int] = self.config["num_heads"]
+        pretrain_size: Optional[tuple[int, int]] = self.config.get("pretrain_size", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
+        # Cast in case config was loaded from a json (no tuples),
+        # TorchScript does not accept a list when tuple expected
+        if isinstance(pretrain_size, list):
+            pretrain_size = tuple(pretrain_size)  # type: ignore[unreachable]
+
+        self.pretrain_size = pretrain_size
         self.sr_ratio = sr_ratio
         num_stages = len(depth)
         dpr = staged_stochastic_depth_rates(drop_path_rate, depth)
@@ -471,7 +554,10 @@ class TransNeXt(DetectorBackbone):
         return_channels: list[int] = []
         for i in range(num_stages):
             stages[f"stage{i+1}"] = TransNeXtStage(
-                input_resolution=(self.size[0] // (2 ** (i + 2)), self.size[1] // (2 ** (i + 2))),
+                input_resolution=get_stage_resolution(self.size, i),
+                pretrain_resolution=(
+                    get_stage_resolution(self.pretrain_size, i) if self.pretrain_size is not None else None
+                ),
                 sr_ratio=sr_ratio[i],
                 patch_size=patch_size * 2 - 1 if i == 0 else 3,
                 stride=patch_size if i == 0 else 2,
@@ -494,9 +580,11 @@ class TransNeXt(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = embed_dim[-1]
         self.embedding_size = embed_dim[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.feature_dim = embed_dim[-1]
 
         # Weights initialization
         for m in self.modules():
@@ -508,7 +596,7 @@ class TransNeXt(DetectorBackbone):
             elif isinstance(m, nn.Conv2d):
                 fan_out = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 fan_out //= m.groups
-                nn.init.trunc_normal_(m.weight, std=math.sqrt(2.0 / fan_out))
+                nn.init.normal_(m.weight, std=math.sqrt(2.0 / fan_out))
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
@@ -546,45 +634,30 @@ class TransNeXt(DetectorBackbone):
         if new_size == self.size:
             return
 
+        resolution_states = []
+        for i, stage in enumerate(self.body.children()):
+            assert isinstance(stage, TransNeXtStage)
+            input_resolution = get_stage_resolution(new_size, i)
+            resolution_state = get_resolution_state(
+                input_resolution,
+                stage.sr_ratio,
+                stage.window_size,
+                device=stage.relative_coords_table.device,
+                dtype=stage.relative_coords_table.dtype,
+                pretrain_resolution=(
+                    get_stage_resolution(self.pretrain_size, i) if self.pretrain_size is not None else None
+                ),
+            )
+            resolution_states.append((stage, input_resolution, resolution_state))
+
         super().adjust_size(new_size)
-
-        i = 0
-        for m in self.body.modules():
-            if isinstance(m, TransNeXtStage):
-                input_resolution = (new_size[0] // (2 ** (i + 2)), new_size[1] // (2 ** (i + 2)))
-                sr_ratio = self.sr_ratio[i]
-                with torch.no_grad():
-                    device = next(m.parameters()).device
-                    relative_pos_index, relative_coords_table = get_relative_position_cpb(
-                        query_size=input_resolution,
-                        key_size=(input_resolution[0] // sr_ratio, input_resolution[1] // sr_ratio),
-                        device=device,
-                    )
-                    m.relative_pos_index = nn.Buffer(relative_pos_index, persistent=False)
-                    m.relative_coords_table = nn.Buffer(relative_coords_table, persistent=False)
-
-                    for blk in m.modules():
-                        if isinstance(blk, Attention):
-                            blk.seq_length_scale = nn.Buffer(
-                                torch.log(torch.tensor(input_resolution[0] * input_resolution[1], device=device)),
-                                persistent=False,
-                            )
-
-                        elif isinstance(blk, AggregatedAttention):
-                            pool_h = input_resolution[0] // sr_ratio
-                            pool_w = input_resolution[1] // sr_ratio
-                            blk.pool_len = pool_h * pool_w
-                            blk.pool = nn.AdaptiveAvgPool2d((pool_h, pool_w))
-
-                            local_seq_length, padding_mask = get_seqlen_and_mask(
-                                input_resolution, blk.window_size, device=device
-                            )
-                            blk.seq_length_scale = nn.Buffer(
-                                torch.log(local_seq_length + blk.pool_len), persistent=False
-                            )
-                            blk.padding_mask = nn.Buffer(padding_mask, persistent=False)
-
-                i += 1
+        for stage, input_resolution, resolution_state in resolution_states:
+            stage.input_resolution = input_resolution
+            stage.pool_size = resolution_state.pool_size
+            stage.relative_pos_index = nn.Buffer(resolution_state.relative_pos_index, persistent=False)
+            stage.relative_coords_table = nn.Buffer(resolution_state.relative_coords_table, persistent=False)
+            stage.seq_length_scale = nn.Buffer(resolution_state.seq_length_scale, persistent=False)
+            stage.padding_mask = nn.Buffer(resolution_state.padding_mask, persistent=False)
 
 
 registry.register_model_config(

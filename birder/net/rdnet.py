@@ -178,7 +178,7 @@ class RDNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.stem = nn.Sequential(
             nn.Conv2d(self.input_channels, num_init_features, kernel_size=(4, 4), stride=(4, 4), padding=(0, 0)),
-            LayerNorm2d(num_init_features),
+            LayerNorm2d(num_init_features, eps=1e-6),
         )
 
         num_stages = len(growth_rates)
@@ -201,7 +201,7 @@ class RDNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                     idx += 1
                     k_size = (2, 2)
 
-                dense_stage_layers.append(LayerNorm2d(num_features))
+                dense_stage_layers.append(LayerNorm2d(num_features, eps=1e-6))
                 dense_stage_layers.append(
                     nn.Conv2d(num_features, compressed_num_features, kernel_size=k_size, stride=k_size, padding=(0, 0))
                 )
@@ -226,13 +226,14 @@ class RDNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
-            LayerNorm2d(num_features, eps=1e-6),
+            LayerNorm2d(num_features, eps=1e-5),
             nn.Flatten(1),
         )
         self.return_channels = return_channels
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = num_init_features
         self.feature_dim = num_features

@@ -13,7 +13,7 @@ Changes from original:
 * The implementation is not an exact replication of the original paper
 """
 
-# Reference license: BSD 3-Clause
+# Reference license: BSD 3-Clause and Apache-2.0
 
 import math
 from typing import Any
@@ -218,7 +218,7 @@ class SSDScoringHead(nn.Module):
 class SSDClassificationHead(SSDScoringHead):
     def __init__(self, in_channels: list[int], num_anchors: list[int], num_classes: int):
         cls_logits = nn.ModuleList()
-        for channels, anchors in zip(in_channels, num_anchors):
+        for channels, anchors in zip(in_channels, num_anchors, strict=True):
             cls_logits.append(
                 nn.Conv2d(channels, num_classes * anchors, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
             )
@@ -236,7 +236,7 @@ class SSDClassificationHead(SSDScoringHead):
 class SSDRegressionHead(SSDScoringHead):
     def __init__(self, in_channels: list[int], num_anchors: list[int]):
         bbox_reg = nn.ModuleList()
-        for channels, anchors in zip(in_channels, num_anchors):
+        for channels, anchors in zip(in_channels, num_anchors, strict=True):
             bbox_reg.append(nn.Conv2d(channels, 4 * anchors, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)))
 
         # Weights initialization
@@ -312,23 +312,25 @@ class SSD(DetectionBaseNet):
 
         self.backbone.return_channels = self.backbone.return_channels[-2:]
         self.backbone.return_stages = self.backbone.return_stages[-2:]
-        self.extra_blocks = nn.ModuleList(
-            [
-                ExtraBlock(self.backbone.return_channels[-1], 512, stride=(2, 2)),
-                ExtraBlock(512, 256, stride=(2, 2)),
-                ExtraBlock(256, 256, stride=(1, 1)),
-                ExtraBlock(256, 256, stride=(1, 1)),
-            ]
-        )
-
         self.anchor_generator = DefaultBoxGenerator(
             [[2], [2, 3], [2, 3], [2, 3], [2], [2]],
             scales=[0.07, 0.15, 0.33, 0.51, 0.69, 0.87, 1.05],
         )
+
+        num_extra_levels = len(self.anchor_generator.aspect_ratios) - len(self.backbone.return_channels)
+        extra_channels = [512] + [256] * (num_extra_levels - 1)
+        self.extra_blocks = nn.ModuleList(
+            ExtraBlock(in_channels, out_channels, stride=(2, 2))
+            for in_channels, out_channels in zip(
+                [self.backbone.return_channels[-1], *extra_channels[:-1]], extra_channels, strict=True
+            )
+        )
+
         self.box_coder = BoxCoder(weights=(10.0, 10.0, 5.0, 5.0))
 
+        self.head_in_channels = self.backbone.return_channels + extra_channels
         num_anchors = self.anchor_generator.num_anchors_per_location()
-        self.head = SSDHead(self.backbone.return_channels + [512, 256, 256, 256], num_anchors, self.num_classes)
+        self.head = SSDHead(self.head_in_channels, num_anchors, self.num_classes)
         self.proposal_matcher = SSDMatcher(iou_thresh)
 
         if self.export_mode is False:
@@ -337,7 +339,7 @@ class SSD(DetectionBaseNet):
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes + 1
         self.head.classification_head = SSDClassificationHead(
-            self.backbone.return_channels + [512, 256, 256, 256],
+            self.head_in_channels,
             self.anchor_generator.num_anchors_per_location(),
             self.num_classes,
         )

@@ -176,7 +176,7 @@ def _ms_deform_attn_backward(ctx, grad_output):  # type: ignore[no-untyped-def]
         value_level_start_index,
         sampling_locations,
         attention_weights,
-        grad_output,
+        grad_output.contiguous(),
         ctx.im2col_step,
     )
     return (grad_value, None, None, grad_sampling_loc, grad_attn_weight, None)

@@ -67,6 +67,7 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
+        torch._assert(hidden_dim % 4 == 0, "Hidden dim must be divisible by 4 for sin-cos positional embeddings!")
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
@@ -155,7 +156,21 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             w=W // self.patch_size,
             dim=self.hidden_dim,
             num_special_tokens=self.num_special_tokens,
-        ).to(self.pos_embedding.device)
+        ).to(device=self.pos_embedding.device, dtype=self.pos_embedding.dtype)
+
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        for param in self.parameters():
+            param.requires_grad_(False)
+
+        if freeze_classifier is False:
+            for param in self.classifier.parameters():
+                param.requires_grad_(True)
+
+        if unfreeze_features is True:
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
+            for param in self.features.parameters():
+                param.requires_grad_(True)
 
     def set_grad_checkpointing(
         self,
@@ -204,11 +219,17 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         for param in self.conv_proj.parameters():
             param.requires_grad_(False)
 
-        for idx, module in enumerate(self.encoder.children()):
-            if idx >= up_to_stage:
-                break
+        if up_to_stage <= 0:
+            return
 
-            for param in module.parameters():
+        if self.out_indices is None:
+            stage_boundaries = [self.num_layers - 1]
+        else:
+            stage_boundaries = sorted(set(self.out_indices))
+
+        last_block = stage_boundaries[min(up_to_stage, len(stage_boundaries)) - 1]
+        for block in self.encoder.block[: last_block + 1]:
+            for param in block.parameters():
                 param.requires_grad_(False)
 
     def masked_encoding_omission(
@@ -295,7 +316,7 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
                 device=self.pos_embedding.device,
             )
 
-        self.pos_embedding = nn.Buffer(pos_embedding)
+        self.pos_embedding = nn.Buffer(pos_embedding.to(dtype=self.pos_embedding.dtype))
 
 
 registry.register_model_config(
@@ -306,7 +327,7 @@ registry.register_model_config(
 registry.register_model_config(
     "simple_vit_s16",
     Simple_ViT,
-    config={"patch_size": 16, **SMALL},
+    config={"patch_size": 16, **SMALL, "drop_path_rate": 0.0},
 )
 registry.register_model_config(
     "simple_vit_s14",
@@ -331,17 +352,17 @@ registry.register_model_config(
 registry.register_model_config(
     "simple_vit_b32",
     Simple_ViT,
-    config={"patch_size": 32, **BASE},  # Override the BASE definition
+    config={"patch_size": 32, **BASE, "drop_path_rate": 0.0},
 )
 registry.register_model_config(
     "simple_vit_b16",
     Simple_ViT,
-    config={"patch_size": 16, **BASE},
+    config={"patch_size": 16, **BASE, "drop_path_rate": 0.0},
 )
 registry.register_model_config(
     "simple_vit_b14",
     Simple_ViT,
-    config={"patch_size": 14, **BASE},
+    config={"patch_size": 14, **BASE, "drop_path_rate": 0.0},
 )
 registry.register_model_config(
     "simple_vit_l32",

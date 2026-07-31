@@ -494,13 +494,15 @@ def get_args_parser() -> argparse.ArgumentParser:
         "--fast-matmul", default=False, action="store_true", help="use fast matrix multiplication (affects precision)"
     )
     parser.add_argument("--tta", default=False, action="store_true", help="test time augmentation (oversampling)")
-    parser.add_argument("--min-score", type=float, default=0.5, help="prediction score threshold")
+    parser.add_argument(
+        "--min-score", type=float, default=0.5, help="minimum score for displayed detections (--show only)"
+    )
     parser.add_argument(
         "--class-min-score",
         action="append",
         nargs=2,
         metavar=("CLASS", "SCORE"),
-        help="set custom minimum score for specific class (can be used multiple times)",
+        help="set a class-specific minimum score for displayed detections (--show only, repeatable)",
     )
     parser.add_argument(
         "--size",

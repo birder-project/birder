@@ -3,6 +3,9 @@ YOLO v2, adapted from
 https://github.com/longcw/yolo2-pytorch
 
 Paper "YOLO9000: Better, Faster, Stronger", https://arxiv.org/abs/1612.08242
+
+Changes from original:
+* Preset anchors are scaled from their reference input size to the configured model input size
 """
 
 # Reference license: MIT
@@ -255,7 +258,9 @@ class YOLO_v2(DetectionBaseNet):
 
         self.neck = YOLONeck(self.backbone.return_channels, mid_channels)
 
-        anchors = resolve_anchor_group(anchor_spec, anchor_format="grid", model_size=self.size, model_strides=(32,))
+        anchors = resolve_anchor_group(
+            anchor_spec, anchor_format="grid", model_size=self.size, model_strides=(self.backbone.max_stride,)
+        )
         self.anchor_generator = YOLOAnchorGenerator(anchors)
         num_anchors = self.anchor_generator.num_anchors_per_location()
         self.head = YOLOHead(self.neck.out_channels, num_anchors, self.num_classes)

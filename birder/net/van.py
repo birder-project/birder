@@ -147,7 +147,7 @@ class VANStage(nn.Module):
             layers.append(VANBlock(embed_dim, mlp_ratio=mlp_ratio, drop=drop, drop_path=drop_path[i]))
 
         self.block = nn.Sequential(*layers)
-        self.norm = LayerNorm2d(embed_dim)
+        self.norm = LayerNorm2d(embed_dim, eps=1e-6)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)
@@ -158,7 +158,7 @@ class VANStage(nn.Module):
 
 
 class VAN(DetectorBackbone):
-    block_group_regex = r"body\.stage(\d+)\.block"
+    block_group_regex = r"body\.stage(\d+)\.block\.(\d+)"
 
     def __init__(
         self,
@@ -201,9 +201,11 @@ class VAN(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.feature_dim = embed_dims[-1]
 
         # Weight initialization
         for m in self.modules():
@@ -219,7 +221,7 @@ class VAN(DetectorBackbone):
             elif isinstance(m, nn.Conv2d):
                 fan_out = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 fan_out //= m.groups
-                nn.init.trunc_normal_(m.weight, std=math.sqrt(2.0 / fan_out))
+                nn.init.normal_(m.weight, std=math.sqrt(2.0 / fan_out))
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 

@@ -77,9 +77,10 @@ class MultiQueryAttention(nn.Module):
         self.num_heads = num_heads
         self.key_dim = key_dim
         self.query_strides = query_strides
+        self.dropout = dropout
 
         query_layers = []
-        if query_strides[0] > 1 or query_strides[0] > 1:
+        if query_strides[0] > 1 or query_strides[1] > 1:
             query_layers.append(nn.AvgPool2d(kernel_size=query_strides, stride=query_strides, padding=(0, 0)))
             query_layers.append(nn.BatchNorm2d(in_channels))
 
@@ -131,7 +132,7 @@ class MultiQueryAttention(nn.Module):
         self.value = nn.Sequential(*value_layers)
 
         output_layers = []
-        if query_strides[0] > 1 or query_strides[0] > 1:
+        if query_strides[0] > 1 or query_strides[1] > 1:
             output_layers.append(nn.Upsample(scale_factor=self.query_strides, mode="bilinear", align_corners=False))
 
         output_layers.append(
@@ -139,7 +140,6 @@ class MultiQueryAttention(nn.Module):
                 self.num_heads * value_dim, in_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False
             )
         )
-        output_layers.append(nn.Dropout(p=dropout))
         self.output = nn.Sequential(*output_layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -159,7 +159,9 @@ class MultiQueryAttention(nn.Module):
         v = v.unsqueeze(1).contiguous()
 
         # Calculate attention score
-        attn_score = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0)  # pylint: disable=not-callable
+        attn_score = F.scaled_dot_product_attention(  # pylint: disable=not-callable
+            q, k, v, dropout_p=self.dropout if self.training is True else 0.0
+        )
         B, _, _, C = attn_score.size()
         feat_dim = C * self.num_heads
         attn_score = attn_score.transpose(1, 2)
@@ -401,6 +403,7 @@ class MobileNet_v4_Hybrid(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
         self.embedding_size = features_stage_settings.out_channels
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = stem_settings.stride[0]
         self.stem_width = stem_settings.out_channels
         self.feature_dim = features_stage_settings.in_channels

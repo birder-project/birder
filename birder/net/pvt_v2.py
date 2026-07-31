@@ -234,7 +234,7 @@ class PyramidVisionTransformerStage(nn.Module):
             ]
         )
 
-        self.norm = nn.LayerNorm(dim_out)
+        self.norm = nn.LayerNorm(dim_out, eps=1e-6)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.downsample(x)  # B, C, H, W -> B, H, W, C
@@ -307,12 +307,13 @@ class PVT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
 
         # Weight initialization
         for m in self.modules():

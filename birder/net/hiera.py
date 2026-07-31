@@ -325,7 +325,6 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         image_size = self.size
         mask_unit_size = (8, 8)
         q_stride = (2, 2)
-        q_pool = 3
         patch_kernel = (7, 7)
         patch_stride = (4, 4)
         patch_padding = (3, 3)
@@ -333,6 +332,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         dim_mul = 2.0
         head_mul = 2.0
         mlp_ratio = 4.0
+        q_pool: int = self.config.get("q_pool", 3)
         depths: list[int] = self.config["depths"]
         embed_dim: int = self.config["embed_dim"]
         num_heads: int = self.config["num_heads"]
@@ -352,7 +352,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         num_tokens = math.prod(tokens_spatial_shape)
         flat_mu_size = math.prod(mask_unit_size)
         flat_q_stride = math.prod(q_stride)
-        assert q_pool < len(depths)
+        assert 0 <= q_pool < len(depths)
         assert patch_stride[0] == patch_stride[1]
 
         self.tokens_spatial_shape = tokens_spatial_shape
@@ -451,7 +451,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
 
-        self.max_stride = patch_stride[0] * 8
+        self.max_stride = patch_stride[0] * (q_stride[0] ** q_pool)
         self.stem_stride = patch_stride[0]
         self.stem_width = stem_dim
         self.feature_dim = embed_dim
@@ -461,7 +461,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         for m in self.modules():
             if isinstance(m, (nn.Linear, nn.Conv2d)):
                 nn.init.trunc_normal_(m.weight, std=0.02)
-                if m.bias is not None:
+                if isinstance(m, nn.Linear) and m.bias is not None:
                     nn.init.constant_(m.bias, 0.02)
 
             elif isinstance(m, nn.LayerNorm):
@@ -535,6 +535,10 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.stem.parameters():
             param.requires_grad_(False)
+
+        self.pos_embed.requires_grad_(False)
+        if self.pos_embed_win is not None:
+            self.pos_embed_win.requires_grad_(False)
 
         for idx, module in enumerate(self.body.children()):
             if idx >= up_to_stage:

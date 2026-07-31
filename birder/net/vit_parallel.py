@@ -130,9 +130,9 @@ class EncoderParallelBlock(nn.Module):
         return x
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
-        for b in self.attn_blocks:
-            if hasattr(b, "set_causal_attention") is True:
-                b.set_causal_attention(is_causal)
+        for module in self.attn_blocks.modules():
+            if isinstance(module, Attention):
+                module.set_causal_attention(is_causal)
 
 
 class Encoder(nn.Module):
@@ -388,6 +388,10 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
             for param in self.classifier.parameters():
                 param.requires_grad_(True)
 
+        if unfreeze_features is True:
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
+
     def set_grad_checkpointing(
         self,
         enable: bool = True,
@@ -447,11 +451,17 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
 
         self.pos_embedding.requires_grad_(False)
 
-        for idx, module in enumerate(self.encoder.children()):
-            if idx >= up_to_stage:
-                break
+        if up_to_stage <= 0:
+            return
 
-            for param in module.parameters():
+        if self.out_indices is None:
+            stage_boundaries = [self.num_layers - 1]
+        else:
+            stage_boundaries = sorted(set(self.out_indices))
+
+        last_block = stage_boundaries[min(up_to_stage, len(stage_boundaries)) - 1]
+        for block in self.encoder.block[: last_block + 1]:
+            for param in block.parameters():
                 param.requires_grad_(False)
 
     def masked_encoding_omission(

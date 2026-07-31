@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.7.0 - 2026-07-31
+
+### Added
+
+- **MViT v1**: Added [MViT v1](https://arxiv.org/abs/2104.11227) image classification model variants.
+- **RepLKNet**: Added [RepLKNet](https://arxiv.org/abs/2203.06717) image classification model variants.
+- **SE Wide ResNet**: Added Squeeze-and-Excitation Wide ResNet model variants.
+- **Selective Module Freezing**: Added repeatable `--freeze-module`, `--freeze-encoder-module` and `--freeze-backbone-module` training options for freezing exact module subtrees alongside existing freeze strategies.
+- **Sparse MoE Knowledge Distillation**: Added optional MoE auxiliary-loss support for knowledge-distillation students.
+- **Pretrained Models**:
+    - `rope_deit3_m14_dino-v2-dist-bio`: Added compact Bio-DINO-Dist RoPE DeiT3-M/14 image encoder pretrained weights distilled from the Bio-DINO SoViT-150M/14 model.
+
+### Changed
+
+- **AIM v1 Upstream Fidelity (Breaking)**: Corrected the prediction head to use pre-normalized residual MLP blocks, aligned LayerNorm epsilon and sinusoidal frequency spacing with upstream and sampled prefix lengths across the full patch sequence.
+- **CAPI Upstream Fidelity (Breaking)**: Preserved sampled prediction-token ordering in the decoder and removed unintended biases from decoder attention and MLP projections. CAPI-DINO inherits the correction through its shared student path.
+- **ConvMixer Upstream Fidelity (Breaking)**: Corrected the patch stem and mixer blocks to use upstream post-activation BatchNorm.
+- **FCMAE Upstream Fidelity**: Normalized reconstruction targets independently per patch before computing the masked-patch loss.
+- **MaxViT Upstream Fidelity (Breaking)**: Corrected attention scaling to use the per-head dimension and restored the canonical MaxViT-S stage widths.
+- **MobileNet v3 Upstream Fidelity (Breaking)**: Corrected sub-1.0 classifier hidden widths to follow the configured width multiplier.
+- **PVT v1 Upstream Fidelity (Breaking)**: Removed unintended stage-output LayerNorms.
+- **RepVGG D2se Upstream Fidelity (Breaking)**: Added the missing squeeze-and-excitation module to the stem.
+- **RepViT M0.6 Upstream Fidelity (Breaking)**: Corrected the first-stage width, stage depths and squeeze-excitation reduction width to match upstream.
+- **ResNet v2 Upstream Fidelity (Breaking)**: Corrected projection shortcuts to consume pre-activated inputs, removed post-addition activations.
+- **ShuffleNet v1 Upstream Fidelity (Breaking)**: Restored the Conv-BN-ReLU stem, corrected first-pointwise-convolution grouping and channel-shuffle placement and aligned residual and concatenation activation ordering with the intended architecture.
+- **SqueezeNext 23v5 Upstream Fidelity (Breaking)**: Restored the 5x5 v5 stem, alternating separable-convolution orientation, normalized and activated final bottleneck and upstream Xavier initialization.
+- **XCiT Upstream Fidelity (Breaking)**: Corrected the cross-covariance attention tensor layout, local-patch-interaction operation order and patch-embedding activations to match upstream.
+- **DETR Hungarian Matching**: Consolidated DETR-family matching into a shared lightweight matcher with conventional class, box and GIoU cost weights. Batched compatible decoder-layer and query-group assignments to reduce matching overhead.
+- **Weighted Boxes Fusion Confidence**: Aligned the `avg`, `max`, `box_and_model_avg` and `absent_model_aware_avg` confidence modes and weighted candidate ordering with upstream WBF, including unique source tracking for model-aware modes. Added cluster-local average and maximum modes.
+- **Linear Assignment and Soft-NMS Kernels**: Rewrote the custom CUDA implementations of the linear assignment and Soft-NMS operators.
+- **Custom Kernels**: Refined the native C++ and CUDA kernel infrastructure:
+    - Consolidated kernel loading and reorganized kernel sources.
+    - Standardized PyTorch and CUDA integration, validation and error handling.
+    - Added consistent formatting guidelines and CI checks.
+    - Improved the reliability and consistency of custom C++ and CUDA kernels and their fallbacks.
+- **Pretrained Models**:
+    - **Breaking**: Removed `maxvit_s_il-all` and `maxvit_s_il-all256px` because they are incompatible with the corrected MaxViT-S.
+    - **Breaking**: Removed `mobilenet_v3_large_0_75_il-common`.
+    - **Breaking**: Removed `repvit_m0_6_il-common` and `repvit_m0_6_il-common_reparameterized`.
+    - **Breaking**: Removed `resnet_v2_50_inat21` and `resnet_v2_50_inat21-256px` because they are incompatible with the corrected ResNet v2 architecture.
+    - **Breaking**: Removed `shufflenet_v1_4_il-common` because it is incompatible with the corrected ShuffleNet v1 architecture.
+    - **Breaking**: Removed `squeezenext_1_0_il-common`.
+    - **Breaking**: Updated `xcit_nano12_p16_il-common` and `xcit_nano12_p8_il-common` due to XCiT architecture corrections.
+
+### Fixed
+
+- **BiFormer Global Attention Layout**: Corrected the inverse token-to-feature-map layout conversion in the global-attention path.
+- **CSWin Transformer**: Preserved stage-specific stripe widths when adjusting input size.
+- **Swin Transformer Rectangular Attention and Resizing**: Corrected height/width shift suppression for rectangular windows in v1 and v2. Made v2 track padded stage resolutions and restore shifted-window offsets when resizing to non-multiple-of-32 inputs.
+- **Detection Result Loading**: Restored canonical bounding-box shapes and field dtypes when loading JSON detection results.
+- **EfficientDet Upstream Fidelity (Breaking)**: Restored half-stride floating-point anchors, canonical matching thresholds and BatchNorm settings, and the batch-normalized focal/Huber training objective with the upstream localization weight.
+- **Faster R-CNN Anchor Schedule**: Derived RPN anchor sizes from backbone pyramid strides so nonstandard and stride-64 backbones use the correct per-level scales.
+- **RetinaNet Upstream Fidelity (Breaking)**: Derived anchor sizes from regular and Simple-FPN strides for nonstandard backbones, removed unintended regular-FPN BatchNorm and restored Simple-FPN LayerNorm.
+- **DETR Positional-Embedding Dtypes**: Cast DETR and Deformable DETR positional embeddings to the corresponding feature dtype for mixed-precision compatibility.
+- **FCOS FPN Normalization**: Removed unintended BatchNorm layers from FCOS lateral and output FPN convolutions to match upstream.
+- **RT-DETR v1 Upstream Fidelity (Breaking)**: Restored the decoder-side feature projections before query selection and deformable decoding.
+- **RT-DETR v2 Upstream Fidelity (Breaking)**: Restored the decoder-side feature projections and corrected large variants.
+- **LW-DETR Positional-Embedding Dtype**: Cast sine position embeddings to the decoder dtype for reduced-precision compatibility.
+- **LW-DETR and RF-DETR Upstream Fidelity**: Corrected Group-DETR loss normalization for all-negative and sparse distributed batches.
+- **LeJEPA Global-View Target**: Corrected the invariance target to average only global-crop projections while retaining all global and local crops as predictions.
+- **Plain DETR Upstream Fidelity**: Corrected all-negative one-to-many loss normalization, restored decoder self-attention initialization and finite attention-logit clamping, and made positional and BoxRPB computations reduced-precision compatible.
+- **Download Cleanup**: Ensured download responses and temporary files are closed safely.
+- **FlexiViT PI-Resize**: Corrected FlexiViT and RoPE FlexiViT patch projection resizing to use the reference bilinear pseudoinverse transform instead of direct bicubic interpolation.
+- **LAMB Gradient Handling**: Made gradient-free optimizer steps no-ops and tracked bias-correction steps per parameter so intermittently active parameters use correct moment correction.
+- **RoPE ViT Rectangular XY Grids**: Corrected rotary-position grid ordering for rectangular inputs using `xy` indexing.
+- **ViT-Family Freezing**: Corrected stage freezing to follow configured output-stage boundaries. Made feature unfreezing restore terminal normalization, attention pooling, necks and class-attention feature modules across ViT-family models.
+- **ViT Parallel Causal Attention**: Propagated causal-attention settings to both parallel attention branches.
+- **XCiT Patch-8 Input Channels**: Made the patch-8 stem respect the configured input-channel count instead of assuming RGB input.
+
 ## 0.6.8 - 2026-07-18
 
 ### Added

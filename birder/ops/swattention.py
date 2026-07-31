@@ -167,9 +167,22 @@ class SWAttention_QK_RPB(nn.Module):
         H: int,
         W: int,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        # The fused QK+RPB kernel uses one homogeneous CUDA autocast dtype
+        # Normalize keys in their source dtype and cast only at the kernel boundary
+        kernel_dtype = kv.dtype
+        cuda_autocast = kv.is_cuda is True and torch.is_autocast_enabled() is True  # TorchScript compatibility
+        if cuda_autocast is True:
+            kernel_dtype = torch.get_autocast_dtype(kv.device.type)
+            if torch.float64 in (kv.dtype, q_norm_scaled.dtype, relative_pos_bias_local.dtype):
+                kernel_dtype = torch.float64
+                kv = kv.to(dtype=kernel_dtype)
+
+            q_norm_scaled = q_norm_scaled.to(dtype=kernel_dtype)
+            relative_pos_bias_local = relative_pos_bias_local.to(dtype=kernel_dtype)
+
         # Pure PyTorch
         if self.is_available is False or kv.is_cuda is False:
-            return swattention_qk_rpb(
+            attn_local, v_local = swattention_qk_rpb(
                 kv,
                 q_norm_scaled,
                 relative_pos_bias_local,
@@ -181,17 +194,24 @@ class SWAttention_QK_RPB(nn.Module):
                 H,
                 W,
             )
+            if cuda_autocast is True:
+                attn_local = attn_local.to(dtype=kernel_dtype)
+                v_local = v_local.to(dtype=kernel_dtype)
+
+            return (attn_local, v_local)
 
         # Custom kernel
         B, N, _ = kv.size()
 
         # Generate unfolded keys and values and l2-normalize them
         k_local, v_local = kv.reshape(B, N, 2 * num_heads, head_dim).permute(0, 2, 1, 3).chunk(2, dim=1)
+        k_local = F.normalize(k_local, dim=-1).to(dtype=kernel_dtype)
+        v_local = v_local.to(dtype=kernel_dtype)
 
         # Compute local similarity
         attn_local = swattention_qk_rpb_op(
             q_norm_scaled.contiguous(),
-            F.normalize(k_local, dim=-1).contiguous(),
+            k_local.contiguous(),
             relative_pos_bias_local,
             H,
             W,
@@ -231,13 +251,38 @@ class SWAttention_AV(nn.Module):
         H: int,
         W: int,
     ) -> torch.Tensor:
+        # Preserve native matmul-plus-add autocast promotion, then cast the two
+        # raw AV kernel operands to one homogeneous dtype at the kernel boundary
+        kernel_dtype = v_local.dtype
+        cuda_autocast = v_local.is_cuda is True and torch.is_autocast_enabled() is True  # TorchScript compatibility
+        if cuda_autocast is True:
+            kernel_dtype = torch.get_autocast_dtype(v_local.device.type)
+            if torch.float64 in (
+                q_norm.dtype,
+                attn_local.dtype,
+                v_local.dtype,
+                learnable_tokens.dtype,
+                learnable_bias.dtype,
+            ):
+                kernel_dtype = torch.float64
+                q_norm = q_norm.to(dtype=kernel_dtype)
+                attn_local = attn_local.to(dtype=kernel_dtype)
+                learnable_tokens = learnable_tokens.to(dtype=kernel_dtype)
+                learnable_bias = learnable_bias.to(dtype=kernel_dtype)
+
+        v_local = v_local.to(dtype=kernel_dtype)
+
         # Pure PyTorch
         if self.is_available is False or q_norm.is_cuda is False:
-            return swattention_av(q_norm, attn_local, v_local, learnable_tokens, learnable_bias)
+            output = swattention_av(q_norm, attn_local, v_local, learnable_tokens, learnable_bias)
+            if cuda_autocast is True:
+                output = output.to(dtype=kernel_dtype)
+
+            return output
 
         # Custom kernel
         attn_local = (q_norm @ learnable_tokens) + learnable_bias + attn_local
-        return swattention_av_op(attn_local.type_as(v_local), v_local.contiguous(), H, W, window_size)
+        return swattention_av_op(attn_local.to(dtype=kernel_dtype), v_local.contiguous(), H, W, window_size)
 
 
 def swattention_qk_rpb(
@@ -256,7 +301,8 @@ def swattention_qk_rpb(
 
     # Generate unfolded keys and values and l2-normalize them
     k_local, v_local = kv.chunk(2, dim=-1)
-    k_local = F.normalize(k_local.reshape(B, N, num_heads, head_dim), dim=-1).reshape(B, N, -1)
+    k_local = F.normalize(k_local.reshape(B, N, num_heads, head_dim), dim=-1).to(dtype=v_local.dtype)
+    k_local = k_local.reshape(B, N, -1)
     kv_local = torch.concat([k_local, v_local], dim=-1).permute(0, 2, 1).reshape(B, -1, H, W)
 
     k_local, v_local = (

@@ -1,9 +1,13 @@
 """
-SqueezeNext 23v5 version.
+SqueezeNext 23v5 version, adapted from
+https://github.com/amirgholami/SqueezeNext
 
 Paper "SqueezeNext: Hardware-Aware Neural Network Design",  https://arxiv.org/abs/1803.10615
 """
 
+# Reference license: BSD 2-Clause
+
+import math
 from collections import OrderedDict
 from typing import Any
 from typing import Optional
@@ -17,63 +21,60 @@ from birder.net.base import DetectorBackbone
 
 
 class SqnxtUnit(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, stride: int) -> None:
+    def __init__(
+        self, in_channels: int, out_channels: int, stride: int, project_identity: bool, vertical_first: bool
+    ) -> None:
         super().__init__()
-        if stride == 2:
-            reduction = 1
+        if project_identity is True:
             self.identity = Conv2dNormActivation(
-                in_channels,
-                out_channels,
-                kernel_size=(1, 1),
-                stride=(stride, stride),
-                padding=(0, 0),
-            )
-
-        elif in_channels > out_channels:
-            reduction = 4
-            self.identity = Conv2dNormActivation(
-                in_channels,
-                out_channels,
-                kernel_size=(1, 1),
-                stride=(stride, stride),
-                padding=(0, 0),
+                in_channels, out_channels, kernel_size=(1, 1), stride=(stride, stride), padding=(0, 0)
             )
 
         else:
-            reduction = 2
+            assert stride == 1
+            assert in_channels == out_channels
             self.identity = nn.Identity()
+
+        hidden_channels = out_channels // 2
+        bottleneck_channels = out_channels // 4
+        if vertical_first is True:
+            spatial_kernels = ((3, 1), (1, 3))
+            spatial_paddings = ((1, 0), (0, 1))
+        else:
+            spatial_kernels = ((1, 3), (3, 1))
+            spatial_paddings = ((0, 1), (1, 0))
 
         self.block = nn.Sequential(
             Conv2dNormActivation(
-                in_channels,
-                in_channels // reduction,
-                kernel_size=(1, 1),
-                stride=(stride, stride),
-                padding=(0, 0),
-            ),
-            Conv2dNormActivation(
-                in_channels // reduction,
-                in_channels // (2 * reduction),
+                out_channels,
+                hidden_channels,
                 kernel_size=(1, 1),
                 stride=(1, 1),
                 padding=(0, 0),
             ),
             Conv2dNormActivation(
-                in_channels // (2 * reduction),
-                in_channels // reduction,
-                kernel_size=(1, 3),
+                hidden_channels,
+                bottleneck_channels,
+                kernel_size=(1, 1),
                 stride=(1, 1),
-                padding=(0, 1),
+                padding=(0, 0),
             ),
             Conv2dNormActivation(
-                in_channels // reduction,
-                in_channels // reduction,
-                kernel_size=(3, 1),
+                bottleneck_channels,
+                hidden_channels,
+                kernel_size=spatial_kernels[0],
                 stride=(1, 1),
-                padding=(1, 0),
+                padding=spatial_paddings[0],
             ),
             Conv2dNormActivation(
-                in_channels // reduction,
+                hidden_channels,
+                hidden_channels,
+                kernel_size=spatial_kernels[1],
+                stride=(1, 1),
+                padding=spatial_paddings[1],
+            ),
+            Conv2dNormActivation(
+                hidden_channels,
                 out_channels,
                 kernel_size=(1, 1),
                 stride=(1, 1),
@@ -83,7 +84,8 @@ class SqnxtUnit(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        identity = self.identity(x)
+        x = self.identity(x)
+        identity = x
         x = self.block(x)
         x = x + identity
         x = self.relu(x)
@@ -106,22 +108,25 @@ class SqueezeNext(DetectorBackbone):
         assert self.config is not None, "must set config"
 
         width_scale: float = self.config["width_scale"]
+        self.head_bias = self.config.get("head_bias", False)
 
+        stem_width = 64
+        embedding_size = 128
         channels_per_layers = [32, 64, 128, 256]
         layers_per_stage = [2, 4, 14, 1]
 
         self.stem = nn.Sequential(
             Conv2dNormActivation(
                 self.input_channels,
-                int(64 * width_scale),
-                kernel_size=(7, 7),
+                stem_width,
+                kernel_size=(5, 5),
                 stride=(2, 2),
-                padding=(1, 1),
+                padding=(0, 0),
             ),
             nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2), padding=(0, 0), ceil_mode=True),
         )
 
-        in_channels = int(64 * width_scale)
+        in_channels = stem_width
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         for i, lps in enumerate(layers_per_stage):
@@ -133,7 +138,15 @@ class SqueezeNext(DetectorBackbone):
                     stride = 1
 
                 out_channels = int(channels_per_layers[i] * width_scale)
-                layers.append(SqnxtUnit(in_channels, out_channels, stride))
+                layers.append(
+                    SqnxtUnit(
+                        in_channels,
+                        out_channels,
+                        stride,
+                        project_identity=j == 0,
+                        vertical_first=j % 2 == 0,
+                    )
+                )
                 in_channels = out_channels
 
             stages[f"stage{i+1}"] = nn.Sequential(*layers)
@@ -141,9 +154,9 @@ class SqueezeNext(DetectorBackbone):
 
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
-            nn.Conv2d(
+            Conv2dNormActivation(
                 in_channels,
-                int(128 * width_scale),
+                embedding_size,
                 kernel_size=(1, 1),
                 stride=(1, 1),
                 padding=(0, 0),
@@ -152,9 +165,32 @@ class SqueezeNext(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = in_channels
-        self.embedding_size = int(128 * width_scale)
+        self.embedding_size = embedding_size
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = stem_width
+        self.feature_dim = in_channels
+
+        # Weight initialization
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                fan_in = m.in_channels * m.kernel_size[0] * m.kernel_size[1] // m.groups
+                bound = math.sqrt(3.0 / fan_in)
+                nn.init.uniform_(m.weight, -bound, bound)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+            elif isinstance(m, nn.Linear):
+                bound = math.sqrt(3.0 / m.in_features)
+                nn.init.uniform_(m.weight, -bound, bound)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
@@ -190,18 +226,3 @@ registry.register_model_config("squeezenext_0_5", SqueezeNext, config={"width_sc
 registry.register_model_config("squeezenext_1_0", SqueezeNext, config={"width_scale": 1.0})
 registry.register_model_config("squeezenext_1_5", SqueezeNext, config={"width_scale": 1.5})
 registry.register_model_config("squeezenext_2_0", SqueezeNext, config={"width_scale": 2.0})
-
-registry.register_weights(
-    "squeezenext_1_0_il-common",
-    {
-        "description": "SqueezeNext (1.0 width scale) model trained on the il-common dataset",
-        "resolution": (259, 259),
-        "formats": {
-            "pt": {
-                "file_size": 3.5,
-                "sha256": "6a9e102a8d332a0f417cc65ee62019b7d999365562f17691167711249415fec1",
-            }
-        },
-        "net": {"network": "squeezenext_1_0", "tag": "il-common"},
-    },
-)

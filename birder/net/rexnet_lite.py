@@ -8,7 +8,6 @@ https://arxiv.org/abs/2007.00992
 
 # Reference license: MIT
 
-import math
 from collections import OrderedDict
 from typing import Any
 from typing import Optional
@@ -208,25 +207,13 @@ class ReXNet_Lite(DetectorBackbone):
             nn.Dropout(p=dropout_rate),
         )
         self.return_channels = return_channels[1:5]
-        self.feature_dim = prev_channels
         self.embedding_size = head_channels
         self.classifier = self.create_classifier()
 
-        # Weight initialization
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out")
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
-
-            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
-                nn.init.ones_(m.weight)
-                nn.init.zeros_(m.bias)
-
-            elif isinstance(m, nn.Linear):
-                init_range = 1.0 / math.sqrt(m.out_features)
-                nn.init.uniform_(m.weight, -init_range, init_range)
-                nn.init.zeros_(m.bias)
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = stem_channels
+        self.feature_dim = prev_channels
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

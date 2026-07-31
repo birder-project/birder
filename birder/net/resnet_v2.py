@@ -72,14 +72,14 @@ class ResidualBlock(nn.Module):
                 nn.Conv2d(out_channels, out_channels, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
             )
 
-        if in_channels == out_channels:
-            self.block2 = nn.Identity()
-        else:
+        self.use_projection = in_channels != out_channels or stride != (1, 1)
+        if self.use_projection is True:
             self.block2 = nn.Conv2d(
                 in_channels, out_channels, kernel_size=(1, 1), stride=stride, padding=(0, 0), bias=False
             )
+        else:
+            self.block2 = nn.Identity()
 
-        self.relu = nn.ReLU(inplace=True)
         if squeeze_excitation is True:
             self.se = SqueezeExcitation(out_channels, out_channels // 16)
         else:
@@ -87,13 +87,15 @@ class ResidualBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = x
-        x = self.block1(x)
+        for idx, module in enumerate(self.block1):
+            x = module(x)
+            if idx == 1 and self.use_projection is True:
+                identity = x
+
         x = self.se(x)
         identity = self.block2(identity)
-        x += identity
-        x = self.relu(x)
 
-        return x
+        return x + identity
 
 
 class ResNet_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
@@ -166,16 +168,18 @@ class ResNet_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.BatchNorm2d(filter_list[-1]),
+            nn.ReLU(inplace=True),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = filter_list[-1]
         self.embedding_size = filter_list[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = filter_list[0]
+        self.feature_dim = filter_list[-1]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
@@ -331,36 +335,5 @@ registry.register_model_config(
         "filter_list": [64, 256, 512, 1024, 2048],
         "units": [3, 30, 48, 8],
         "squeeze_excitation": True,
-    },
-)
-
-registry.register_weights(
-    "resnet_v2_50_inat21-256px",
-    {
-        "url": "https://huggingface.co/birder-project/resnet_v2_50_inat21/resolve/main",
-        "description": "ResNet v2 50 model trained on the iNaturalist 2021 dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 169.0,
-                "sha256": "2291dc2fcde035ec9bdc7d68ff35d20e2f3f75219002779e53e7711594fb1e5b",
-            }
-        },
-        "net": {"network": "resnet_v2_50", "tag": "inat21-256px"},
-    },
-)
-registry.register_weights(
-    "resnet_v2_50_inat21",
-    {
-        "url": "https://huggingface.co/birder-project/resnet_v2_50_inat21/resolve/main",
-        "description": "ResNet v2 50 model trained on the iNaturalist 2021 dataset",
-        "resolution": (384, 384),
-        "formats": {
-            "pt": {
-                "file_size": 169.0,
-                "sha256": "7316ea3fe296d5bd71d0db4241ce56a57e175641e75793e21820402de399691e",
-            }
-        },
-        "net": {"network": "resnet_v2_50", "tag": "inat21"},
     },
 )

@@ -168,6 +168,7 @@ class RegNet_Z(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 2
         self.stem_width = stem_width
         self.feature_dim = current_width
@@ -185,7 +186,7 @@ class RegNet_Z(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 # Note that there is no bias due to BN
-                fan_out = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                fan_out = (m.kernel_size[0] * m.kernel_size[1] * m.out_channels) // m.groups
                 nn.init.normal_(m.weight, mean=0.0, std=math.sqrt(2.0 / fan_out))
 
             elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):

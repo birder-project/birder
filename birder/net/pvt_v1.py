@@ -7,7 +7,6 @@ https://arxiv.org/abs/2102.12122
 
 Changes from original:
 * No positional embedding on the CLS token
-* Remove last norm
 """
 
 # Reference license: Apache-2.0
@@ -170,7 +169,6 @@ class PyramidVisionTransformerStage(nn.Module):
             ]
         )
 
-        self.norm = nn.LayerNorm(dim_out, eps=1e-6)
         if cls_token is True:
             self.cls_token = nn.Parameter(torch.zeros(1, 1, dim_out))
         else:
@@ -188,7 +186,6 @@ class PyramidVisionTransformerStage(nn.Module):
         for blk in self.blocks:
             x = blk(x, H, W)
 
-        x = self.norm(x)
         if self.cls_token is not None:
             return x
 
@@ -250,18 +247,39 @@ class PVT_v1(DetectorBackbone):
             return_channels.append(embed_dims[i])
 
         self.body = nn.Sequential(stages)
+        self.norm = nn.LayerNorm(embed_dims[-1], eps=1e-6)
         self.return_channels = return_channels
-        self.feature_dim = embed_dims[-1]
         self.num_special_tokens = 1
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
+
         # Weight initialization
         for m in self.modules():
-            if isinstance(m, nn.Linear):
+            if isinstance(m, PyramidVisionTransformerStage):
+                nn.init.trunc_normal_(m.pos_embed, std=0.02)
+                if m.cls_token is not None:
+                    nn.init.trunc_normal_(m.cls_token, std=0.02)
+
+            elif isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        super().freeze(freeze_classifier=freeze_classifier, unfreeze_features=unfreeze_features)
+
+        if unfreeze_features is True:
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
+
+    def transform_to_backbone(self) -> None:
+        super().transform_to_backbone()
+        self.norm = nn.Identity()
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.patch_embed(x)
@@ -289,10 +307,13 @@ class PVT_v1(DetectorBackbone):
 
             for param in module.parameters():
                 param.requires_grad_(False)
+            if module.cls_token is not None:
+                module.cls_token.requires_grad_(True)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)
-        return self.body(x)
+        x = self.body(x)
+        return self.norm(x)
 
     def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
         if include_special_tokens is False:

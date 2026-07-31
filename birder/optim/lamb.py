@@ -102,6 +102,10 @@ class Lamb(Optimizer):
                 if grad.is_sparse:
                     raise RuntimeError("Lamb does not support sparse gradients, consider SparseAdam instead.")
                 norms.append(torch.linalg.vector_norm(grad))  # pylint: disable=not-callable
+
+        if len(norms) == 0:
+            return None
+
         global_norm = torch.linalg.vector_norm(torch.stack(norms))  # pylint: disable=not-callable
         clip_global_norm = (global_norm / max_grad_norm).clamp_(min=1.0)
         return clip_global_norm
@@ -116,23 +120,9 @@ class Lamb(Optimizer):
         clip_grad_norm = self._get_clip_grad_norm()  # None if disabled
 
         for group in self.param_groups:
-            bias_correction = 1 if group["bias_correction"] else 0
             beta1, beta2 = group["betas"]
             grad_averaging = 1 if group["grad_averaging"] else 0
             beta3 = 1 - beta1 if grad_averaging else 1.0
-
-            # assume same step across group now to simplify things
-            # per parameter step can be easily support by making it tensor, or pass list into kernel
-            if "step" in group:
-                group["step"] += 1
-            else:
-                group["step"] = 1
-
-            if bias_correction:
-                bias_correction1 = 1 - beta1 ** group["step"]
-                bias_correction2 = 1 - beta2 ** group["step"]
-            else:
-                bias_correction1, bias_correction2 = 1.0, 1.0
 
             for p in group["params"]:
                 if p.grad is None:
@@ -146,10 +136,19 @@ class Lamb(Optimizer):
 
                 # State initialization
                 if len(state) == 0:
+                    state["step"] = 0
                     # Exponential moving average of gradient valuesa
                     state["exp_avg"] = torch.zeros_like(p)
                     # Exponential moving average of squared gradient values
                     state["exp_avg_sq"] = torch.zeros_like(p)
+
+                state["step"] += 1
+                step = state["step"]
+                if group["bias_correction"]:
+                    bias_correction1 = 1 - beta1**step
+                    bias_correction2 = 1 - beta2**step
+                else:
+                    bias_correction1, bias_correction2 = 1.0, 1.0
 
                 exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
 

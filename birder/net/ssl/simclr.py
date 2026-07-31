@@ -89,8 +89,8 @@ class SimCLR(SSLBaseNet):
     def forward(self, x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
         # pylint: disable=arguments-differ
 
-        h1 = self.backbone.embedding(x1)
-        h2 = self.backbone.embedding(x2)
+        h = self.backbone.embedding(torch.concat([x1, x2], dim=0))
+        h1, h2 = h.chunk(2)
 
         z1 = self.projection_head(h1)
         z2 = self.projection_head(h2)

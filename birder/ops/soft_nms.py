@@ -37,27 +37,24 @@ class SoftNMS:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if boxes.numel() == 0:
             return (
-                torch.empty((0,), dtype=torch.float32, device=scores.device),
+                scores.new_empty((0,)),
                 torch.empty((0,), dtype=torch.int64, device=boxes.device),
             )
 
-        # Offset boxes by category to prevent inter-category suppression
-        max_coordinate = boxes.max()
-        offsets = idxs.to(boxes) * (max_coordinate + 1)
-        boxes_for_nms = boxes + offsets[:, None]
+        if self.soft_nms is not None and boxes.is_cuda is True:
+            calculation_dtype = torch.promote_types(boxes.dtype, scores.dtype)
+            kernel_scores, keep = self.soft_nms.soft_nms(
+                boxes.to(calculation_dtype), scores.to(calculation_dtype), idxs, sigma, score_threshold
+            )
+            return kernel_scores.to(scores.dtype), keep
 
-        if self.soft_nms is not None:
-            return self.soft_nms.soft_nms(boxes_for_nms, scores, sigma, score_threshold)  # type: ignore[no-any-return]
-
-        return _soft_nms(boxes_for_nms, scores, sigma, score_threshold)
+        return batched_soft_nms(boxes, scores, idxs, sigma, score_threshold)
 
     def soft_nms_single(
         self, boxes: torch.Tensor, scores: torch.Tensor, sigma: float = 0.5, score_threshold: float = 0.1
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        if self.soft_nms is not None:
-            return self.soft_nms.soft_nms(boxes, scores, sigma, score_threshold)  # type: ignore[no-any-return]
-
-        return _soft_nms(boxes, scores, sigma, score_threshold)
+        class_ids = torch.zeros((boxes.size(0),), dtype=torch.int64, device=boxes.device)
+        return self(boxes, scores, class_ids, sigma, score_threshold)
 
 
 def _pairwise_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
@@ -97,7 +94,7 @@ def _soft_nms(
     num_elem = scores_remain.size()[0]
     idxs = torch.arange(num_elem, device=device)
     idxs_out = torch.zeros(num_elem, dtype=torch.int64, device=device)
-    scores_out = torch.zeros(num_elem, dtype=torch.float32, device=device)
+    scores_out = scores.new_zeros((num_elem,))
     count: int = 0
 
     while scores_remain.numel() > 0:
@@ -119,7 +116,10 @@ def _soft_nms(
         scores_remain = scores_remain[keep]
         idxs = idxs[keep]
 
-    return (scores_out[:count], idxs_out[:count])
+    scores_out = scores_out[:count]
+    idxs_out = idxs_out[:count]
+    keep = scores_out > score_threshold
+    return (scores_out[keep], idxs_out[keep])
 
 
 def batched_soft_nms(
@@ -127,12 +127,27 @@ def batched_soft_nms(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     if boxes.numel() == 0:
         return (
-            torch.empty((0,), dtype=torch.float32, device=scores.device),
+            scores.new_empty((0,)),
             torch.empty((0,), dtype=torch.int64, device=boxes.device),
         )
 
-    max_coordinate = boxes.max()
-    offsets = idxs.to(boxes) * (max_coordinate + 1)
-    boxes_for_nms = boxes + offsets[:, None]
+    calculation_dtype = torch.promote_types(boxes.dtype, scores.dtype)
+    if calculation_dtype in (torch.float16, torch.bfloat16):
+        calculation_dtype = torch.float32
 
-    return _soft_nms(boxes_for_nms, scores, sigma=sigma, score_threshold=score_threshold)
+    calculation_boxes = boxes.to(calculation_dtype)
+    calculation_scores = scores.to(calculation_dtype)
+    scores_by_index = torch.full((scores.size(0),), -torch.inf, dtype=calculation_dtype, device=scores.device)
+    for class_id in torch.unique(idxs):
+        class_positions = torch.where(idxs == class_id)[0]
+        class_scores, class_keep = _soft_nms(
+            calculation_boxes[class_positions],
+            calculation_scores[class_positions],
+            sigma=sigma,
+            score_threshold=score_threshold,
+        )
+        scores_by_index[class_positions[class_keep]] = class_scores
+
+    updated_scores, keep = torch.sort(scores_by_index, descending=True, stable=True)
+    score_mask = updated_scores > score_threshold
+    return (updated_scores[score_mask].to(scores.dtype), keep[score_mask])

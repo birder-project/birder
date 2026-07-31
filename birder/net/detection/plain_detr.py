@@ -8,6 +8,7 @@ Changes from original:
 * Move background index to first from last (to be inline with the rest of Birder detectors)
 * Removed two stage support
 * Only support pre-norm (original supports both pre- and post-norm)
+* Uses learned 4D reference boxes for the one-stage BoxRPB decoder
 """
 
 # Reference license: MIT
@@ -31,9 +32,9 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import aligned_generalized_box_iou
-from birder.net.detection.deformable_detr import HungarianMatcher
 from birder.net.detection.deformable_detr import inverse_sigmoid
 from birder.net.detection.detr import PositionEmbeddingSine
+from birder.net.detection.hungarian_matcher import HungarianMatcher
 from birder.ops.soft_nms import SoftNMS
 
 
@@ -222,9 +223,7 @@ class GlobalCrossAttention(nn.Module):
         if key_padding_mask is not None:
             attn = attn.masked_fill(key_padding_mask[:, None, None, :], float("-inf"))
 
-        # f_min = torch.finfo(attn.dtype).min
-        # f_max = torch.finfo(attn.dtype).max
-        # torch.clip_(attn, min=f_min, max=f_max)
+        attn = torch.nan_to_num(attn)
 
         attn = F.softmax(attn, dim=-1)
         attn = self.attn_drop(attn)
@@ -269,8 +268,8 @@ class GlobalCrossAttention(nn.Module):
             delta_y1 = torch.sign(delta_y1) * torch.log2(torch.abs(delta_y1) + 1.0) / 3.0
             delta_y2 = torch.sign(delta_y2) * torch.log2(torch.abs(delta_y2) + 1.0) / 3.0
 
-        delta_x = torch.stack([delta_x1, delta_x2], dim=-1)
-        delta_y = torch.stack([delta_y1, delta_y2], dim=-1)
+        delta_x = torch.stack([delta_x1, delta_x2], dim=-1).to(reference_points.dtype)
+        delta_y = torch.stack([delta_y1, delta_y2], dim=-1).to(reference_points.dtype)
 
         rpe_x = self.cpb_mlp_x(delta_x)
         rpe_y = self.cpb_mlp_y(delta_y)
@@ -377,6 +376,13 @@ class GlobalDecoder(nn.Module):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.zeros_(m.bias)
                 nn.init.ones_(m.weight)
+
+        qkv_gain = 1 / math.sqrt(2)
+        for m in self.modules():
+            if isinstance(m, MultiheadAttention):
+                nn.init.xavier_uniform_(m.q_proj.weight, gain=qkv_gain)
+                nn.init.xavier_uniform_(m.k_proj.weight, gain=qkv_gain)
+                nn.init.xavier_uniform_(m.v_proj.weight, gain=qkv_gain)
 
     def forward(
         self,
@@ -591,8 +597,8 @@ class Plain_DETR(DetectionBaseNet):
         # Upstream uses level_embed to distinguish between multi-scale feature levels,
         # with a single level, it reduces to a spatially-uniform bias absorbed by other layers
         # self.level_embed = nn.Parameter(torch.empty(1, hidden_dim, 1, 1))
-        self.pos_enc = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
-        self.matcher = HungarianMatcher(cost_class=2.0, cost_bbox=5.0, cost_giou=2.0)
+        self.pos_enc = PositionEmbeddingSine(hidden_dim // 2, normalize=True, offset=0.5)
+        self.matcher = HungarianMatcher(class_weight=2.0, bbox_weight=5.0, giou_weight=2.0)
 
         if box_refine is True:
             self.class_embed = _get_clones(self.class_embed, num_decoder_layers)
@@ -717,13 +723,15 @@ class Plain_DETR(DetectionBaseNet):
         if training_utils.is_dist_available_and_initialized() is True:
             torch.distributed.all_reduce(num_boxes)
 
-        num_boxes = torch.clamp(num_boxes / training_utils.get_world_size(), min=1)
+        num_boxes = num_boxes / training_utils.get_world_size()
+        num_boxes_one2many = torch.clamp(num_boxes * self.k_one2many, min=1)
+        num_boxes = torch.clamp(num_boxes, min=1)
+        indices_per_layer = self.matcher.match_grouped(cls_logits.movedim(0, 1), box_output.movedim(0, 1), targets)
 
         loss_ce_list = []
         loss_bbox_list = []
         loss_giou_list = []
-        for idx in range(cls_logits.size(0)):
-            indices = self.matcher(cls_logits[idx], box_output[idx], targets)
+        for idx, indices in enumerate(indices_per_layer):
             loss_ce_i = self._class_loss(cls_logits[idx], targets, indices, num_boxes)
             loss_bbox_i, loss_giou_i = self._box_loss(box_output[idx], targets, indices, num_boxes)
             loss_ce_list.append(loss_ce_i)
@@ -740,13 +748,11 @@ class Plain_DETR(DetectionBaseNet):
                 {"boxes": t["boxes"].repeat(self.k_one2many, 1), "labels": t["labels"].repeat(self.k_one2many)}
                 for t in targets
             ]
-            num_boxes_one2many = num_boxes * self.k_one2many
-
             loss_ce_list_one2many = []
             loss_bbox_list_one2many = []
             loss_giou_list_one2many = []
             for idx in range(cls_logits_one2many.size(0)):
-                indices = self.matcher(cls_logits_one2many[idx], box_output_one2many[idx], targets_one2many)
+                indices = self.matcher.match(cls_logits_one2many[idx], box_output_one2many[idx], targets_one2many)
                 loss_ce_i = self._class_loss(cls_logits_one2many[idx], targets_one2many, indices, num_boxes_one2many)
                 loss_bbox_i, loss_giou_i = self._box_loss(
                     box_output_one2many[idx], targets_one2many, indices, num_boxes_one2many
@@ -823,7 +829,8 @@ class Plain_DETR(DetectionBaseNet):
             mask_flatten = None
             valid_ratios = torch.ones((B, 2), device=src.device, dtype=src.dtype)
 
-        pos = self.pos_enc(src, masks)
+        valid_ratios = valid_ratios.to(src.dtype)
+        pos = self.pos_enc(src, masks).to(src.dtype)
         # pos = pos + self.level_embed
         src = src.flatten(2).permute(0, 2, 1)
         pos = pos.flatten(2).permute(0, 2, 1)

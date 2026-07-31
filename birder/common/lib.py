@@ -3,6 +3,8 @@ from collections.abc import Mapping
 from typing import Any
 from typing import Optional
 
+import torch
+
 from birder.conf import settings
 from birder.data.transforms.classification import RGBType
 from birder.model_registry import registry
@@ -18,6 +20,13 @@ from birder.version import __version__
 
 def env_bool(name: str) -> bool:
     return os.environ.get(name, "").lower() in {"1", "true", "yes", "on"}
+
+
+def device_to_str(device: torch.device) -> str:
+    if device.index is None:
+        return device.type  # type: ignore[no-any-return]
+
+    return f"{device.type}:{device.index}"
 
 
 def get_size_from_signature(signature: SignatureType | DetectionSignatureType) -> tuple[int, int]:

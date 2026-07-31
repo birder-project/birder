@@ -107,8 +107,8 @@ class TestWBF(unittest.TestCase):
 
         self.assertEqual(boxes.shape, (2, 4))
         self.assertEqual(labels.tolist(), [1, 2])
-        self.assertAlmostEqual(scores[0].item(), 0.9)
-        self.assertAlmostEqual(scores[1].item(), 0.7)
+        self.assertAlmostEqual(scores[0].item(), 0.45)
+        self.assertAlmostEqual(scores[1].item(), 0.35)
 
     def test_weighted_boxes_fusion_conf_types(self) -> None:
         boxes_list = [
@@ -119,10 +119,12 @@ class TestWBF(unittest.TestCase):
         scores_list = [torch.tensor([0.9]), torch.tensor([0.3]), torch.zeros((0,))]
         labels_list = [torch.tensor([1]), torch.tensor([1]), torch.zeros((0,), dtype=torch.int64)]
         expected: dict[wbf.ConfType, float] = {
-            "avg": 0.5,
-            "max": 0.9,
-            "box_and_model_avg": 1.0 / 3.0,
+            "avg": 0.25,
+            "max": 0.3,
+            "box_and_model_avg": 0.25,
             "absent_model_aware_avg": 0.25,
+            "cluster_avg": 0.5,
+            "cluster_max": 0.9,
         }
 
         for conf_type, expected_score in expected.items():
@@ -136,6 +138,62 @@ class TestWBF(unittest.TestCase):
             )
 
             self.assertAlmostEqual(scores.item(), expected_score)
+
+    def test_weighted_boxes_fusion_avg_allows_overflow(self) -> None:
+        boxes_list = [
+            torch.tensor([[0.0, 0.0, 1.0, 1.0], [0.0, 0.0, 1.0, 1.0]]),
+            torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+        ]
+        scores_list = [torch.tensor([0.9, 0.9]), torch.tensor([0.9])]
+        labels_list = [torch.tensor([1, 1]), torch.tensor([1])]
+
+        _, bounded_scores, _ = wbf.weighted_boxes_fusion(
+            boxes_list, scores_list, labels_list, iou_thr=0.5, conf_type="avg"
+        )
+        _, overflow_scores, _ = wbf.weighted_boxes_fusion(
+            boxes_list,
+            scores_list,
+            labels_list,
+            iou_thr=0.5,
+            conf_type="avg",
+            allows_overflow=True,
+        )
+
+        torch.testing.assert_close(bounded_scores, torch.tensor([0.9]))
+        torch.testing.assert_close(overflow_scores, torch.tensor([1.35]))
+
+    def test_weighted_boxes_fusion_model_aware_conf_types_track_unique_sources(self) -> None:
+        boxes_list = [
+            torch.tensor([[0.0, 0.0, 1.0, 1.0], [0.0, 0.0, 1.0, 1.0]]),
+            torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+            torch.zeros((0, 4)),
+        ]
+        scores_list = [torch.tensor([0.9, 0.9]), torch.tensor([0.9]), torch.zeros((0,))]
+        labels_list = [
+            torch.tensor([1, 1]),
+            torch.tensor([1]),
+            torch.zeros((0,), dtype=torch.int64),
+        ]
+
+        _, box_and_model_scores, _ = wbf.weighted_boxes_fusion(
+            boxes_list,
+            scores_list,
+            labels_list,
+            weights=[1.0, 1.0, 1.0],
+            iou_thr=0.5,
+            conf_type="box_and_model_avg",
+        )
+        _, absent_model_scores, _ = wbf.weighted_boxes_fusion(
+            boxes_list,
+            scores_list,
+            labels_list,
+            weights=[1.0, 1.0, 1.0],
+            iou_thr=0.5,
+            conf_type="absent_model_aware_avg",
+        )
+
+        self.assertAlmostEqual(box_and_model_scores.item(), 0.6)
+        self.assertAlmostEqual(absent_model_scores.item(), 0.675)
 
     def test_fuse_detections_wbf_batch(self) -> None:
         detections_a = [

@@ -455,6 +455,7 @@ class MobileNet_v4(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin)
         self.embedding_size = features_stage_settings.out_channels
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = stem_settings.stride[0]
         self.stem_width = stem_settings.out_channels
         self.feature_dim = features_stage_settings.in_channels

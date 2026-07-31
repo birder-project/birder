@@ -151,7 +151,7 @@ class Attention(nn.Module):
 
 class GroupNorm1(nn.GroupNorm):
     def __init__(self, num_channels: int) -> None:
-        super().__init__(num_groups=1, num_channels=num_channels, eps=1e-6)
+        super().__init__(num_groups=1, num_channels=num_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # pylint: disable=arguments-renamed
         return F.group_norm(x, self.num_groups, self.weight, self.bias, self.eps)
@@ -434,6 +434,7 @@ class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.embedding_size = dims[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 4 * 2 ** (num_stages - 1)
         self.stem_stride = 4
         self.stem_width = dims[0]
         self.feature_dim = dims[-1]
@@ -442,9 +443,13 @@ class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.trunc_normal_(m.weight, std=0.02)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def set_grad_checkpointing(
         self,
@@ -569,10 +574,10 @@ class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             return nn.Linear(embed_dim, self.num_classes, bias=head_bias)
 
         return nn.Sequential(
-            nn.Dropout(self.mlp_head_dropout),
             nn.Linear(embed_dim, 4 * embed_dim),
             SquaredReLU(),
             nn.LayerNorm(4 * embed_dim),
+            nn.Dropout(self.mlp_head_dropout),
             nn.Linear(4 * embed_dim, self.num_classes, bias=head_bias),
         )
 

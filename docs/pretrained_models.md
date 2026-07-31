@@ -1,6 +1,6 @@
 # Pretrained Models
 
-Birder provides a variety of pretrained models optimized for different tasks, regions, and computational requirements. This guide explains our model taxonomy and helps you choose the right model for your needs.
+Birder provides a variety of pretrained models optimized for different tasks, regions and computational requirements. This guide explains our model taxonomy and helps you choose the right model for your needs.
 
 ## Model Tasks
 

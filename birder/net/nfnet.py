@@ -227,6 +227,7 @@ class NFNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         activation = nn.GELU
         activation_gamma = 1.7015043497085571
         depths: list[int] = self.config["depths"]
+        dropout_rate: float = self.config["dropout_rate"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
         self.grad_checkpointing = False
@@ -286,14 +287,16 @@ class NFNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             act_layer(),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
+            nn.Dropout(p=dropout_rate),
         )
         self.return_channels = return_channels
-        self.feature_dim = prev_channels
         self.embedding_size = prev_channels * 2
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = stem_channels
+        self.feature_dim = prev_channels
 
         # Weight initialization
         for m in self.modules():
@@ -303,7 +306,7 @@ class NFNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                     nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.bias, 0.0, 0.01)
+                nn.init.normal_(m.weight, 0.0, 0.01)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
@@ -354,24 +357,6 @@ class NFNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             for param in module.parameters():
                 param.requires_grad_(False)
 
-    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.stem(x)
-        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
-            if self.grad_checkpointing_segments is None:
-                segments = len(self._grad_checkpointing_blocks)
-            else:
-                segments = min(self.grad_checkpointing_segments, len(self._grad_checkpointing_blocks))
-
-            return checkpoint_sequential(
-                self._grad_checkpointing_blocks,
-                segments,
-                x,
-                use_reentrant=self.grad_checkpointing_use_reentrant,
-                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
-            )
-
-        return self.body(x)
-
     def masked_encoding_retention(
         self,
         x: torch.Tensor,
@@ -405,14 +390,46 @@ class NFNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         return result
 
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self._grad_checkpointing_blocks)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self._grad_checkpointing_blocks))
+
+            return checkpoint_sequential(
+                self._grad_checkpointing_blocks,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+
+        return self.body(x)
+
     def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
         return self.features(features)
 
 
-registry.register_model_config("nfnet_f0", NFNet, config={"depths": [1, 2, 6, 3], "drop_path_rate": 0.2})
-registry.register_model_config("nfnet_f1", NFNet, config={"depths": [2, 4, 12, 6], "drop_path_rate": 0.3})
-registry.register_model_config("nfnet_f2", NFNet, config={"depths": [3, 6, 18, 9], "drop_path_rate": 0.4})
-registry.register_model_config("nfnet_f3", NFNet, config={"depths": [4, 8, 24, 12], "drop_path_rate": 0.4})
-registry.register_model_config("nfnet_f4", NFNet, config={"depths": [5, 10, 30, 15], "drop_path_rate": 0.5})
-registry.register_model_config("nfnet_f5", NFNet, config={"depths": [6, 12, 36, 18], "drop_path_rate": 0.5})
-registry.register_model_config("nfnet_f6", NFNet, config={"depths": [7, 14, 42, 21], "drop_path_rate": 0.5})
+registry.register_model_config(
+    "nfnet_f0", NFNet, config={"depths": [1, 2, 6, 3], "dropout_rate": 0.2, "drop_path_rate": 0.25}
+)
+registry.register_model_config(
+    "nfnet_f1", NFNet, config={"depths": [2, 4, 12, 6], "dropout_rate": 0.3, "drop_path_rate": 0.25}
+)
+registry.register_model_config(
+    "nfnet_f2", NFNet, config={"depths": [3, 6, 18, 9], "dropout_rate": 0.4, "drop_path_rate": 0.25}
+)
+registry.register_model_config(
+    "nfnet_f3", NFNet, config={"depths": [4, 8, 24, 12], "dropout_rate": 0.4, "drop_path_rate": 0.25}
+)
+registry.register_model_config(
+    "nfnet_f4", NFNet, config={"depths": [5, 10, 30, 15], "dropout_rate": 0.5, "drop_path_rate": 0.25}
+)
+registry.register_model_config(
+    "nfnet_f5", NFNet, config={"depths": [6, 12, 36, 18], "dropout_rate": 0.5, "drop_path_rate": 0.25}
+)
+registry.register_model_config(
+    "nfnet_f6", NFNet, config={"depths": [7, 14, 42, 21], "dropout_rate": 0.5, "drop_path_rate": 0.25}
+)

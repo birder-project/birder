@@ -419,9 +419,24 @@ class Results:
         targets = data.pop("targets")
         class_to_idx = data.pop("class_to_idx")
 
+        tensor_dtypes = {
+            "boxes": torch.float32,
+            "scores": torch.float32,
+            "labels": torch.int64,
+            "area": torch.float32,
+            "iscrowd": torch.int64,
+        }
+
+        def tensor_from_json(key: str, value: Any) -> torch.Tensor:
+            tensor = torch.tensor(value, dtype=tensor_dtypes.get(key))
+            if key == "boxes":
+                tensor = tensor.reshape((-1, 4))
+
+            return tensor
+
         sample_paths = list(data.keys())
-        detections = [{k: torch.tensor(v) for k, v in detection.items()} for detection in data.values()]
-        targets = [{k: torch.tensor(v) for k, v in target.items()} for target in targets.values()]
+        detections = [{k: tensor_from_json(k, v) for k, v in detection.items()} for detection in data.values()]
+        targets = [{k: tensor_from_json(k, v) for k, v in target.items()} for target in targets.values()]
 
         return Results(
             sample_paths,

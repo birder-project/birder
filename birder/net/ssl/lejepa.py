@@ -120,6 +120,7 @@ class LeJEPA(SSLBaseNet):
         projection_dim: int = self.config["projection_dim"]
         projection_hidden_dim: int = self.config["projection_hidden_dim"]
         projection_layers: int = self.config["projection_layers"]
+        self.num_global_crops: int = self.config["num_global_crops"]
         num_knots: int = self.config.get("num_knots", 17)
         num_slices: int = self.config.get("num_slices", 256)
         t_max: float = self.config.get("t_max", 3.0)
@@ -162,7 +163,8 @@ class LeJEPA(SSLBaseNet):
         proj = combined_projections.unflatten(0, (len(x), batch_size))  # [V, B, D]
 
         sigreg_loss = self.sigreg(proj)
-        inv_loss = (proj.float().mean(dim=0, keepdim=True) - proj.float()).square().mean()
+        global_proj_mean = proj[: self.num_global_crops].float().mean(dim=0, keepdim=True)
+        inv_loss = (global_proj_mean - proj.float()).square().mean()
         total_loss = self.loss_lambda * sigreg_loss + (1.0 - self.loss_lambda) * inv_loss
 
         return (total_loss, sigreg_loss, inv_loss)

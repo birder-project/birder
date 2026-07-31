@@ -1,12 +1,14 @@
 """
 BYOL, adapted from
 https://github.com/lucidrains/byol-pytorch/blob/master/byol_pytorch/byol_pytorch.py
+and
+https://github.com/google-deepmind/deepmind-research/blob/master/byol/utils/networks.py
 
 Paper "Bootstrap your own latent: A new approach to self-supervised Learning",
 https://arxiv.org/abs/2006.07733
 """
 
-# Reference license: MIT
+# Reference license: MIT and Apache-2.0
 
 import copy
 from typing import Any
@@ -32,7 +34,7 @@ class MLP(nn.Module):
         self.fc1 = nn.Linear(in_features, hidden_features)
         self.norm = nn.BatchNorm1d(hidden_features)
         self.act = nn.ReLU(inplace=True)
-        self.fc2 = nn.Linear(hidden_features, out_features)
+        self.fc2 = nn.Linear(hidden_features, out_features, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.fc1(x)

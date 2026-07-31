@@ -206,7 +206,11 @@ def clip_boxes_to_image(boxes: torch.Tensor, image_size: torch.Tensor) -> torch.
 
 class BackboneWithFPN(nn.Module):
     def __init__(
-        self, backbone: DetectorBackbone, out_channels: int, extra_blocks: Optional[ExtraFPNBlock] = None
+        self,
+        backbone: DetectorBackbone,
+        out_channels: int,
+        extra_blocks: Optional[ExtraFPNBlock] = None,
+        norm_layer: Optional[Callable[..., nn.Module]] = nn.BatchNorm2d,
     ) -> None:
         super().__init__()
         self.backbone = backbone
@@ -215,7 +219,7 @@ class BackboneWithFPN(nn.Module):
             in_channels_list=self.backbone.return_channels,
             out_channels=out_channels,
             extra_blocks=extra_blocks,
-            norm_layer=nn.BatchNorm2d,
+            norm_layer=norm_layer,
         )
 
         self.out_channels = out_channels
@@ -237,6 +241,7 @@ class BackboneWithSimpleFPN(nn.Module):
         out_channels: int,
         extra_blocks: Optional[ExtraFPNBlock] = None,
         num_stages: int = 4,
+        norm_layer: Callable[..., nn.Module] = nn.BatchNorm2d,
     ) -> None:
         super().__init__()
         self.backbone = backbone
@@ -244,7 +249,7 @@ class BackboneWithSimpleFPN(nn.Module):
         self.fpn = SimpleFeaturePyramidNetwork(
             in_channels=self.backbone.return_channels[-1],
             out_channels=out_channels,
-            norm_layer=nn.BatchNorm2d,
+            norm_layer=norm_layer,
             extra_blocks=extra_blocks,
             num_stages=num_stages,
         )

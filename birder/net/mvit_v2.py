@@ -34,6 +34,10 @@ from birder.net.base import TokenRetentionResultType
 from birder.net.base import staged_stochastic_depth_rates
 
 
+def _ceil_div_2d(shape: tuple[int, int], divisor: tuple[int, int]) -> tuple[int, int]:
+    return (math.ceil(shape[0] / divisor[0]), math.ceil(shape[1] / divisor[1]))
+
+
 def pre_pool(
     x: torch.Tensor, hw_shape: tuple[int, int], has_cls_token: bool
 ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
@@ -213,10 +217,8 @@ class MultiScaleAttention(nn.Module):
             self.norm_v = None
 
         # Relative pos embedding
-        q_size_h = input_size[0] // stride_q[0]
-        q_size_w = input_size[1] // stride_q[1]
-        kv_size_h = input_size[0] // stride_kv[0]
-        kv_size_w = input_size[1] // stride_kv[1]
+        q_size_h, q_size_w = _ceil_div_2d(input_size, stride_q)
+        kv_size_h, kv_size_w = _ceil_div_2d(input_size, stride_kv)
         rel_sp_dim_h = 2 * max(q_size_h, kv_size_h) - 1
         rel_sp_dim_w = 2 * max(q_size_w, kv_size_w) - 1
 
@@ -418,7 +420,7 @@ class MultiScaleVitStage(nn.Module):
             )
             dim = out_dims[i]
             if i == 0:
-                input_size = (input_size[0] // stride_q[0], input_size[1] // stride_q[1])
+                input_size = _ceil_div_2d(input_size, stride_q)
 
     def forward(self, x: torch.Tensor, hw_shape: tuple[int, int]) -> tuple[torch.Tensor, tuple[int, int]]:
         for blk in self.blocks:
@@ -476,7 +478,7 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
-        input_size = (img_size[0] // 4, img_size[1] // 4)
+        input_size = _ceil_div_2d(img_size, (4, 4))
         for i in range(num_stages):
             if dim_mul_in_att is True:
                 dim_out = embed_dims[i]
@@ -502,25 +504,45 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             stages[f"stage{i+1}"] = stage
             return_channels.append(dim_out)
             embed_dim = dim_out
-            input_size = (input_size[0] // stride_q[i][0], input_size[1] // stride_q[i][1])
+            input_size = _ceil_div_2d(input_size, stride_q[i])
 
         self.body = SequentialWithShape(stages)
         self.norm = nn.LayerNorm(embed_dim, eps=1e-6)
         self.return_channels = return_channels
-        self.embedding_size = embed_dim
         self.num_special_tokens = 1 if use_cls_token is True else 0
+        self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
         self.feature_dim = embed_dim
 
         # Weights initialization
+        if self.cls_token is not None:
+            nn.init.trunc_normal_(self.cls_token, std=0.02)
+
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        for param in self.parameters():
+            param.requires_grad_(False)
+
+        if freeze_classifier is False:
+            for param in self.classifier.parameters():
+                param.requires_grad_(True)
+
+        if unfreeze_features is True:
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
+
+    def transform_to_backbone(self) -> None:
+        super().transform_to_backbone()
+        self.norm = nn.Identity()
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x, hw_shape = self.patch_embed(x)
@@ -629,16 +651,14 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         super().adjust_size(new_size)
 
-        input_size = (new_size[0] // 4, new_size[1] // 4)
-        for i, module in enumerate(self.body.children()):
+        input_size = _ceil_div_2d(new_size, (4, 4))
+        for module in self.body.children():
             if isinstance(module, MultiScaleVitStage):
                 idx = 0
                 for m in module.modules():
                     if isinstance(m, MultiScaleBlock):
-                        q_size_h = input_size[0] // m.attn.stride_q[0]
-                        q_size_w = input_size[1] // m.attn.stride_q[1]
-                        kv_size_h = input_size[0] // m.attn.stride_kv[0]
-                        kv_size_w = input_size[1] // m.attn.stride_kv[1]
+                        q_size_h, q_size_w = _ceil_div_2d(input_size, m.attn.stride_q)
+                        kv_size_h, kv_size_w = _ceil_div_2d(input_size, m.attn.stride_kv)
                         rel_sp_dim_h = 2 * max(q_size_h, kv_size_h) - 1
                         rel_sp_dim_w = 2 * max(q_size_w, kv_size_w) - 1
 
@@ -660,7 +680,7 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                         m.attn.rel_pos_w = nn.Parameter(rel_pos_w_resized.reshape(-1, rel_sp_dim_w).permute(1, 0))
 
                         if idx == 0:
-                            input_size = (input_size[0] // self.stride_q[i][0], input_size[1] // self.stride_q[i][1])
+                            input_size = (q_size_h, q_size_w)
 
                         idx += 1
 

@@ -154,13 +154,13 @@ torchrun --nproc_per_node=2 train.py --network regnet_y_8g --tag mim --batch-siz
 #### MAE Hiera: Hiera Small
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_hiera --encoder hiera_small --encoder-model-config drop_path_rate=0.0 --batch-size 512 --opt adamw --opt-betas 0.9 0.95 --lr 0.0008 --wd 0.05 --lr-scheduler cosine --epochs 400 --warmup-epochs 40 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_hiera --encoder hiera_small --encoder-model-config q_pool=2,drop_path_rate=0.0 --batch-size 512 --opt adamw --opt-betas 0.9 0.95 --lr 0.0008 --wd 0.05 --lr-scheduler cosine --epochs 400 --warmup-epochs 40 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 #### MAE Hiera: Hiera AbsWin Tiny
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_hiera --encoder hiera_abswin_tiny --encoder-model-config drop_path_rate=0.0 --batch-size 512 --opt adamw --opt-betas 0.9 0.95 --lr 0.0008 --wd 0.05 --lr-scheduler cosine --epochs 400 --warmup-epochs 40 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
+torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_hiera --encoder hiera_abswin_tiny --encoder-model-config q_pool=2,drop_path_rate=0.0 --batch-size 512 --opt adamw --opt-betas 0.9 0.95 --lr 0.0008 --wd 0.05 --lr-scheduler cosine --epochs 400 --warmup-epochs 40 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
 Intermediate training: full fine-tuning with layer-wise learning rate decay

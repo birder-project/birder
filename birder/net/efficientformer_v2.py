@@ -12,7 +12,7 @@ Changes from original:
 * Removed biases before norms
 """
 
-# Reference license: Apache-2.0 (both)
+# Reference license: MIT and Apache-2.0
 
 import math
 from collections import OrderedDict
@@ -468,16 +468,22 @@ class EfficientFormer_v2(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
         self.distillation_output = False
 
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
+
         # Weight initialization
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes

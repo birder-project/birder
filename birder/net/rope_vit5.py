@@ -1,5 +1,8 @@
 """
 Paper "ViT-5: Vision Transformers for The Mid-2020s", https://arxiv.org/abs/2602.08071
+
+Changes from original:
+* Linearly increase stochastic depth rates across blocks instead of using a constant rate
 """
 
 import logging
@@ -113,6 +116,12 @@ class RoPEAttention(nn.Module):
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
+
+        # Weight initialization
+        for m in (self.qkv, self.proj):
+            nn.init.trunc_normal_(m.weight, std=0.02)
+            if m.bias is not None:
+                nn.init.zeros_(m.bias)
 
     def _apply_split_rope(
         self, x: torch.Tensor, patch_rope: torch.Tensor, reg_rope: Optional[torch.Tensor]
@@ -738,6 +747,8 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
                 param.requires_grad_(True)
 
         if unfreeze_features is True:
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
             if self.attn_pool is not None:
                 for param in self.attn_pool.parameters():
                     param.requires_grad_(True)
@@ -763,6 +774,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
     def transform_to_backbone(self) -> None:
         super().transform_to_backbone()
         self.norm = nn.Identity()
+        self.attn_pool = None
 
     def _pool(self, x: torch.Tensor) -> torch.Tensor:
         if self.attn_pool is not None:
@@ -820,11 +832,20 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         if self.pos_embedding is not None:
             self.pos_embedding.requires_grad_(False)
 
-        for idx, module in enumerate(self.encoder.children()):
-            if idx >= up_to_stage:
-                break
+        if up_to_stage <= 0:
+            return
 
-            for param in module.parameters():
+        for param in self.encoder.pre_block.parameters():
+            param.requires_grad_(False)
+
+        if self.out_indices is None:
+            stage_boundaries = [self.num_layers - 1]
+        else:
+            stage_boundaries = sorted(set(self.out_indices))
+
+        last_block = stage_boundaries[min(up_to_stage, len(stage_boundaries)) - 1]
+        for block in self.encoder.block[: last_block + 1]:
+            for param in block.parameters():
                 param.requires_grad_(False)
 
     def masked_encoding_omission(

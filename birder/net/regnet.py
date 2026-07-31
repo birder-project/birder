@@ -334,6 +334,7 @@ class RegNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.embedding_size = current_width
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 2
         self.stem_width = stem_width
         self.feature_dim = current_width

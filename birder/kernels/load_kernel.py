@@ -1,6 +1,7 @@
 import logging
 import os
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Optional
@@ -13,7 +14,87 @@ import birder
 logger = logging.getLogger(__name__)
 
 
-_CACHED_KERNELS: dict[str, ModuleType] = {}
+_KERNELS_DIR = Path(birder.__file__).resolve().parent.joinpath("kernels")
+_COMMON_CUDA_FLAGS = (
+    "-DCUDA_HAS_FP16=1",
+    "-D__CUDA_NO_HALF_OPERATORS__",
+    "-D__CUDA_NO_HALF_CONVERSIONS__",
+    "-D__CUDA_NO_HALF2_OPERATORS__",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class KernelSpec:
+    key: str
+    extension_name: str
+    directory: str
+    sources: tuple[str, ...]
+    with_cuda: bool = False
+    cuda_only: bool = False
+    extra_include_paths: tuple[str, ...] = ()
+    extra_cflags: tuple[str, ...] = ()
+    extra_cuda_cflags: tuple[str, ...] = ()
+
+
+_LINEAR_ASSIGNMENT_SPEC = KernelSpec(
+    key="linear_assignment",
+    extension_name="linear_assignment",
+    directory="linear_assignment",
+    sources=(
+        "op.cpp",
+        "linear_assignment_cuda.cu",
+    ),
+    with_cuda=True,
+    cuda_only=True,
+    extra_cflags=("-O3",),
+    extra_cuda_cflags=("-O3", "--restrict"),
+)
+_MSDA_SPEC = KernelSpec(
+    key="msda",
+    extension_name="MultiScaleDeformableAttention",
+    directory="msda",
+    sources=(
+        "op.cpp",
+        "cuda/ms_deform_attn_cuda.cu",
+    ),
+    with_cuda=True,
+    cuda_only=True,
+    extra_cflags=("-O3",),
+    extra_cuda_cflags=("-O3", "--restrict", *_COMMON_CUDA_FLAGS),
+)
+_SOFT_NMS_SPEC = KernelSpec(
+    key="soft_nms",
+    extension_name="soft_nms",
+    directory="soft_nms",
+    sources=(
+        "op.cpp",
+        "soft_nms_cuda.cu",
+    ),
+    with_cuda=True,
+    cuda_only=True,
+    extra_cflags=("-O3",),
+    extra_cuda_cflags=("-O3", "--restrict", *_COMMON_CUDA_FLAGS),
+)
+_SWATTENTION_SPEC = KernelSpec(
+    key="swattention",
+    extension_name="swattention",
+    directory="swattention",
+    sources=(
+        "op.cpp",
+        "av_bw_kernel.cu",
+        "av_fw_kernel.cu",
+        "qk_bw_kernel.cu",
+        "qk_fw_kernel.cu",
+        "qk_rpb_bw_kernel.cu",
+        "qk_rpb_fw_kernel.cu",
+    ),
+    with_cuda=True,
+    cuda_only=True,
+    extra_cflags=("-O3",),
+    extra_cuda_cflags=("-O3", *_COMMON_CUDA_FLAGS),
+)
+
+_CACHED_KERNELS: dict[str, Optional[ModuleType]] = {}
 _DISABLED_CUSTOM_KERNELS: set[str] = set()
 _CUSTOM_KERNELS_ENABLED = True
 
@@ -48,163 +129,58 @@ def is_custom_kernels_enabled(kernel: Optional[str] = None) -> bool:
     return _CUSTOM_KERNELS_ENABLED
 
 
-def load_msda() -> Optional[ModuleType]:
-    name = "msda"
-    if torch.cuda.is_available() is False or is_custom_kernels_enabled(name) is False:
+def _load_kernel(spec: KernelSpec) -> Optional[ModuleType]:
+    if (spec.cuda_only is True and torch.cuda.is_available() is False) or is_custom_kernels_enabled(spec.key) is False:
         return None
 
-    if name in _CACHED_KERNELS:
-        return _CACHED_KERNELS[name]
+    if spec.key in _CACHED_KERNELS:
+        return _CACHED_KERNELS[spec.key]
 
-    # Adapted from:
-    # https://github.com/huggingface/transformers/blob/main/src/transformers/models/deformable_detr/load_custom.py
-    root = Path(birder.__file__).resolve().parent.joinpath("kernels/deformable_detr")
-    src_files = [
-        root.joinpath("vision.cpp"),
-        root.joinpath("cpu/ms_deform_attn_cpu.cpp"),
-        root.joinpath("cuda/ms_deform_attn_cuda.cu"),
-    ]
+    root = _KERNELS_DIR.joinpath(spec.directory)
+    source_files = [root.joinpath(source) for source in spec.sources]
+    extra_include_paths = [str(root.joinpath(path)) for path in spec.extra_include_paths]
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=UserWarning)
-        lib_path = load(
-            "MultiScaleDeformableAttention",
-            src_files,
-            with_cuda=True,
-            extra_include_paths=[str(root)],
-            extra_cflags=["-O3", "-DWITH_CUDA=1"],
-            extra_cuda_cflags=[
-                "-O3",
-                "--restrict",
-                "-DCUDA_HAS_FP16=1",
-                "-D__CUDA_NO_HALF_OPERATORS__",
-                "-D__CUDA_NO_HALF_CONVERSIONS__",
-                "-D__CUDA_NO_HALF2_OPERATORS__",
-            ],
-            is_python_module=False,
-        )
+    kernel: Optional[ModuleType]
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning)
+            library_path = load(
+                spec.extension_name,
+                source_files,
+                with_cuda=spec.with_cuda,
+                extra_include_paths=extra_include_paths,
+                extra_cflags=list(spec.extra_cflags),
+                extra_cuda_cflags=list(spec.extra_cuda_cflags),
+                is_python_module=False,
+            )
 
-    ops_namespace = Path(lib_path).stem
-    msda: Optional[ModuleType] = getattr(torch.ops, ops_namespace, None)
-
-    if msda is not None:
-        logger.info("MSDA custom kernel loaded")
-        _CACHED_KERNELS[name] = msda
-    else:
-        logger.debug("MSDA custom kernel NOT loaded")
-
-    return msda
-
-
-def load_swattention() -> Optional[ModuleType]:
-    name = "swattention"
-    if torch.cuda.is_available() is False or is_custom_kernels_enabled(name) is False:
+        ops_namespace = Path(library_path).stem
+        kernel = getattr(torch.ops, ops_namespace, None)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception(f"{spec.key} custom kernel failed to load, using fallback")
+        _CACHED_KERNELS[spec.key] = None
         return None
 
-    if name in _CACHED_KERNELS:
-        return _CACHED_KERNELS[name]
-
-    root = Path(birder.__file__).resolve().parent.joinpath("kernels/transnext")
-    src_files = [
-        root.joinpath("swattention.cpp"),
-        root.joinpath("av_bw_kernel.cu"),
-        root.joinpath("av_fw_kernel.cu"),
-        root.joinpath("qk_bw_kernel.cu"),
-        root.joinpath("qk_fw_kernel.cu"),
-        root.joinpath("qk_rpb_bw_kernel.cu"),
-        root.joinpath("qk_rpb_fw_kernel.cu"),
-    ]
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=UserWarning)
-        lib_path = load(
-            "swattention",
-            src_files,
-            with_cuda=True,
-            extra_cflags=["-DWITH_CUDA=1"],
-            extra_cuda_cflags=[
-                "-DCUDA_HAS_FP16=1",
-                "-D__CUDA_NO_HALF_OPERATORS__",
-                "-D__CUDA_NO_HALF_CONVERSIONS__",
-                "-D__CUDA_NO_HALF2_OPERATORS__",
-            ],
-            is_python_module=False,
-        )
-
-    ops_namespace = Path(lib_path).stem
-    swattention: Optional[ModuleType] = getattr(torch.ops, ops_namespace, None)
-
-    if swattention is not None:
-        logger.info("swattention custom kernel loaded")
-        _CACHED_KERNELS[name] = swattention
+    _CACHED_KERNELS[spec.key] = kernel
+    if kernel is not None:
+        logger.info(f"{spec.key} custom kernel loaded")
     else:
-        logger.debug("swattention custom kernel NOT loaded")
+        logger.debug(f"{spec.key} custom kernel NOT loaded")
 
-    return swattention
-
-
-def load_soft_nms() -> Optional[ModuleType]:
-    name = "soft_nms"
-    if is_custom_kernels_enabled(name) is False:
-        return None
-
-    if name in _CACHED_KERNELS:
-        return _CACHED_KERNELS[name]
-
-    root = Path(birder.__file__).resolve().parent.joinpath("kernels/soft_nms")
-    src_files = [
-        root.joinpath("op.cpp"),
-        root.joinpath("soft_nms.cpp"),
-    ]
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=UserWarning)
-        soft_nms: Optional[ModuleType] = load(
-            "soft_nms",
-            src_files,
-        )
-
-    if soft_nms is not None:
-        logger.info("soft_nms custom kernel loaded")
-        _CACHED_KERNELS[name] = soft_nms
-    else:
-        logger.debug("soft_nms custom kernel NOT loaded")
-
-    return soft_nms
+    return kernel
 
 
 def load_linear_assignment() -> Optional[ModuleType]:
-    name = "linear_assignment"
-    if torch.cuda.is_available() is False or is_custom_kernels_enabled(name) is False:
-        return None
+    return _load_kernel(_LINEAR_ASSIGNMENT_SPEC)
 
-    if name in _CACHED_KERNELS:
-        return _CACHED_KERNELS[name]
 
-    root = Path(birder.__file__).resolve().parent.joinpath("kernels/linear_assignment")
-    src_files = [
-        root.joinpath("op.cpp"),
-        root.joinpath("linear_assignment_cuda.cu"),
-    ]
+def load_msda() -> Optional[ModuleType]:
+    return _load_kernel(_MSDA_SPEC)
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=UserWarning)
-        lib_path = load(
-            "linear_assignment",
-            src_files,
-            with_cuda=True,
-            extra_cflags=["-O3"],
-            extra_cuda_cflags=["-O3"],
-            is_python_module=False,
-        )
 
-    ops_namespace = Path(lib_path).stem
-    linear_assignment: Optional[ModuleType] = getattr(torch.ops, ops_namespace, None)
+def load_soft_nms() -> Optional[ModuleType]:
+    return _load_kernel(_SOFT_NMS_SPEC)
 
-    if linear_assignment is not None:
-        logger.info("linear assignment custom kernel loaded")
-        _CACHED_KERNELS[name] = linear_assignment
-    else:
-        logger.debug("linear assignment custom kernel NOT loaded")
 
-    return linear_assignment
+def load_swattention() -> Optional[ModuleType]:
+    return _load_kernel(_SWATTENTION_SPEC)

@@ -6,6 +6,7 @@ Paper "LeViT: a Vision Transformer in ConvNet's Clothing for Faster Inference", 
 
 Changes from original:
 * Removed attention bias cache
+* Use a shared pre-pooling batch normalization instead of separate normalization in each classifier head
 """
 
 # Reference license: Apache-2.0
@@ -28,10 +29,14 @@ from birder.net.vit import PatchEmbed
 
 
 class LinearNorm(nn.Module):
-    def __init__(self, in_features: int, out_features: int):
+    def __init__(self, in_features: int, out_features: int, bn_weight_init: float = 1.0) -> None:
         super().__init__()
         self.linear = nn.Linear(in_features, out_features, bias=False)
         self.bn = nn.BatchNorm1d(out_features)
+
+        # Weight initialization
+        nn.init.constant_(self.bn.weight, bn_weight_init)
+        nn.init.zeros_(self.bn.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.linear(x)
@@ -72,7 +77,7 @@ class Attention(nn.Module):
         self.qkv = LinearNorm(dim, self.val_attn_dim + key_attn_dim * 2)
         self.proj = nn.Sequential(
             act_layer(),
-            LinearNorm(self.val_attn_dim, dim),
+            LinearNorm(self.val_attn_dim, dim, bn_weight_init=0.0),
         )
 
         self.attention_biases = nn.Parameter(torch.zeros(self.num_heads, resolution[0] * resolution[1]))
@@ -169,7 +174,7 @@ class LeVitMLP(nn.Module):
         super().__init__()
         self.ln1 = LinearNorm(in_features, hidden_features)
         self.act = act_layer()
-        self.ln2 = LinearNorm(hidden_features, in_features)
+        self.ln2 = LinearNorm(hidden_features, in_features, bn_weight_init=0.0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.ln1(x)
@@ -349,7 +354,7 @@ class LeViT(BaseNet):
                 kernel_size=(3, 3),
                 stride=(2, 2),
                 padding=(1, 1),
-                activation_layer=nn.Hardswish,
+                activation_layer=None,
             ),
             PatchEmbed(),
         )
@@ -387,11 +392,15 @@ class LeViT(BaseNet):
             nn.AdaptiveAvgPool1d(output_size=1),
             nn.Flatten(1),
         )
-        self.feature_dim = embed_dim[-1]
         self.embedding_size = embed_dim[-1]
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
         self.distillation_output = False
+
+        self.max_stride = 16 * 2 ** (num_stages - 1)
+        self.stem_stride = 16
+        self.stem_width = embed_dim[0]
+        self.feature_dim = embed_dim[-1]
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
@@ -557,34 +566,5 @@ registry.register_model_config(
         "num_heads": [6, 9, 12],
         "depths": [4, 4, 4],
         "drop_path_rate": 0.1,
-    },
-)
-
-registry.register_weights(
-    "levit_128s_il-common",
-    {
-        "description": "LeViT 128s model trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 28.1,
-                "sha256": "f70629adc76d029445f6eb70786075e71b9e7d99029186fefc4e1fb966aaf743",
-            }
-        },
-        "net": {"network": "levit_128s", "tag": "il-common"},
-    },
-)
-registry.register_weights(
-    "levit_128_il-common",
-    {
-        "description": "LeViT 128 model trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 33.6,
-                "sha256": "877006385c7bb9c9a48bb602803c10075a752f522941f085b241e5dfcdc77f9c",
-            }
-        },
-        "net": {"network": "levit_128", "tag": "il-common"},
     },
 )

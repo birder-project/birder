@@ -9,10 +9,10 @@ https://arxiv.org/abs/2206.01191
 
 Changes from original:
 * Removed attention bias cache
-* Stem bias term removed
+* Stem bias terms removed
 """
 
-# Reference license: Apache-2.0 (both)
+# Reference license: MIT and Apache-2.0
 
 from collections import OrderedDict
 from typing import Any
@@ -287,24 +287,28 @@ class EfficientFormer_v1(DetectorBackbone):
         self.body = nn.Sequential(stages)
 
         self.features = nn.Sequential(
-            nn.LayerNorm(embed_dims[-1], eps=1e-6),
+            nn.LayerNorm(embed_dims[-1]),
             Permute([0, 2, 1]),
             nn.AdaptiveAvgPool1d(output_size=1),
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
         self.distillation_output = False
 
-        self.max_stride = 2**5
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
 
         # Weight initialization
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes

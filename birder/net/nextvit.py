@@ -347,6 +347,7 @@ class NextViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.embedding_size = output_channel
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = stem_chs[-1]
         self.feature_dim = output_channel
@@ -358,12 +359,12 @@ class NextViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, std=0.02)
+                nn.init.trunc_normal_(m.weight, std=0.02)
                 if hasattr(m, "bias") and m.bias is not None:
                     nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, std=0.02)
+                nn.init.trunc_normal_(m.weight, std=0.02)
                 if hasattr(m, "bias") and m.bias is not None:
                     nn.init.zeros_(m.bias)
 

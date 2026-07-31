@@ -176,7 +176,9 @@ class ResNeStBottleneck(nn.Module):
 
             else:
                 self.downsample = nn.Sequential(
-                    nn.AvgPool2d(kernel_size=(2, 2), stride=avd_stride, padding=(0, 0), count_include_pad=False),
+                    nn.AvgPool2d(
+                        kernel_size=(2, 2), stride=avd_stride, padding=(0, 0), ceil_mode=True, count_include_pad=False
+                    ),
                     Conv2dNormActivation(
                         in_channels,
                         out_channels * expansion,
@@ -265,12 +267,13 @@ class ResNeSt(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             nn.Dropout(p=final_drop),
         )
         self.return_channels = return_channels
-        self.feature_dim = filter_list[-1] * expansion
         self.embedding_size = filter_list[-1] * expansion
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = stem_width * 2
+        self.feature_dim = filter_list[-1] * expansion
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

@@ -135,8 +135,8 @@ class FasterNet(DetectorBackbone):
         super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
 
-        patch_size = (4, 4)
-        patch_stride = (4, 4)
+        patch_size = 4
+        patch_stride = 4
         n_div = 4
         mlp_ratio = 2.0
         feature_dim = 1280
@@ -148,7 +148,10 @@ class FasterNet(DetectorBackbone):
         act_layer = get_activation_module(act_layer_name)
 
         self.stem = PatchEmbed(
-            in_channels=self.input_channels, embed_dim=embed_dim, patch_size=patch_size, patch_stride=patch_stride
+            in_channels=self.input_channels,
+            embed_dim=embed_dim,
+            patch_size=(patch_size, patch_size),
+            patch_stride=(patch_stride, patch_stride),
         )
 
         # Stochastic depth decay rule
@@ -184,9 +187,13 @@ class FasterNet(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = num_features
         self.embedding_size = feature_dim
         self.classifier = self.create_classifier()
+
+        self.max_stride = patch_stride * 2 ** (num_stages - 1)
+        self.stem_stride = patch_stride
+        self.stem_width = embed_dim
+        self.feature_dim = num_features
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

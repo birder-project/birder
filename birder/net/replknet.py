@@ -1,0 +1,504 @@
+"""
+RepLKNet, adapted from
+https://github.com/DingXiaoH/RepLKNet-pytorch/blob/main/replknet.py
+and
+https://github.com/MegEngine/RepLKNet/blob/main/model_replknet.py
+
+Paper "Scaling Up Your Kernels to 31x31: Revisiting Large Kernel Design in CNNs",
+https://arxiv.org/abs/2203.06717
+"""
+
+# Reference license: MIT and Apache-2.0
+
+import logging
+from collections import OrderedDict
+from collections.abc import Callable
+from typing import Any
+from typing import Literal
+from typing import Optional
+
+import torch
+import torch.nn.functional as F
+from torch import nn
+from torch.nn.utils.fusion import fuse_conv_bn_weights
+from torch.utils.checkpoint import checkpoint_sequential
+from torchvision.ops import Conv2dNormActivation
+from torchvision.ops import SqueezeExcitation
+from torchvision.ops import StochasticDepth
+
+from birder.common.masking import mask_tensor
+from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
+from birder.net.base import staged_stochastic_depth_rates
+
+logger = logging.getLogger(__name__)
+
+
+class ReparamLargeKernelConv(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int,
+        groups: int,
+        small_kernel: Optional[int],
+        use_se: bool,
+        reparameterized: bool,
+        activation_layer: Optional[Callable[..., nn.Module]] = nn.GELU,
+    ) -> None:
+        super().__init__()
+        if kernel_size % 2 != 1:
+            raise ValueError("kernel_size must be odd")
+        if small_kernel is not None and (small_kernel % 2 != 1 or small_kernel > kernel_size):
+            raise ValueError("small_kernel must be odd and no larger than kernel_size")
+
+        self.reparameterized = reparameterized
+        self.stride = stride
+        self.groups = groups
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.small_kernel = small_kernel
+        self.padding = kernel_size // 2
+
+        if reparameterized is True:
+            self.lkb_reparam = nn.Conv2d(
+                in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=self.padding, groups=groups
+            )
+        else:
+            self.lkb_reparam = None
+            self.lkb_origin = nn.Sequential()
+            self.lkb_origin.add_module(
+                "conv",
+                nn.Conv2d(
+                    in_channels,
+                    out_channels,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    padding=self.padding,
+                    groups=groups,
+                    bias=False,
+                ),
+            )
+            self.lkb_origin.add_module("bn", nn.BatchNorm2d(out_channels))
+            if small_kernel is not None:
+                self.small_conv = nn.Sequential()
+                self.small_conv.add_module(
+                    "conv",
+                    nn.Conv2d(
+                        in_channels,
+                        out_channels,
+                        kernel_size=small_kernel,
+                        stride=stride,
+                        padding=small_kernel // 2,
+                        groups=groups,
+                        bias=False,
+                    ),
+                )
+                self.small_conv.add_module("bn", nn.BatchNorm2d(out_channels))
+            else:
+                self.small_conv = None
+
+        if use_se is True:
+            self.se = SqueezeExcitation(out_channels, out_channels // 4)
+        else:
+            self.se = nn.Identity()
+
+        if activation_layer is not None:
+            self.activation = activation_layer()
+        else:
+            self.activation = nn.Identity()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.lkb_reparam is not None:
+            x = self.lkb_reparam(x)
+        else:
+            x_large = self.lkb_origin(x)
+            if self.small_conv is not None:
+                x_large = x_large + self.small_conv(x)
+
+            x = x_large
+
+        return self.activation(self.se(x))
+
+    @torch.no_grad()  # type: ignore[untyped-decorator]
+    def reparameterize(self) -> None:
+        if self.reparameterized is True:
+            return
+
+        kernel, bias = self._get_kernel_bias(self.lkb_origin)
+        if self.small_conv is not None:
+            small_kernel_size = self.small_kernel
+            assert isinstance(small_kernel_size, int)
+            small_kernel, small_bias = self._get_kernel_bias(self.small_conv)
+            pad = (self.kernel_size - small_kernel_size) // 2
+            kernel += F.pad(small_kernel, [pad, pad, pad, pad])
+            bias += small_bias
+
+        conv = self.lkb_origin.conv
+        self.lkb_reparam = nn.Conv2d(
+            conv.in_channels,
+            conv.out_channels,
+            kernel_size=conv.kernel_size,
+            stride=conv.stride,
+            padding=conv.padding,
+            dilation=conv.dilation,
+            groups=conv.groups,
+            device=kernel.device,
+            dtype=kernel.dtype,
+        )
+        self.lkb_reparam.weight.copy_(kernel)
+        self.lkb_reparam.bias.copy_(bias)
+
+        for param in self.parameters():
+            param.detach_()
+
+        del self.lkb_origin
+        del self.small_conv
+        self.reparameterized = True
+
+    @staticmethod
+    def _get_kernel_bias(branch: nn.Sequential) -> tuple[torch.Tensor, torch.Tensor]:
+        conv = branch.conv
+        bn = branch.bn
+        return fuse_conv_bn_weights(  # type: ignore[no-any-return]
+            conv.weight,
+            conv.bias,
+            bn.running_mean,
+            bn.running_var,
+            bn.eps,
+            bn.weight,
+            bn.bias,
+        )
+
+
+class RepLKNetMLP(nn.Module):
+    def __init__(self, channels: int, hidden_channels: int) -> None:
+        super().__init__()
+        self.fc1 = Conv2dNormActivation(
+            channels, hidden_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), activation_layer=None
+        )
+        self.activation = nn.GELU()
+        self.fc2 = Conv2dNormActivation(
+            hidden_channels, channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), activation_layer=None
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.fc1(x)
+        x = self.activation(x)
+        return self.fc2(x)
+
+
+class RepLKBlock(nn.Module):
+    def __init__(
+        self,
+        channels: int,
+        kernel_size: int,
+        small_kernel: Optional[int],
+        dw_ratio: float,
+        mlp_ratio: float,
+        stochastic_depth_prob: float,
+        reparameterized: bool,
+    ) -> None:
+        super().__init__()
+        dw_channels = int(channels * dw_ratio)
+        mlp_channels = int(channels * mlp_ratio)
+
+        self.pre_large_kernel_bn = nn.BatchNorm2d(channels)
+        self.large_kernel_block = nn.Sequential(
+            Conv2dNormActivation(channels, dw_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
+            ReparamLargeKernelConv(
+                dw_channels,
+                dw_channels,
+                kernel_size,
+                stride=1,
+                groups=dw_channels,
+                small_kernel=small_kernel,
+                use_se=False,
+                reparameterized=reparameterized,
+                activation_layer=None,
+            ),
+            nn.ReLU(),
+            Conv2dNormActivation(
+                dw_channels, channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), activation_layer=None
+            ),
+        )
+
+        self.pre_mlp_bn = nn.BatchNorm2d(channels)
+        self.mlp = RepLKNetMLP(channels, mlp_channels)
+        self.stochastic_depth = StochasticDepth(stochastic_depth_prob, mode="row")
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x + self.stochastic_depth(self.large_kernel_block(self.pre_large_kernel_bn(x)))
+        x = x + self.stochastic_depth(self.mlp(self.pre_mlp_bn(x)))
+        return x
+
+
+class RepLKNetStage(nn.Sequential):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        depth: int,
+        kernel_size: int,
+        small_kernel: Optional[int],
+        dw_ratio: float,
+        mlp_ratio: float,
+        stochastic_depth_probs: list[float],
+        reparameterized: bool,
+    ) -> None:
+        super().__init__()
+        if in_channels != out_channels:
+            self.append(
+                nn.Sequential(
+                    Conv2dNormActivation(in_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
+                    Conv2dNormActivation(
+                        out_channels,
+                        out_channels,
+                        kernel_size=(3, 3),
+                        stride=(2, 2),
+                        padding=(1, 1),
+                        groups=out_channels,
+                    ),
+                )
+            )
+
+        for idx in range(depth):
+            self.append(
+                RepLKBlock(
+                    out_channels,
+                    kernel_size,
+                    small_kernel,
+                    dw_ratio,
+                    mlp_ratio,
+                    stochastic_depth_probs[idx],
+                    reparameterized,
+                )
+            )
+
+
+class RepLKNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
+    block_group_regex = r"body\.stage(\d+)\.(\d+)"
+
+    def __init__(
+        self,
+        input_channels: int,
+        num_classes: int,
+        *,
+        config: Optional[dict[str, Any]] = None,
+        size: Optional[tuple[int, int]] = None,
+    ) -> None:
+        super().__init__(input_channels, num_classes, config=config, size=size)
+        assert self.config is not None, "must set config"
+
+        depths: list[int] = self.config.get("depths", [2, 2, 18, 2])
+        mlp_ratio: float = self.config.get("mlp_ratio", 4.0)
+        channels: list[int] = self.config["channels"]
+        kernel_sizes: list[int] = self.config["kernel_sizes"]
+        small_kernel: Optional[int] = self.config["small_kernel"]
+        dw_ratio: float = self.config["dw_ratio"]
+        drop_path_rate: float = self.config["drop_path_rate"]
+
+        if not len(depths) == len(channels) == len(kernel_sizes) == 4:
+            raise ValueError("depths, channels, and kernel_sizes must describe four stages")
+
+        self.reparameterized = False
+        self.grad_checkpointing = False
+        self.grad_checkpointing_segments: Optional[int] = None
+        self.grad_checkpointing_preserve_rng_state = True
+        self.grad_checkpointing_use_reentrant = False
+        self._grad_checkpointing_blocks = ()
+
+        stem_width = channels[0]
+        self.stem = nn.Sequential(
+            Conv2dNormActivation(self.input_channels, stem_width, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)),
+            Conv2dNormActivation(
+                stem_width, stem_width, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=stem_width
+            ),
+            Conv2dNormActivation(stem_width, stem_width, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
+            Conv2dNormActivation(
+                stem_width, stem_width, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), groups=stem_width
+            ),
+        )
+
+        dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
+        stages: OrderedDict[str, nn.Module] = OrderedDict()
+        for idx, (depth, out_channels, kernel_size) in enumerate(zip(depths, channels, kernel_sizes)):
+            in_channels = channels[max(0, idx - 1)]
+            stages[f"stage{idx+1}"] = RepLKNetStage(
+                in_channels,
+                out_channels,
+                depth,
+                kernel_size,
+                small_kernel,
+                dw_ratio,
+                mlp_ratio,
+                dpr[idx],
+                self.reparameterized,
+            )
+
+        self.body = nn.Sequential(stages)
+        self.features = nn.Sequential(
+            nn.BatchNorm2d(channels[-1]),
+            nn.AdaptiveAvgPool2d(output_size=(1, 1)),
+            nn.Flatten(1),
+        )
+        self.return_channels = channels
+        self.embedding_size = channels[-1]
+        self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = stem_width
+        self.feature_dim = channels[-1]
+
+    def set_grad_checkpointing(
+        self,
+        enable: bool = True,
+        *,
+        segments: Optional[int] = None,
+        preserve_rng_state: bool = True,
+        use_reentrant: bool = False,
+    ) -> None:
+        if enable is True:
+            logger.debug(
+                f"Enabling gradient checkpointing: segments={segments}, "
+                f"preserve_rng_state={preserve_rng_state}, use_reentrant={use_reentrant}"
+            )
+        else:
+            logger.debug("Disabling gradient checkpointing")
+
+        self.grad_checkpointing = enable
+        self.grad_checkpointing_segments = segments
+        self.grad_checkpointing_preserve_rng_state = preserve_rng_state
+        self.grad_checkpointing_use_reentrant = use_reentrant
+        if enable is True:
+            self._grad_checkpointing_blocks = tuple(block for stage in self.body for block in stage)
+        else:
+            self._grad_checkpointing_blocks = ()
+
+    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+        x = self.stem(x)
+
+        out = {}
+        for name, module in self.body.named_children():
+            x = module(x)
+            if name in self.return_stages:
+                out[name] = x
+
+        return out
+
+    def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.stem.parameters():
+            param.requires_grad_(False)
+
+        for idx, module in enumerate(self.body.children()):
+            if idx >= up_to_stage:
+                break
+
+            for param in module.parameters():
+                param.requires_grad_(False)
+
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        x = self.stem(x)
+        x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self._grad_checkpointing_blocks)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self._grad_checkpointing_blocks))
+
+            x = checkpoint_sequential(
+                self._grad_checkpointing_blocks,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+        else:
+            x = self.body(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
+
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
+        if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
+            if self.grad_checkpointing_segments is None:
+                segments = len(self._grad_checkpointing_blocks)
+            else:
+                segments = min(self.grad_checkpointing_segments, len(self._grad_checkpointing_blocks))
+
+            return checkpoint_sequential(
+                self._grad_checkpointing_blocks,
+                segments,
+                x,
+                use_reentrant=self.grad_checkpointing_use_reentrant,
+                preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
+            )
+
+        return self.body(x)
+
+    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        return self.features(features)
+
+    @torch.no_grad()  # type: ignore[untyped-decorator]
+    def reparameterize_model(self) -> None:
+        if self.reparameterized is True:
+            return
+
+        for module in self.modules():
+            if isinstance(module, ReparamLargeKernelConv):
+                module.reparameterize()
+
+        self.reparameterized = True
+
+
+registry.register_model_config(
+    "replknet_31b",
+    RepLKNet,
+    config={
+        "channels": [128, 256, 512, 1024],
+        "kernel_sizes": [31, 29, 27, 13],
+        "small_kernel": 5,
+        "dw_ratio": 1.0,
+        "drop_path_rate": 0.3,
+    },
+)
+registry.register_model_config(
+    "replknet_31l",
+    RepLKNet,
+    config={
+        "channels": [192, 384, 768, 1536],
+        "kernel_sizes": [31, 29, 27, 13],
+        "small_kernel": 5,
+        "dw_ratio": 1.0,
+        "drop_path_rate": 0.3,
+    },
+)
+registry.register_model_config(
+    "replknet_xl",
+    RepLKNet,
+    config={
+        "channels": [256, 512, 1024, 2048],
+        "kernel_sizes": [27, 27, 27, 13],
+        "small_kernel": None,
+        "dw_ratio": 1.5,
+        "drop_path_rate": 0.3,
+    },
+)

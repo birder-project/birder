@@ -299,9 +299,13 @@ class EfficientMod(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = embed_dims
-        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
 
         # Weights initialization
         for module in self.modules():

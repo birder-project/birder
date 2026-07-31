@@ -50,7 +50,7 @@ class Vgg_Reduced(DetectorBackbone):
                         kernel_size=(3, 3),
                         stride=(1, 1),
                         padding=(1, 1),
-                        bias=True,
+                        bias=False,
                     )
                 )
 
@@ -64,10 +64,17 @@ class Vgg_Reduced(DetectorBackbone):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
-        self.feature_dim = filters[-1]
-        self.embedding_size = 1024
         self.return_channels = return_channels[1:5]
+        self.embedding_size = 1024
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.feature_dim = filters[-1]
+
+        # Weight initialization
+        for m in self.modules():
+            if isinstance(m, (nn.Conv2d, nn.Linear)) and m.bias is not None:
+                nn.init.zeros_(m.bias)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         out = {}

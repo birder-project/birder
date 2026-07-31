@@ -164,7 +164,9 @@ def evaluate_spatial_robustness(args: argparse.Namespace) -> None:
     total_tic = time.time()
     for network_name, is_checkpoint in model_runs:
         if is_checkpoint is False:
-            net, model_info = birder.load_pretrained_model(network_name, inference=True, device=device)
+            net, model_info = birder.load_pretrained_model(
+                network_name, inference=True, device=device, new_size=args.size
+            )
         else:
             net, model_info = fs_ops.load_model(
                 device,

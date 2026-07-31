@@ -371,6 +371,7 @@ class SMT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         mlp_ratios: list[float] = self.config["mlp_ratios"]
         depths: list[int] = self.config["depths"]
         stem_conv: tuple[int, int] = self.config["stem_conv"]
+        layer_scale_value: Optional[float] = self.config.get("layer_scale_value", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         self.stem = Stem(
@@ -395,7 +396,7 @@ class SMT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 sa_num_heads=sa_num_heads[i],
                 mlp_ratio=mlp_ratios[i],
                 qkv_bias=qkv_bias,
-                layer_scale_value=None,
+                layer_scale_value=layer_scale_value,
                 proj_drop=0.0,
                 attn_drop=0.0,
                 drop_path=dpr[i],
@@ -411,12 +412,13 @@ class SMT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
 
         # Weight initialization
         for m in self.modules():
@@ -526,7 +528,8 @@ registry.register_model_config(
         "mlp_ratios": [8.0, 6.0, 4.0, 2.0],
         "depths": [4, 6, 28, 4],
         "stem_conv": (7, 7),
-        "drop_path_rate": 0.5,
+        "layer_scale_value": 1e-4,
+        "drop_path_rate": 0.4,
     },
 )
 

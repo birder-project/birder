@@ -12,12 +12,14 @@ from typing import Any
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torchvision.ops import Conv2dNormActivation
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection._yolo_anchors import resolve_anchor_groups
+from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.yolo_v3 import YOLOAnchorGenerator
 from birder.net.detection.yolo_v3 import YOLOHead
 from birder.net.detection.yolo_v4 import YOLO_v4
@@ -55,7 +57,6 @@ class YOLOTinyNeck(nn.Module):
             padding=(0, 0),
             activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
         )
-        self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
 
         concat_channels = c4 + c5 // 4
         self.conv_c4_out = Conv2dNormActivation(
@@ -75,7 +76,7 @@ class YOLOTinyNeck(nn.Module):
         p5 = self.conv_c5(c5)
         out_large = self.conv_c5_out(p5)
 
-        p5_up = self.upsample(self.conv_upsample(p5))
+        p5_up = F.interpolate(self.conv_upsample(p5), size=c4.shape[-2:], mode="nearest")
         p4_cat = torch.concat([c4, p5_up], dim=1)
 
         out_medium = self.conv_c4_out(p4_cat)
@@ -86,7 +87,7 @@ class YOLOTinyNeck(nn.Module):
 class YOLO_v4_Tiny(YOLO_v4):
     default_size = (416, 416)
 
-    def __init__(
+    def __init__(  # pylint: disable=super-init-not-called
         self,
         num_classes: int,
         backbone: DetectorBackbone,
@@ -95,10 +96,14 @@ class YOLO_v4_Tiny(YOLO_v4):
         size: Optional[tuple[int, int]] = None,
         export_mode: bool = False,
     ) -> None:
-        super().__init__(num_classes, backbone, config=config, size=size, export_mode=export_mode)
+        # The full YOLO v4 initializer constructs a three-scale neck and head. Tiny has two
+        # detection scales, so initialize only the shared detection state before its own modules.
+        DetectionBaseNet.__init__(  # pylint: disable=non-parent-init-called
+            self, num_classes, backbone, config=config, size=size, export_mode=export_mode
+        )
         assert self.config is not None, "must set config"
 
-        # self.num_classes = self.num_classes - 1 (Subtracted at parent)
+        self.num_classes = self.num_classes - 1
 
         score_thresh = 0.05
         nms_thresh = 0.45
@@ -137,6 +142,9 @@ class YOLO_v4_Tiny(YOLO_v4):
         self.anchor_generator = YOLOAnchorGenerator(anchors)
         num_anchors = self.anchor_generator.num_anchors_per_location()
         self.head = YOLOHead(self.neck.out_channels, num_anchors, self.num_classes)
+
+        if self.export_mode is False:
+            self.forward = torch.compiler.disable(recursive=False)(self.forward)  # type: ignore[method-assign]
 
 
 registry.register_model_config("yolo_v4_tiny", YOLO_v4_Tiny, config={"anchors": "yolo_v4_tiny"})

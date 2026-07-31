@@ -4,6 +4,9 @@ https://github.com/TonyLianLong/CrossMAE/blob/main/models_cross.py
 
 Paper "Rethinking Patch Dependence for Masked Autoencoders",
 https://arxiv.org/abs/2401.14391
+
+Changes from original:
+* Only supports the use_input=False variant
 """
 
 # Reference license: Attribution-NonCommercial 4.0 International
@@ -123,7 +126,14 @@ class CrossMAE(MIMBaseNet):
         self.pred = nn.Linear(decoder_embed_dim, self.patch_size**2 * self.input_channels)
 
         # Weight initialization
-        for m in self.modules():
+        nn.init.xavier_uniform_(self.wfm.linear.weight)
+
+        for norm in self.decoder_norms:
+            if isinstance(norm, nn.LayerNorm):
+                nn.init.ones_(norm.weight)
+                nn.init.zeros_(norm.bias)
+
+        for m in self.decoder_layers.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
@@ -132,6 +142,12 @@ class CrossMAE(MIMBaseNet):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
+
+        nn.init.ones_(self.decoder_norm.weight)
+        nn.init.zeros_(self.decoder_norm.bias)
+        nn.init.xavier_uniform_(self.pred.weight)
+        nn.init.zeros_(self.pred.bias)
+        nn.init.normal_(self.mask_token, std=0.02)
 
     def patchify(self, imgs: torch.Tensor) -> torch.Tensor:
         """

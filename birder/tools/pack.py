@@ -550,7 +550,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
 
     except BaseException:
         error_event.set()
-        logger.error(f"Packing failed; output at {pack_path} may be incomplete")
+        logger.error(f"Packing failed, output at {pack_path} may be incomplete")
         cleanup_processes()
         raise
 

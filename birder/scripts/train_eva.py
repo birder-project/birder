@@ -312,6 +312,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         frozen_layers = training_utils.freeze_layers_by_block_group_regex(net.encoder, args.freeze_encoder_layers)
         logger.info(f"Froze {frozen_layers} encoder layers using block_group_regex")
 
+    if args.freeze_encoder_modules is not None:
+        training_utils.freeze_modules_by_name(net.encoder, args.freeze_encoder_modules)
+        logger.info(f"Froze encoder modules: {', '.join(args.freeze_encoder_modules)}")
+
     if args.freeze_bn is True:
         net = training_utils.freeze_batchnorm2d(net)
     elif args.sync_bn is True and args.distributed is True:

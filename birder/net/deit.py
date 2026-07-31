@@ -8,7 +8,6 @@ https://arxiv.org/abs/2012.12877
 
 # Reference license: Apache-2.0
 
-import math
 from typing import Any
 from typing import Optional
 
@@ -100,7 +99,6 @@ class DeiT(DetectorBackbone):
         num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
         self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
         self.return_channels = [hidden_dim] * num_return_stages
-        self.feature_dim = hidden_dim
         self.embedding_size = hidden_dim
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
@@ -109,24 +107,20 @@ class DeiT(DetectorBackbone):
         self.max_stride = patch_size
         self.stem_stride = patch_size
         self.stem_width = hidden_dim
+        self.feature_dim = hidden_dim
 
         # Weight initialization
-        if isinstance(self.conv_proj, nn.Conv2d):
-            # Init the patchify stem
-            fan_in = self.conv_proj.in_channels * self.conv_proj.kernel_size[0] * self.conv_proj.kernel_size[1]
-            nn.init.trunc_normal_(self.conv_proj.weight, std=math.sqrt(1 / fan_in))
-            if self.conv_proj.bias is not None:
-                nn.init.zeros_(self.conv_proj.bias)
-
-        if isinstance(self.classifier, nn.Linear):
-            nn.init.zeros_(self.classifier.weight)
-            if self.classifier.bias is not None:
-                nn.init.zeros_(self.classifier.bias)
-
-        if isinstance(self.dist_classifier, nn.Linear):
-            nn.init.zeros_(self.dist_classifier.weight)
-            if self.dist_classifier.bias is not None:
-                nn.init.zeros_(self.dist_classifier.bias)
+        nn.init.trunc_normal_(self.class_token, std=0.02)
+        nn.init.trunc_normal_(self.dist_token, std=0.02)
+        nn.init.trunc_normal_(self.pos_embedding, std=0.02)
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.trunc_normal_(m.weight, std=0.02)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.LayerNorm):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
 
     def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
         if self.dynamic_size is False:
@@ -157,6 +151,10 @@ class DeiT(DetectorBackbone):
                 param.requires_grad_(True)
 
             for param in self.dist_classifier.parameters():
+                param.requires_grad_(True)
+
+        if unfreeze_features is True:
+            for param in self.norm.parameters():
                 param.requires_grad_(True)
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
@@ -202,11 +200,17 @@ class DeiT(DetectorBackbone):
 
         self.pos_embedding.requires_grad_(False)
 
-        for idx, module in enumerate(self.encoder.children()):
-            if idx >= up_to_stage:
-                break
+        if up_to_stage <= 0:
+            return
 
-            for param in module.parameters():
+        if self.out_indices is None:
+            stage_boundaries = [self.num_layers - 1]
+        else:
+            stage_boundaries = sorted(set(self.out_indices))
+
+        last_block = stage_boundaries[min(up_to_stage, len(stage_boundaries)) - 1]
+        for block in self.encoder.block[: last_block + 1]:
+            for param in block.parameters():
                 param.requires_grad_(False)
 
     def forward_features(

@@ -209,7 +209,7 @@ class WdsMosaicBuffer:
                 images = [F.to_pil_image(image)] + [F.to_pil_image(self.buffer[i][0]) for i in indices]
                 targets = [target] + [self.buffer[i][1] for i in indices]
 
-                # Evict one of the sampled entries; incoming image does not enter buffer
+                # Evict one of the sampled entries, incoming image does not enter buffer
                 evict_idx = indices[torch.randint(self.min_buffer_for_mosaic, (1,)).item()]
                 del self.buffer[evict_idx]
 

@@ -1,5 +1,6 @@
 # pylint: disable=too-many-lines
 
+import copy
 import logging
 import unittest
 
@@ -35,7 +36,27 @@ class TestNetSSL(unittest.TestCase):
     def test_barlow_twins(self) -> None:
         batch_size = 4
         backbone = registry.net_factory("resnet_v1_50", 0)
+        backbone_state = copy.deepcopy(backbone.state_dict())
         net = barlow_twins.BarlowTwins(backbone, config={"projector_sizes": [512, 512, 512], "off_lambda": 0.005})
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(net.backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: (
+                    f"Barlow Twins modified backbone state '{name}' during construction:\n{msg}"
+                ),
+            )
+
+        del backbone_state
 
         # Test network
         out = net(
@@ -48,7 +69,27 @@ class TestNetSSL(unittest.TestCase):
     def test_byol(self) -> None:
         batch_size = 2
         backbone = registry.net_factory("resnet_v1_18", 0)
+        backbone_state = copy.deepcopy(backbone.state_dict())
         net = byol.BYOL(backbone, config={"projection_size": 64, "projection_hidden_size": 128})
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(net.backbone, backbone)
+        self.assertIs(net.online_encoder.backbone, backbone)
+        self.assertIsNot(net.target_encoder.backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"BYOL modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
 
         # Test network
         out = net(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 96, 96)))
@@ -65,6 +106,7 @@ class TestNetSSL(unittest.TestCase):
         n_masked = int(seq_len * 0.65)
         prediction_subsampling = 0.05
 
+        backbone_state = copy.deepcopy(backbone.state_dict())
         teacher = capi.CAPITeacher(
             backbone,
             config={
@@ -76,9 +118,46 @@ class TestNetSSL(unittest.TestCase):
                 "sk_mode": "position-wise",
             },
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(teacher.backbone, backbone)
+        ssl_backbone_state = teacher.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"CAPI teacher modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
+
+        backbone_state = copy.deepcopy(backbone.state_dict())
         student = capi.CAPIStudent(
             backbone, config={"decoder_layers": 4, "decoder_dim": 256, "num_clusters": num_clusters}
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(student.backbone, backbone)
+        ssl_backbone_state = student.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"CAPI student modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
+
         mask_generator = masking.InverseRollBlockMasking(input_size, n_masked)
 
         masks = mask_generator(batch_size)
@@ -193,6 +272,20 @@ class TestNetSSL(unittest.TestCase):
         pred = student(x, ids_keep, predict_indices)
         self.assertEqual(pred.size(), (masks.count_nonzero().item(), num_clusters))
         self.assertFalse(torch.isnan(pred).any())
+
+    def test_capi_decoder(self) -> None:
+        decoder = capi.Decoder(input_size=(2, 4), embed_dim=32, decoder_dim=32, depth=0)
+        ids_predict = torch.tensor([[7, 2, 5], [6, 1, 4]])
+
+        out = decoder.mask_tokens_grid(ids_predict)
+        expected = torch.stack([decoder.decoder_pos_embed[0, indices] for indices in ids_predict])
+        expected = expected.to(decoder.mask_token.dtype) + decoder.mask_token
+        torch.testing.assert_close(out, expected)
+
+        block = capi.CrossAttentionBlock(encoder_dim=32, decoder_dim=32, num_heads=4, mlp_ratio=4.0)
+        for module in block.modules():
+            if isinstance(module, torch.nn.Linear):
+                self.assertIsNone(module.bias)
 
     def test_capi_queue(self) -> None:
         batch_size = 4
@@ -453,8 +546,50 @@ class TestNetSSL(unittest.TestCase):
             "hidden_dim": 256,
             "head_bottleneck_dim": 128,
         }
+        backbone_state = copy.deepcopy(backbone.state_dict())
         teacher = capi_dino.CAPI_DINOTeacher(backbone, config=config)
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(teacher.backbone, backbone)
+        ssl_backbone_state = teacher.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: (
+                    f"CAPI-DINO teacher modified backbone state '{name}' during construction:\n{msg}"
+                ),
+            )
+
+        del backbone_state
+
+        backbone_state = copy.deepcopy(backbone.state_dict())
         student = capi_dino.CAPI_DINOStudent(backbone, config=config)
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(student.backbone, backbone)
+        ssl_backbone_state = student.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: (
+                    f"CAPI-DINO student modified backbone state '{name}' during construction:\n{msg}"
+                ),
+            )
+
+        del backbone_state
+
         dino_loss = dino_v2.DINOLoss(dino_out_dim, student_temp=0.1, center_momentum=0.9)
 
         mask_generator = masking.InverseRollBlockMasking(input_size, n_masked)
@@ -540,9 +675,28 @@ class TestNetSSL(unittest.TestCase):
     def test_data2vec(self) -> None:
         batch_size = 2
         backbone = registry.net_factory("vit_t16", 0, size=(96, 96))
+        backbone_state = copy.deepcopy(backbone.state_dict())
         net = data2vec.Data2Vec(
             backbone, config={"normalize_targets": True, "average_top_k_layers": 6, "loss_beta": 2.0}
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(net.backbone, backbone)
+        self.assertIsNot(net.ema_backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"Data2Vec modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
 
         mask_generator = masking.BlockMasking((96 // backbone.stem_stride, 96 // backbone.stem_stride), 1, 3, 0.66, 1.5)
         masks = mask_generator(batch_size)
@@ -555,6 +709,7 @@ class TestNetSSL(unittest.TestCase):
     def test_data2vec2(self) -> None:
         batch_size = 2
         backbone = registry.net_factory("vit_t16", 0, size=(128, 128))
+        backbone_state = copy.deepcopy(backbone.state_dict())
         net = data2vec2.Data2Vec2(
             backbone,
             config={
@@ -566,6 +721,24 @@ class TestNetSSL(unittest.TestCase):
                 "cls_loss_weight": 0.1,
             },
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(net.backbone, backbone)
+        self.assertIsNot(net.ema_backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"Data2Vec 2.0 modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
 
         mask_generator = masking.InverseRollBlockMasking(
             (128 // backbone.stem_stride, 128 // backbone.stem_stride),
@@ -583,6 +756,7 @@ class TestNetSSL(unittest.TestCase):
     def test_dino_v1(self) -> None:
         batch_size = 4
         backbone = registry.net_factory("resnet_v2_18", 0)
+        backbone_state = copy.deepcopy(backbone.state_dict())
         net = dino_v1.DINO_v1(
             backbone,
             config={
@@ -594,6 +768,23 @@ class TestNetSSL(unittest.TestCase):
                 "bottleneck_dim": 256,
             },
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(net.backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"DINO v1 modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
 
         # Test network
         out = net(
@@ -635,6 +826,7 @@ class TestNetSSL(unittest.TestCase):
         backbone.set_dynamic_size()
 
         # Without iBOT head
+        backbone_state = copy.deepcopy(backbone.state_dict())
         teacher = dino_v2.DINOv2Teacher(
             backbone,
             config={
@@ -646,6 +838,27 @@ class TestNetSSL(unittest.TestCase):
                 "ibot_separate_head": False,
             },
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(teacher.backbone, backbone)
+        ssl_backbone_state = teacher.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: (
+                    f"DINO v2 teacher modified backbone state '{name}' during construction:\n{msg}"
+                ),
+            )
+
+        del backbone_state
+
+        backbone_state = copy.deepcopy(backbone.state_dict())
         student = dino_v2.DINOv2Student(
             backbone,
             config={
@@ -657,6 +870,25 @@ class TestNetSSL(unittest.TestCase):
                 "ibot_separate_head": False,
             },
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(student.backbone, backbone)
+        ssl_backbone_state = student.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: (
+                    f"DINO v2 student modified backbone state '{name}' during construction:\n{msg}"
+                ),
+            )
+
+        del backbone_state
 
         x = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, *size)
         local_x = torch.rand(batch_size * 4, DEFAULT_NUM_CHANNELS, size[0] // 2, size[1] // 2)
@@ -1136,6 +1368,7 @@ class TestNetSSL(unittest.TestCase):
         backbone.set_dynamic_size()
 
         # Without iBOT head
+        backbone_state = copy.deepcopy(backbone.state_dict())
         teacher = franca.FrancaTeacher(
             backbone,
             config={
@@ -1148,6 +1381,27 @@ class TestNetSSL(unittest.TestCase):
                 "nesting_levels": num_nesting_levels,
             },
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(teacher.backbone, backbone)
+        ssl_backbone_state = teacher.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: (
+                    f"Franca teacher modified backbone state '{name}' during construction:\n{msg}"
+                ),
+            )
+
+        del backbone_state
+
+        backbone_state = copy.deepcopy(backbone.state_dict())
         student = franca.FrancaStudent(
             backbone,
             config={
@@ -1160,6 +1414,25 @@ class TestNetSSL(unittest.TestCase):
                 "nesting_levels": num_nesting_levels,
             },
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(student.backbone, backbone)
+        ssl_backbone_state = student.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: (
+                    f"Franca student modified backbone state '{name}' during construction:\n{msg}"
+                ),
+            )
+
+        del backbone_state
 
         x = torch.rand(batch_size * 2, DEFAULT_NUM_CHANNELS, *size)
         local_x = torch.rand(batch_size * 4, DEFAULT_NUM_CHANNELS, size[0] // 2, size[1] // 2)
@@ -1757,6 +2030,26 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 4
         size = (192, 192)
         backbone = registry.net_factory("vit_s16", 0, size=size)
+        backbone_state = copy.deepcopy(backbone.state_dict())
+        net = i_jepa.I_JEPA(backbone, size=size)
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(net.backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"I-JEPA modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
+
         input_size = (size[0] // backbone.stem_stride, size[1] // backbone.stem_stride)
         predictor = i_jepa.VisionTransformerPredictor(
             input_size,
@@ -1814,6 +2107,7 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 4
         backbone = registry.net_factory("vit_b32", 0)
         backbone.set_dynamic_size()
+        backbone_state = copy.deepcopy(backbone.state_dict())
         net = ibot.iBOT(
             backbone,
             config={
@@ -1826,6 +2120,23 @@ class TestNetSSL(unittest.TestCase):
                 "shared_head": False,
             },
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(net.backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"iBOT modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
 
         # Test network
         images = [
@@ -1900,18 +2211,37 @@ class TestNetSSL(unittest.TestCase):
 
         backbone = registry.net_factory("vit_t16", 0, size=size)
         backbone.set_dynamic_size()
+        backbone_state = copy.deepcopy(backbone.state_dict())
         net = lejepa.LeJEPA(
             backbone,
             config={
                 "projection_dim": 96,
                 "projection_hidden_dim": 192,
                 "projection_layers": 2,
+                "num_global_crops": 2,
                 "loss_lambda": 0.02,
                 "num_slices": 32,
                 "num_knots": 9,
                 "t_max": 3.0,
             },
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(net.backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"LeJEPA modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
 
         images = [
             torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)),
@@ -1947,7 +2277,28 @@ class TestNetSSL(unittest.TestCase):
     def test_mmcr(self) -> None:
         batch_size = 4
         backbone = registry.net_factory("resnet_v1_50", 0)
+        backbone_state = copy.deepcopy(backbone.state_dict())
         net = mmcr.MMCR(backbone, config={"projector_dims": [512, 512, 512]})
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(net.backbone, backbone)
+        self.assertIs(net.encoder.backbone, backbone)
+        self.assertIsNot(net.momentum_encoder.backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"MMCR modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
+
         mmcr_loss = mmcr.MMCRMomentumLoss(0.0, 2)
 
         # Test network
@@ -1966,7 +2317,25 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 4
         size = (128, 128)
         backbone = registry.net_factory("vit_t16", 0, size=size)
+        backbone_state = copy.deepcopy(backbone.state_dict())
         net = nepa.NEPA(backbone, config={"shift": True})
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(net.backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"NEPA modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
 
         self.assertTrue(net.backbone.encoder.block[0].is_causal)
 
@@ -1999,6 +2368,7 @@ class TestNetSSL(unittest.TestCase):
     def test_simclr(self) -> None:
         batch_size = 4
         backbone = registry.net_factory("resnet_v2_18", 0)
+        backbone_state = copy.deepcopy(backbone.state_dict())
         net = simclr.SimCLR(
             backbone,
             config={
@@ -2007,6 +2377,23 @@ class TestNetSSL(unittest.TestCase):
                 "temperature": 0.1,
             },
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(net.backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"SimCLR modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
 
         # Test network
         out = net(
@@ -2020,7 +2407,26 @@ class TestNetSSL(unittest.TestCase):
     def test_sscd(self) -> None:
         batch_size = 4
         backbone = registry.net_factory("resnet_v2_18", 512)
-        net = sscd.SSCD(backbone)
+        backbone_state = copy.deepcopy(backbone.state_dict())
+        net = sscd.SSCD(backbone, config={"replace_pooling": True})
+
+        # SSL construction may replace parameter-free pooling, but must preserve backbone state
+        self.assertIs(net.backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"SSCD modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
+
         out = net(torch.rand(batch_size, DEFAULT_NUM_CHANNELS, 128, 128))
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 2)
@@ -2028,6 +2434,7 @@ class TestNetSSL(unittest.TestCase):
     def test_vicreg(self) -> None:
         batch_size = 4
         backbone = registry.net_factory("resnet_v1_18", 0)
+        backbone_state = copy.deepcopy(backbone.state_dict())
         net = vicreg.VICReg(
             backbone,
             config={
@@ -2038,6 +2445,23 @@ class TestNetSSL(unittest.TestCase):
                 "cov_coeff": 0.1,
             },
         )
+
+        # SSL construction must not replace the backbone or modify its state
+        self.assertIs(net.backbone, backbone)
+        ssl_backbone_state = net.backbone.state_dict()
+        unexpected_keys = ssl_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in ssl_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"VICReg modified backbone state '{name}' during construction:\n{msg}",
+            )
+
+        del backbone_state
 
         # Test network
         out = net(

@@ -159,7 +159,7 @@ class YOLOHead(nn.Module):
         self.num_classes = num_classes
 
         self.conv_layers = nn.ModuleList()
-        for in_ch, n_anchors in zip(in_channels, num_anchors):
+        for in_ch, n_anchors in zip(in_channels, num_anchors, strict=True):
             out_ch = n_anchors * (5 + num_classes)  # 4 bbox + 1 objectness
             self.conv_layers.append(nn.Conv2d(in_ch, out_ch, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)))
 
@@ -246,29 +246,23 @@ class YOLONeck(nn.Module):
         super().__init__()
         self.det_block3 = DetectionBlock(in_channels[2], in_channels[2] // 2)  # Large objects
 
-        self.upsample1 = nn.Sequential(
-            Conv2dNormActivation(
-                in_channels[2] // 2,
-                in_channels[1] // 2,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
-            ),
-            nn.Upsample(scale_factor=2, mode="nearest"),
+        self.route_conv1 = Conv2dNormActivation(
+            in_channels[2] // 2,
+            in_channels[1] // 2,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+            padding=(0, 0),
+            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
         )
         self.det_block2 = DetectionBlock(in_channels[1] + in_channels[1] // 2, in_channels[1] // 2)  # Medium objects
 
-        self.upsample2 = nn.Sequential(
-            Conv2dNormActivation(
-                in_channels[1] // 2,
-                in_channels[0] // 2,
-                kernel_size=(1, 1),
-                stride=(1, 1),
-                padding=(0, 0),
-                activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
-            ),
-            nn.Upsample(scale_factor=2, mode="nearest"),
+        self.route_conv2 = Conv2dNormActivation(
+            in_channels[1] // 2,
+            in_channels[0] // 2,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+            padding=(0, 0),
+            activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
         )
         self.det_block1 = DetectionBlock(in_channels[0] + in_channels[0] // 2, in_channels[0] // 2)  # Small objects
 
@@ -282,12 +276,12 @@ class YOLONeck(nn.Module):
         out3, branch3 = self.det_block3(c5)
 
         # Medium objects
-        up3 = self.upsample1(branch3)
+        up3 = F.interpolate(self.route_conv1(branch3), size=c4.shape[-2:], mode="nearest")
         c4_concat = torch.concat([up3, c4], dim=1)
         out2, branch2 = self.det_block2(c4_concat)
 
         # Small objects
-        up2 = self.upsample2(branch2)
+        up2 = F.interpolate(self.route_conv2(branch2), size=c3.shape[-2:], mode="nearest")
         c3_concat = torch.concat([up2, c3], dim=1)
         out1, _ = self.det_block1(c3_concat)
 
@@ -330,6 +324,9 @@ class YOLO_v3(DetectionBaseNet):
         self.score_thresh = score_thresh
         self.nms_thresh = nms_thresh
         self.detections_per_img = detections_per_img
+
+        if len(self.backbone.return_channels) < 3 or len(self.backbone.return_stages) < 3:
+            raise ValueError("YOLO v3 requires a backbone with at least three feature stages")
 
         self.backbone.return_channels = self.backbone.return_channels[-3:]
         self.backbone.return_stages = self.backbone.return_stages[-3:]

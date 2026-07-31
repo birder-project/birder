@@ -6,7 +6,8 @@ https://github.com/facebookresearch/xcit/blob/main/xcit.py
 
 Changes from original:
 * No FPN layers (detection version of XCiT)
-* Removed biases before norms
+* Linearly increasing stochastic depth rates instead of a constant rate across blocks
+* Patch size 32 support for the convolutional projection
 """
 
 # Reference license: Apache-2.0
@@ -73,81 +74,28 @@ class PositionalEncodingFourier(nn.Module):
 
 
 class ConvPatchEmbed(nn.Module):
-    def __init__(self, patch_size: Literal[8, 16], in_channels: int, dim: int) -> None:
+    def __init__(self, patch_size: Literal[8, 16, 32], in_channels: int, dim: int) -> None:
         super().__init__()
-        if patch_size == 16:
-            self.proj = nn.Sequential(
+        if patch_size not in (8, 16, 32):
+            raise ValueError("For convolutional projection, patch size has to be in [8, 16, 32]")
+
+        num_layers = int(math.log2(patch_size))
+        channels = [dim // (2**i) for i in range(num_layers - 1, -1, -1)]
+        layers = []
+        for idx, out_channels in enumerate(channels):
+            layers.append(
                 Conv2dNormActivation(
-                    in_channels,
-                    dim // 8,
+                    in_channels if idx == 0 else channels[idx - 1],
+                    out_channels,
                     kernel_size=(3, 3),
                     stride=(2, 2),
                     padding=(1, 1),
-                    activation_layer=nn.GELU,
+                    activation_layer=nn.GELU if idx < num_layers - 1 else None,
                     inplace=None,
-                ),
-                Conv2dNormActivation(
-                    dim // 8,
-                    dim // 4,
-                    kernel_size=(3, 3),
-                    stride=(2, 2),
-                    padding=(1, 1),
-                    activation_layer=nn.GELU,
-                    inplace=None,
-                ),
-                Conv2dNormActivation(
-                    dim // 4,
-                    dim // 2,
-                    kernel_size=(3, 3),
-                    stride=(2, 2),
-                    padding=(1, 1),
-                    activation_layer=nn.GELU,
-                    inplace=None,
-                ),
-                Conv2dNormActivation(
-                    dim // 2,
-                    dim,
-                    kernel_size=(3, 3),
-                    stride=(2, 2),
-                    padding=(1, 1),
-                    activation_layer=nn.GELU,
-                    inplace=None,
-                ),
+                )
             )
 
-        elif patch_size == 8:
-            self.proj = nn.Sequential(
-                Conv2dNormActivation(
-                    3,
-                    dim // 4,
-                    kernel_size=(3, 3),
-                    stride=(2, 2),
-                    padding=(1, 1),
-                    activation_layer=nn.GELU,
-                    inplace=None,
-                ),
-                Conv2dNormActivation(
-                    dim // 4,
-                    dim // 2,
-                    kernel_size=(3, 3),
-                    stride=(2, 2),
-                    padding=(1, 1),
-                    activation_layer=nn.GELU,
-                    inplace=None,
-                ),
-                Conv2dNormActivation(
-                    dim // 2,
-                    dim,
-                    kernel_size=(3, 3),
-                    stride=(2, 2),
-                    padding=(1, 1),
-                    activation_layer=nn.GELU,
-                    inplace=None,
-                ),
-            )
-
-        else:
-            raise ValueError("For convolutional projection, patch size has to be in [8, 16]")
+        self.proj = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, int, int]:
         x = self.proj(x)
@@ -160,9 +108,18 @@ class ConvPatchEmbed(nn.Module):
 
 class ClassAttentionBlock(nn.Module):
     def __init__(
-        self, dim: int, num_heads: int, mlp_ratio: float, qkv_bias: bool, proj_drop: float, drop_path: float, eta: float
+        self,
+        dim: int,
+        num_heads: int,
+        mlp_ratio: float,
+        qkv_bias: bool,
+        proj_drop: float,
+        drop_path: float,
+        eta: float,
+        tokens_norm: bool,
     ) -> None:
         super().__init__()
+        self.tokens_norm = tokens_norm
         self.norm1 = nn.LayerNorm(dim, eps=1e-6)
 
         self.attn = ClassAttention(dim, num_heads=num_heads, qkv_bias=qkv_bias, proj_drop=proj_drop)
@@ -178,7 +135,10 @@ class ClassAttentionBlock(nn.Module):
         x_norm1 = self.norm1(x)
         x_attn = torch.concat([self.attn(x_norm1), x_norm1[:, 1:]], dim=1)
         x = x + self.drop_path(self.gamma1 * x_attn)
-        x = torch.concat([self.norm2(x[:, 0:1]), x[:, 1:]], dim=1)
+        if self.tokens_norm is True:
+            x = self.norm2(x)
+        else:
+            x = torch.concat([self.norm2(x[:, 0:1]), x[:, 1:]], dim=1)
 
         x_res = x
         cls_token = x[:, 0:1]
@@ -199,25 +159,27 @@ class LPI(nn.Module):
         super().__init__()
         padding = ((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2)
 
-        self.conv_bn_act = Conv2dNormActivation(
+        self.conv1 = nn.Conv2d(
             in_features,
             in_features,
             kernel_size=kernel_size,
             stride=(1, 1),
             padding=padding,
             groups=in_features,
-            activation_layer=nn.GELU,
-            inplace=None,
         )
-        self.conv = nn.Conv2d(
+        self.act = nn.GELU()
+        self.bn = nn.BatchNorm2d(in_features)
+        self.conv2 = nn.Conv2d(
             in_features, out_features, kernel_size=kernel_size, stride=(1, 1), padding=padding, groups=out_features
         )
 
     def forward(self, x: torch.Tensor, H: int, W: int) -> torch.Tensor:
         B, N, C = x.shape
         x = x.permute(0, 2, 1).reshape(B, C, H, W)
-        x = self.conv_bn_act(x)
-        x = self.conv(x)
+        x = self.conv1(x)
+        x = self.act(x)
+        x = self.bn(x)
+        x = self.conv2(x)
         x = x.reshape(B, C, N).permute(0, 2, 1)
 
         return x
@@ -240,7 +202,7 @@ class XCA(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads)
-        qkv = qkv.permute(2, 0, 3, 1, 4)
+        qkv = qkv.permute(2, 0, 3, 4, 1)
         q, k, v = qkv.unbind(0)
 
         q = F.normalize(q, dim=-1) * self.temperature
@@ -283,6 +245,7 @@ class XCABlock(nn.Module):
 
 class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"block1\.stage(\d+)\.(\d+)"  # ClassAttentionBlock combined with the head
+    layer_freeze_exempt_parameters = frozenset({"cls_token"})
 
     def __init__(
         self,
@@ -299,11 +262,12 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         cls_attn_layers = 2
         mlp_ratio = 4.0
         qkv_bias = True
-        patch_size: Literal[8, 16] = self.config["patch_size"]
+        patch_size: Literal[8, 16, 32] = self.config["patch_size"]
         embed_dim: int = self.config["embed_dim"]
         depth: int = self.config["depth"]
         num_heads: int = self.config["num_heads"]
         eta: float = self.config["eta"]
+        tokens_norm: bool = self.config["tokens_norm"]
         drop_path_rate: float = self.config["drop_path_rate"]
 
         if depth == 12:
@@ -351,6 +315,7 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                     proj_drop=drop_rate,
                     drop_path=0.0,
                     eta=eta,
+                    tokens_norm=tokens_norm,
                 )
             )
 
@@ -359,15 +324,17 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.pos_embed = PositionalEncodingFourier(hidden_dim=32, dim=embed_dim)
 
         self.return_channels = [embed_dim] * len(out_indices)
+        self.num_special_tokens = 1
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
 
+        self.max_stride = patch_size
         self.stem_stride = patch_size
         self.stem_width = embed_dim
         self.feature_dim = embed_dim
-        self.num_special_tokens = 1
 
         # Weights initialization
+        nn.init.trunc_normal_(self.cls_token, std=0.02)
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
@@ -378,8 +345,22 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
 
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        for param in self.parameters():
+            param.requires_grad_(False)
+
+        if freeze_classifier is False:
+            for param in self.classifier.parameters():
+                param.requires_grad_(True)
+
+        if unfreeze_features is True:
+            self.cls_token.requires_grad_(True)
+            for param in self.block2.parameters():
+                param.requires_grad_(True)
+
     def transform_to_backbone(self) -> None:
         self.block2 = nn.Identity()
+        self.cls_token = None
         self.classifier = nn.Identity()
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
@@ -400,6 +381,8 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.patch_embed.parameters():
+            param.requires_grad_(False)
+        for param in self.pos_embed.parameters():
             param.requires_grad_(False)
 
         for idx, module in enumerate(self.block1.children()):
@@ -474,74 +457,251 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
 
 registry.register_model_config(
+    "xcit_nano12_p32",
+    XCiT,
+    config={
+        "patch_size": 32,
+        "embed_dim": 128,
+        "depth": 12,
+        "num_heads": 4,
+        "eta": 1.0,
+        "tokens_norm": False,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_model_config(
     "xcit_nano12_p16",
     XCiT,
-    config={"patch_size": 16, "embed_dim": 128, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
+    config={
+        "patch_size": 16,
+        "embed_dim": 128,
+        "depth": 12,
+        "num_heads": 4,
+        "eta": 1.0,
+        "tokens_norm": False,
+        "drop_path_rate": 0.0,
+    },
 )
 registry.register_model_config(
     "xcit_nano12_p8",
     XCiT,
-    config={"patch_size": 8, "embed_dim": 128, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
+    config={
+        "patch_size": 8,
+        "embed_dim": 128,
+        "depth": 12,
+        "num_heads": 4,
+        "eta": 1.0,
+        "tokens_norm": False,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_model_config(
+    "xcit_tiny12_p32",
+    XCiT,
+    config={
+        "patch_size": 32,
+        "embed_dim": 192,
+        "depth": 12,
+        "num_heads": 4,
+        "eta": 1.0,
+        "tokens_norm": True,
+        "drop_path_rate": 0.0,
+    },
 )
 registry.register_model_config(
     "xcit_tiny12_p16",
     XCiT,
-    config={"patch_size": 16, "embed_dim": 192, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
+    config={
+        "patch_size": 16,
+        "embed_dim": 192,
+        "depth": 12,
+        "num_heads": 4,
+        "eta": 1.0,
+        "tokens_norm": True,
+        "drop_path_rate": 0.0,
+    },
 )
 registry.register_model_config(
     "xcit_tiny12_p8",
     XCiT,
-    config={"patch_size": 8, "embed_dim": 192, "depth": 12, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.0},
+    config={
+        "patch_size": 8,
+        "embed_dim": 192,
+        "depth": 12,
+        "num_heads": 4,
+        "eta": 1.0,
+        "tokens_norm": True,
+        "drop_path_rate": 0.0,
+    },
+)
+registry.register_model_config(
+    "xcit_tiny24_p32",
+    XCiT,
+    config={
+        "patch_size": 32,
+        "embed_dim": 192,
+        "depth": 24,
+        "num_heads": 4,
+        "eta": 1e-5,
+        "tokens_norm": True,
+        "drop_path_rate": 0.05,
+    },
 )
 registry.register_model_config(
     "xcit_tiny24_p16",
     XCiT,
-    config={"patch_size": 16, "embed_dim": 192, "depth": 24, "num_heads": 4, "eta": 1e-5, "drop_path_rate": 0.05},
+    config={
+        "patch_size": 16,
+        "embed_dim": 192,
+        "depth": 24,
+        "num_heads": 4,
+        "eta": 1e-5,
+        "tokens_norm": True,
+        "drop_path_rate": 0.05,
+    },
 )
 registry.register_model_config(
     "xcit_tiny24_p8",
     XCiT,
-    config={"patch_size": 8, "embed_dim": 192, "depth": 24, "num_heads": 4, "eta": 1.0, "drop_path_rate": 0.05},
+    config={
+        "patch_size": 8,
+        "embed_dim": 192,
+        "depth": 24,
+        "num_heads": 4,
+        "eta": 1e-5,
+        "tokens_norm": True,
+        "drop_path_rate": 0.05,
+    },
+)
+registry.register_model_config(
+    "xcit_small12_p32",
+    XCiT,
+    config={
+        "patch_size": 32,
+        "embed_dim": 384,
+        "depth": 12,
+        "num_heads": 8,
+        "eta": 1.0,
+        "tokens_norm": True,
+        "drop_path_rate": 0.05,
+    },
 )
 registry.register_model_config(
     "xcit_small12_p16",
     XCiT,
-    config={"patch_size": 16, "embed_dim": 384, "depth": 12, "num_heads": 8, "eta": 1.0, "drop_path_rate": 0.05},
+    config={
+        "patch_size": 16,
+        "embed_dim": 384,
+        "depth": 12,
+        "num_heads": 8,
+        "eta": 1.0,
+        "tokens_norm": True,
+        "drop_path_rate": 0.05,
+    },
 )
 registry.register_model_config(
     "xcit_small12_p8",
     XCiT,
-    config={"patch_size": 8, "embed_dim": 384, "depth": 12, "num_heads": 8, "eta": 1.0, "drop_path_rate": 0.05},
+    config={
+        "patch_size": 8,
+        "embed_dim": 384,
+        "depth": 12,
+        "num_heads": 8,
+        "eta": 1.0,
+        "tokens_norm": True,
+        "drop_path_rate": 0.05,
+    },
+)
+registry.register_model_config(
+    "xcit_small24_p32",
+    XCiT,
+    config={
+        "patch_size": 32,
+        "embed_dim": 384,
+        "depth": 24,
+        "num_heads": 8,
+        "eta": 1e-5,
+        "tokens_norm": True,
+        "drop_path_rate": 0.1,
+    },
 )
 registry.register_model_config(
     "xcit_small24_p16",
     XCiT,
-    config={"patch_size": 16, "embed_dim": 384, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.1},
+    config={
+        "patch_size": 16,
+        "embed_dim": 384,
+        "depth": 24,
+        "num_heads": 8,
+        "eta": 1e-5,
+        "tokens_norm": True,
+        "drop_path_rate": 0.1,
+    },
 )
 registry.register_model_config(
     "xcit_small24_p8",
     XCiT,
-    config={"patch_size": 8, "embed_dim": 384, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.1},
+    config={
+        "patch_size": 8,
+        "embed_dim": 384,
+        "depth": 24,
+        "num_heads": 8,
+        "eta": 1e-5,
+        "tokens_norm": True,
+        "drop_path_rate": 0.1,
+    },
 )
 registry.register_model_config(
     "xcit_medium24_p16",
     XCiT,
-    config={"patch_size": 16, "embed_dim": 512, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.15},
+    config={
+        "patch_size": 16,
+        "embed_dim": 512,
+        "depth": 24,
+        "num_heads": 8,
+        "eta": 1e-5,
+        "tokens_norm": True,
+        "drop_path_rate": 0.15,
+    },
 )
 registry.register_model_config(
     "xcit_medium24_p8",
     XCiT,
-    config={"patch_size": 8, "embed_dim": 512, "depth": 24, "num_heads": 8, "eta": 1e-5, "drop_path_rate": 0.15},
+    config={
+        "patch_size": 8,
+        "embed_dim": 512,
+        "depth": 24,
+        "num_heads": 8,
+        "eta": 1e-5,
+        "tokens_norm": True,
+        "drop_path_rate": 0.15,
+    },
 )
 registry.register_model_config(
     "xcit_large24_16",
     XCiT,
-    config={"patch_size": 16, "embed_dim": 768, "depth": 24, "num_heads": 16, "eta": 1e-5, "drop_path_rate": 0.25},
+    config={
+        "patch_size": 16,
+        "embed_dim": 768,
+        "depth": 24,
+        "num_heads": 16,
+        "eta": 1e-5,
+        "tokens_norm": True,
+        "drop_path_rate": 0.25,
+    },
 )
 registry.register_model_config(
     "xcit_large24_8",
     XCiT,
-    config={"patch_size": 8, "embed_dim": 768, "depth": 24, "num_heads": 16, "eta": 1e-5, "drop_path_rate": 0.3},
+    config={
+        "patch_size": 8,
+        "embed_dim": 768,
+        "depth": 24,
+        "num_heads": 16,
+        "eta": 1e-5,
+        "tokens_norm": True,
+        "drop_path_rate": 0.3,
+    },
 )
 
 registry.register_weights(
@@ -553,23 +713,9 @@ registry.register_weights(
         "formats": {
             "pt": {
                 "file_size": 11.5,
-                "sha256": "f0b1d9b6a39f816b235795155a9afd3fa344ba95bb083d7509d5f4e4d93dde3c",
+                "sha256": "1b55a77f7a769ed720961d00f2e7c5b45b02f7a3165c1a86527e470a4d9319b4",
             },
         },
         "net": {"network": "xcit_nano12_p16", "tag": "il-common"},
-    },
-)
-registry.register_weights(
-    "xcit_nano12_p8_il-common",
-    {
-        "description": "XCiT nano d12 patch8 model trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 11.5,
-                "sha256": "fe14249630e41102ad3059ffa1afe581d659603979f1bab0a1a32cbdb95d3b83",
-            },
-        },
-        "net": {"network": "xcit_nano12_p8", "tag": "il-common"},
     },
 )

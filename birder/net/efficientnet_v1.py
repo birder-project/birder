@@ -226,6 +226,7 @@ class EfficientNet_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMix
         self.embedding_size = out_channels[-1] * 4
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 2
         self.stem_width = in_channels[0]
         self.feature_dim = out_channels[-1]
@@ -244,7 +245,8 @@ class EfficientNet_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMix
             elif isinstance(m, nn.Linear):
                 init_range = 1.0 / math.sqrt(m.out_features)
                 nn.init.uniform_(m.weight, -init_range, init_range)
-                nn.init.zeros_(m.bias)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def set_grad_checkpointing(
         self,

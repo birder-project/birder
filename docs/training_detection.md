@@ -327,6 +327,12 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_detection --network rt_detr_
 
 #### RT-DETR v2: HieraDet Small (SAM 2.1)
 
+Intermediate training (Objects365-2020) - Dynamic, warmup
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_detection --network rt_detr_v2 --tag objects365 --backbone hieradet_small --backbone-tag sam2_1 --backbone-pretrained --freeze-backbone --batch-size 64 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --epochs 10 --size 640 --batch-multiscale --multiscale-min-size 384 --multiscale-max-size 704 --aug-level 5 --rgb-mode imagenet --amp --amp-dtype bfloat16 --compile --data-path ~/Datasets/Objects365-2020/train --val-path ~/Datasets/Objects365-2020/val --coco-json-path ~/Datasets/Objects365-2020/train/zhiyuan_objv2_train.json --coco-val-json-path ~/Datasets/Objects365-2020/val/zhiyuan_objv2_val.json --ignore-file public_datasets_metadata/objects365_ignore.txt
+```
+
 Intermediate training (COCO) - Dynamic, warmup
 
 ```sh

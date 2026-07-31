@@ -132,7 +132,7 @@ def _summary_results(
 
 def _load_awa2_metadata(dataset: AwA2) -> tuple[pl.DataFrame, npt.NDArray[np.float32], list[str], list[str], list[str]]:
     """
-    Load AwA2 metadata: image paths, class assignments, and attribute matrix.
+    Load AwA2 metadata: image paths, class assignments and attribute matrix
 
     Returns
     -------

@@ -245,6 +245,9 @@ class MobileOneStage(nn.Sequential):
         reparameterized: bool,
     ) -> None:
         super().__init__()
+        if num_se_blocks > num_blocks:
+            raise ValueError("Number of SE blocks cannot exceed number of layers")
+
         strides = [2] + [1] * (num_blocks - 1)
         for idx, stride in enumerate(strides):
             use_se = False
@@ -307,10 +310,10 @@ class MobileOne(DetectorBackbone):
         num_conv_branches: int = self.config["num_conv_branches"]
         num_se_blocks: list[int] = self.config["num_se_blocks"]
 
-        in_planes = min(64, int(widths[0] * width_multipliers[0]))
+        stem_width = min(64, int(widths[0] * width_multipliers[0]))
         self.stem = MobileOneBlock(
             in_channels=self.input_channels,
-            out_channels=in_planes,
+            out_channels=stem_width,
             kernel_size=3,
             stride=2,
             padding=1,
@@ -322,6 +325,7 @@ class MobileOne(DetectorBackbone):
             reparameterized=self.reparameterized,
         )
 
+        in_planes = stem_width
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         for idx in range(len(num_blocks_per_stage)):
@@ -343,9 +347,13 @@ class MobileOne(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = int(widths[-1] * width_multipliers[3])
         self.embedding_size = int(widths[-1] * width_multipliers[3])
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = stem_width
+        self.feature_dim = int(widths[-1] * width_multipliers[3])
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

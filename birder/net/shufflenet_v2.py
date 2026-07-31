@@ -149,9 +149,13 @@ class ShuffleNet_v2(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = out_channels[-2]
         self.embedding_size = out_channels[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = out_channels[0]
+        self.feature_dim = out_channels[-2]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

@@ -73,7 +73,7 @@ class RepVggBlock(nn.Module):
                     out_channels=out_channels,
                     kernel_size=(kernel_size, kernel_size),
                     stride=(stride, stride),
-                    padding=(1, 1),
+                    padding=(padding, padding),
                     groups=self.groups,
                     bias=False,
                 ),
@@ -249,19 +249,20 @@ class RepVgg(DetectorBackbone):
         groups: int = self.config["groups"]
         use_se: bool = self.config["use_se"]
 
-        in_planes = min(64, int(widths[0] * width_multipliers[0]))
+        stem_width = min(64, int(widths[0] * width_multipliers[0]))
 
         self.stem = RepVggBlock(
             in_channels=self.input_channels,
-            out_channels=in_planes,
+            out_channels=stem_width,
             kernel_size=3,
             stride=2,
             padding=1,
             groups=1,
-            use_se=False,
+            use_se=use_se,
             reparameterized=self.reparameterized,
         )
 
+        in_planes = stem_width
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         prev_blocks = 1  # Due to stem
@@ -287,9 +288,13 @@ class RepVgg(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = int(widths[-1] * width_multipliers[3])
         self.embedding_size = int(widths[-1] * width_multipliers[3])
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = stem_width
+        self.feature_dim = int(widths[-1] * width_multipliers[3])
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

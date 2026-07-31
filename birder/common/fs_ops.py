@@ -324,24 +324,33 @@ def checkpoint_model_from_state_dicts(
     )
 
 
-def clean_checkpoints(network_name: str, keep_last: int) -> None:
+def list_checkpoints(network_name: str, *, states: bool = False) -> list[Path]:
     epoch = "*[0-9]"
-    models_glob = model_path(network_name, epoch=epoch).name
-    states_glob = model_path(network_name, epoch=epoch, states=True).name
-    model_pattern = re.compile(r".*_([1-9][0-9]*)\.pt$")
-    states_pattern = re.compile(r".*_([1-9][0-9]*)_states\.pt$")
+    checkpoint_glob = model_path(network_name, epoch=epoch, states=states).name
+    escaped_network_name = re.escape(network_name)
+    if states is True:
+        checkpoint_pattern = re.compile(rf"^{escaped_network_name}_[1-9][0-9]*_states\.pt$")
+    else:
+        checkpoint_pattern = re.compile(rf"^{escaped_network_name}_[1-9][0-9]*\.pt$")
 
-    model_paths = list(settings.MODELS_DIR.glob(models_glob))
-    for p in sorted(model_paths, key=lambda p: p.stat().st_mtime)[:-keep_last]:
-        if model_pattern.search(str(p)) is not None:
-            logger.info(f"Removing checkpoint {p}...")
-            p.unlink()
+    checkpoint_paths = [
+        p for p in settings.MODELS_DIR.glob(checkpoint_glob) if checkpoint_pattern.fullmatch(p.name) is not None
+    ]
+    return sorted(checkpoint_paths, key=lambda p: p.stat().st_mtime)
 
-    state_paths = list(settings.MODELS_DIR.glob(states_glob))
-    for p in sorted(state_paths, key=lambda p: p.stat().st_mtime)[:-keep_last]:
-        if states_pattern.search(str(p)) is not None:
-            logger.info(f"Removing checkpoint states {p}...")
-            p.unlink()
+
+def clean_checkpoints(network_name: str, keep_last: int) -> None:
+    if keep_last < 1:
+        raise ValueError(f"keep_last must be greater than or equal to 1, got {keep_last}")
+
+    for p in list_checkpoints(network_name)[:-keep_last]:
+        logger.info(f"Removing checkpoint {p}...")
+        p.unlink()
+
+        states_path = p.with_name(f"{p.stem}_states{p.suffix}")
+        if states_path.exists() is True:
+            logger.info(f"Removing checkpoint states {states_path}...")
+            states_path.unlink()
 
 
 def load_state_dict(device: torch.device, network_name: str, *, epoch: Optional[int] = None) -> dict[str, Any]:
@@ -669,7 +678,7 @@ def load_model(
         if len(merged_config) == 0:
             merged_config = None  # type: ignore[assignment]
 
-        model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
+        model_state: dict[str, Any] = safetensors.torch.load_file(path, device=lib.device_to_str(device))
         net = registry.net_factory(network, num_classes, input_channels, config=merged_config, size=size)
         if reparameterized is True:
             net.reparameterize_model()
@@ -816,7 +825,7 @@ def load_detection_model(
         if len(merged_config) == 0:
             merged_config = None  # type: ignore[assignment]
 
-        model_state: dict[str, Any] = safetensors.torch.load_file(path, device=device.type)
+        model_state: dict[str, Any] = safetensors.torch.load_file(path, device=lib.device_to_str(device))
         net_backbone = registry.net_factory(
             backbone, num_classes, input_channels, config=backbone_merged_config, size=size
         )
@@ -912,6 +921,7 @@ def load_pretrained_model(
     inference: bool = False,
     device: Optional[torch.device] = None,
     dtype: Optional[torch.dtype] = None,
+    new_size: Optional[tuple[int, int]] = None,
     custom_config: Optional[dict[str, Any]] = None,
     progress_bar: bool = True,
 ) -> tuple[BaseNet | DetectionBaseNet, ModelInfo | DetectionModelInfo]:
@@ -933,6 +943,9 @@ def load_pretrained_model(
         Device to load the model on.
     dtype
         Data type for model parameters and computations.
+    new_size
+        Adjust the model to a different input resolution after loading its weights.
+        Not supported for PTS or PT2 models, whose resolution is configured before export.
     custom_config
         Additional model configuration that overrides or extends the predefined configuration.
     progress_bar
@@ -960,6 +973,9 @@ def load_pretrained_model(
     ...     "rdnet_s_arabian-peninsula", inference=True, device=torch.device("cuda"))
     """
 
+    if file_format in {"pts", "pt2"} and new_size is not None:
+        raise ValueError(f"new_size cannot be used with {file_format.upper()} models")
+
     download_model_by_weights(weights, dst=dst, file_format=file_format, progress_bar=progress_bar)
     model_metadata = registry.get_pretrained_metadata(weights)
     format_args: dict[str, Any] = {
@@ -979,6 +995,7 @@ def load_pretrained_model(
             config=custom_config,
             tag=model_metadata["net"].get("tag", None),
             epoch=model_metadata["net"].get("epoch", None),
+            new_size=new_size,
             reparameterized=model_metadata["net"].get("reparameterized", False),
             inference=inference,
             dtype=dtype,
@@ -997,6 +1014,7 @@ def load_pretrained_model(
             backbone_tag=model_metadata["backbone"].get("tag", None),
             backbone_reparameterized=model_metadata["backbone"].get("reparameterized", False),
             epoch=model_metadata["net"].get("epoch", None),
+            new_size=new_size,
             inference=inference,
             dtype=dtype,
             **format_args,
@@ -1053,7 +1071,7 @@ def load_pretrained_model_and_transform(
     -------
     A tuple containing three elements:
     - A PyTorch module (neural network model) loaded with pretrained weights.
-    - Model info containing class mappings, signature, and RGB stats.
+    - Model info containing class mappings, signature and RGB stats.
     - An inference transform matching the model task.
     """
 
@@ -1158,7 +1176,7 @@ def load_model_with_cfg(
     device = torch.device("cpu")
     if weights_path.suffix == ".safetensors":
         assert _HAS_SAFETENSORS, "'pip install safetensors' to use .safetensors"
-        model_state: dict[str, Any] = safetensors.torch.load_file(weights_path, device=device.type)
+        model_state: dict[str, Any] = safetensors.torch.load_file(weights_path, device=lib.device_to_str(device))
     else:
         model_dict: dict[str, Any] = torch.load(weights_path, map_location=device, weights_only=True)
         model_state = model_dict["state"]

@@ -64,7 +64,7 @@ class VICReg(SSLBaseNet):
         sim_coeff: float = self.config["sim_coeff"]
         std_coeff: float = self.config["std_coeff"]
         cov_coeff: float = self.config["cov_coeff"]
-        sync_batches: bool = self.config.get("sync_batches", False)
+        sync_batches: bool = self.config.get("sync_batches", True)
 
         self.num_features = mlp_dim
         self.sim_coeff = sim_coeff

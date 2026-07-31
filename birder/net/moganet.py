@@ -315,6 +315,7 @@ class MogaNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
         self.feature_dim = embed_dims[-1]

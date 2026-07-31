@@ -330,6 +330,25 @@ def group_by_regex(strings: list[str], pattern: str) -> list[list[str]]:
     return groups
 
 
+def freeze_modules_by_name(model: torch.nn.Module, module_names: Sequence[str]) -> None:
+    """
+    Freeze parameters under exact dotted module paths
+
+    Module names are resolved against 'model.named_modules()'. All names are
+    validated before any parameters are changed.
+    """
+
+    model = unwrap_compiled_module(model)
+    modules_by_name = dict(model.named_modules())
+    invalid_module_names = [name for name in module_names if len(name) == 0 or name not in modules_by_name]
+    if len(invalid_module_names) > 0:
+        formatted_names = ", ".join(repr(name) for name in invalid_module_names)
+        raise ValueError(f"{model.__class__.__name__} does not define module(s): {formatted_names}")
+
+    for module_name in module_names:
+        modules_by_name[module_name].requires_grad_(False)
+
+
 def freeze_layers_by_block_group_regex(model: torch.nn.Module, num_layers: int) -> int:
     """
     Freeze the first N regex-matched block groups defined by model.block_group_regex
@@ -340,6 +359,8 @@ def freeze_layers_by_block_group_regex(model: torch.nn.Module, num_layers: int) 
     Any parameter groups that appear before the last frozen regex-matched block
     (for example a stem, patch embedding, positional embedding, or stage transition
     group) are frozen as part of the frozen prefix, but do not count toward N.
+
+    Models can keep specific parameters trainable by declaring their names in 'layer_freeze_exempt_parameters'.
     """
 
     model = unwrap_compiled_module(model)
@@ -368,8 +389,9 @@ def freeze_layers_by_block_group_regex(model: torch.nn.Module, num_layers: int) 
         frozen_groups = groups[: last_frozen_group_idx + 1]
 
     frozen_parameter_names = {name for group in frozen_groups for name in group}
+    exempt_parameter_names: frozenset[str] = getattr(model, "layer_freeze_exempt_parameters", frozenset())
     for name, parameter in model.named_parameters():
-        if name in frozen_parameter_names:
+        if name in frozen_parameter_names and name not in exempt_parameter_names:
             parameter.requires_grad_(False)
 
     return num_layers

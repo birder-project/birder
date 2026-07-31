@@ -4,18 +4,17 @@
 * Taken from:
 * https://github.com/MrParosk/soft_nms
 * Licensed under the MIT License
+*
+* Class-aware CUDA implementation added by:
+* Ofer Hasson - 2026-07-22
 **************************************************************************************************
 */
 
 #pragma once
-#include <torch/torch.h>
+
 #include <tuple>
 
-torch::Tensor calculate_area(const torch::Tensor &boxes);
+#include <ATen/core/Tensor.h>
 
-torch::Tensor calculate_iou(const torch::Tensor &boxes, const torch::Tensor &areas, const int &idx);
-
-void update_sorting_order(torch::Tensor &boxes, torch::Tensor &scores, torch::Tensor &areas, const int &idx);
-
-std::tuple<torch::Tensor, torch::Tensor> soft_nms(const torch::Tensor &boxes, const torch::Tensor &scores,
-                                                  const double sigma, const double score_threshold);
+std::tuple<at::Tensor, at::Tensor> soft_nms_cuda(const at::Tensor &boxes, const at::Tensor &scores,
+                                                 const at::Tensor &class_ids, double sigma, double score_threshold);

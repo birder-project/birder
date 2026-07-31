@@ -94,6 +94,21 @@ class EncoderBlock(nn.Module):
         else:
             self.layer_scale_2 = nn.Identity()
 
+        # Weight initialization
+        if self.attn.qkv.bias is not None:
+            nn.init.zeros_(self.attn.qkv.bias)
+
+        nn.init.xavier_uniform_(self.attn.proj.weight)
+        if self.attn.proj.bias is not None:
+            nn.init.zeros_(self.attn.proj.bias)
+
+        if isinstance(self.mlp, FFN):
+            for m in self.mlp.modules():
+                if isinstance(m, nn.Linear):
+                    nn.init.xavier_uniform_(m.weight)
+                    if m.bias is not None:
+                        nn.init.normal_(m.bias, std=1e-6)
+
     def forward(
         self, x: torch.Tensor, rope: torch.Tensor, attn_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor | tuple[torch.Tensor, AuxLossesType]:
@@ -546,12 +561,13 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         self.norm = norm_layer(hidden_dim, eps=norm_layer_eps)
 
         self.embedding_size = hidden_dim
-        self.feature_dim = hidden_dim
         self.classifier = self.create_classifier()
         self.moe_loss_output = False
+
         self.max_stride = patch_size
         self.stem_stride = patch_size
         self.stem_width = hidden_dim
+        self.feature_dim = hidden_dim
         self.decoder_block = partial(
             MAEDecoderBlock,
             16,
@@ -620,6 +636,18 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             ),
             dim=-1,
         ).to(self.rope.pos_embed.device, dtype=self.rope.pos_embed.dtype)
+
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        for param in self.parameters():
+            param.requires_grad_(False)
+
+        if freeze_classifier is False:
+            for param in self.classifier.parameters():
+                param.requires_grad_(True)
+
+        if unfreeze_features is True:
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
 
     def set_grad_checkpointing(
         self,

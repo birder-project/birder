@@ -107,6 +107,7 @@ class Conv2dNorm(nn.Module):
         )
         self.norm = nn.BatchNorm2d(out_channels)
 
+        # Weights initialization
         if zero_bn_init is True:
             nn.init.zeros_(self.norm.weight)
 
@@ -296,6 +297,7 @@ class EfficientViMStage(nn.Module):
 class EfficientViM(DetectorBackbone):
     default_size = (256, 256)
     block_group_regex = r"body\.stage(\d+)\.blocks\.(\d+)"
+    layer_freeze_exempt_parameters = frozenset({"weights"})
 
     def __init__(
         self,
@@ -352,7 +354,6 @@ class EfficientViM(DetectorBackbone):
 
         self.return_stages = self.return_stages[: len(depths)]
         self.return_channels = return_channels
-        self.feature_dim = embed_dim[2]
         self.embedding_size = embed_dim[2]
         self.state_classifiers = nn.ModuleList(
             [
@@ -363,7 +364,10 @@ class EfficientViM(DetectorBackbone):
         )
         self.classifier = self.create_classifier(embed_dim[2])
 
-        self.max_stride = 64
+        self.max_stride = 16 * 2 ** (num_layers - 1)
+        self.stem_stride = 16
+        self.stem_width = embed_dim[0]
+        self.feature_dim = embed_dim[2]
 
         # Weight initialization
         for m in self.modules():
@@ -396,6 +400,10 @@ class EfficientViM(DetectorBackbone):
             for param in self.state_norms.parameters():
                 param.requires_grad_(True)
             for param in self.state_classifiers.parameters():
+                param.requires_grad_(True)
+
+        if unfreeze_features is True:
+            for param in self.norm.parameters():
                 param.requires_grad_(True)
 
     def transform_to_backbone(self) -> None:
@@ -432,13 +440,6 @@ class EfficientViM(DetectorBackbone):
             param.requires_grad_(False)
 
         for idx, module in enumerate(self.body.children()):
-            if idx >= up_to_stage:
-                break
-
-            for param in module.parameters():
-                param.requires_grad_(False)
-
-        for idx, module in enumerate(self.norm.children()):
             if idx >= up_to_stage:
                 break
 

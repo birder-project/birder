@@ -48,6 +48,17 @@ def add_freeze_args(
                 help="number of regex-matched block groups to freeze (requires model block_group_regex support)",
             )
 
+        group.add_argument(
+            "--freeze-module",
+            dest="freeze_modules",
+            action="append",
+            metavar="MODULE",
+            help=(
+                "freeze all parameters under an exact dotted model module path, "
+                "repeatable and additive with other freeze options"
+            ),
+        )
+
     if scope_name is not None:
         group.add_argument(f"--freeze-{scope_name}", default=False, action="store_true", help=f"freeze {scope_name}")
         group.add_argument(
@@ -60,6 +71,16 @@ def add_freeze_args(
             help=(
                 f"number of regex-matched {scope_name} block groups to freeze "
                 "(requires model block_group_regex support)"
+            ),
+        )
+        group.add_argument(
+            f"--freeze-{scope_name}-module",
+            dest=f"freeze_{scope_name}_modules",
+            action="append",
+            metavar="MODULE",
+            help=(
+                f"freeze all parameters under an exact dotted module path relative to the {scope_name}, "
+                "repeatable and additive with other freeze options"
             ),
         )
 
@@ -956,6 +977,8 @@ def common_args_validation(args: argparse.Namespace) -> None:
         raise ValidationError("--warmup-epochs cannot be used with --warmup-steps")
     if args.cooldown_epochs is not None and args.cooldown_steps is not None:
         raise ValidationError("--cooldown-epochs cannot be used with --cooldown-steps")
+    if args.keep_last is not None and args.keep_last < 1:
+        raise ValidationError(f"--keep-last must be greater than or equal to 1, got {args.keep_last}")
 
     if hasattr(args, "lr_scheduler_update") is True:
         if args.lr_scheduler_update != "step" and args.warmup_steps is not None:

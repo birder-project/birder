@@ -19,6 +19,7 @@ from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
 from birder.layers import LayerScale
+from birder.layers import LayerScale2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenRetentionMixin
@@ -91,7 +92,9 @@ class Attention(nn.Module):
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, dim: int, mlp_ratio: float, drop: float, drop_path: float) -> None:
+    def __init__(
+        self, dim: int, mlp_ratio: float, layer_scale_init_value: Optional[float], drop: float, drop_path: float
+    ) -> None:
         super().__init__()
         self.pos_embed = nn.Conv2d(dim, dim, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=dim)
         self.norm1 = nn.BatchNorm2d(dim)
@@ -103,10 +106,17 @@ class ConvBlock(nn.Module):
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = ConvMLP(dim, hidden_features=mlp_hidden_dim, drop=drop)
 
+        if layer_scale_init_value is not None:
+            self.layer_scale_1 = LayerScale2d(dim, layer_scale_init_value)
+            self.layer_scale_2 = LayerScale2d(dim, layer_scale_init_value)
+        else:
+            self.layer_scale_1 = nn.Identity()
+            self.layer_scale_2 = nn.Identity()
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.pos_embed(x)
-        x = x + self.drop_path(self.conv2(self.attn(self.conv1(self.norm1(x)))))
-        x = x + self.drop_path(self.mlp(self.norm2(x)))
+        x = x + self.drop_path(self.layer_scale_1(self.conv2(self.attn(self.conv1(self.norm1(x))))))
+        x = x + self.drop_path(self.layer_scale_2(self.mlp(self.norm2(x))))
 
         return x
 
@@ -125,11 +135,11 @@ class AttentionBlock(nn.Module):
     ) -> None:
         super().__init__()
         self.pos_embed = nn.Conv2d(dim, dim, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=dim)
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
         self.attn = Attention(dim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=drop)
 
         self.drop_path = StochasticDepth(drop_path, mode="row")
-        self.norm2 = nn.LayerNorm(dim)
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = MLP(dim, hidden_features=mlp_hidden_dim, drop=drop)
 
@@ -192,7 +202,15 @@ class UniFormerStage(nn.Module):
         layers = []
         for i in range(depth):
             if block_type == "conv":
-                layers.append(ConvBlock(dim_out, mlp_ratio=mlp_ratio, drop=drop, drop_path=drop_path[i]))
+                layers.append(
+                    ConvBlock(
+                        dim_out,
+                        mlp_ratio=mlp_ratio,
+                        layer_scale_init_value=layer_scale_init_value,
+                        drop=drop,
+                        drop_path=drop_path[i],
+                    )
+                )
             elif block_type == "attn":
                 layers.append(
                     AttentionBlock(
@@ -239,8 +257,8 @@ class UniFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         embed_dim: list[int] = self.config["embed_dim"]
         mlp_ratio: list[float] = self.config["mlp_ratio"]
         head_dim: int = self.config["head_dim"]
-        drop_path_rate: float = self.config["drop_path_rate"]
         layer_scale_init_value: Optional[float] = self.config["layer_scale_init_value"]
+        drop_path_rate: float = self.config["drop_path_rate"]
 
         num_stages = len(depth)
         dpr = staged_stochastic_depth_rates(drop_path_rate, depth)
@@ -274,12 +292,13 @@ class UniFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = embed_dim[-1]
         self.embedding_size = embed_dim[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = embed_dim[0]
+        self.feature_dim = embed_dim[-1]
 
         # Weights initialization
         for m in self.modules():
@@ -349,8 +368,8 @@ registry.register_model_config(
         "embed_dim": [64, 128, 320, 512],
         "mlp_ratio": [4.0, 4.0, 4.0, 4.0],
         "head_dim": 64,
-        "drop_path_rate": 0.1,
         "layer_scale_init_value": None,
+        "drop_path_rate": 0.1,
     },
 )
 registry.register_model_config(
@@ -361,8 +380,8 @@ registry.register_model_config(
         "embed_dim": [64, 128, 320, 512],
         "mlp_ratio": [4.0, 4.0, 4.0, 4.0],
         "head_dim": 64,
-        "drop_path_rate": 0.3,
         "layer_scale_init_value": None,
+        "drop_path_rate": 0.3,
     },
 )
 registry.register_model_config(
@@ -373,8 +392,8 @@ registry.register_model_config(
         "embed_dim": [128, 192, 448, 640],
         "mlp_ratio": [4.0, 4.0, 4.0, 4.0],
         "head_dim": 64,
-        "drop_path_rate": 0.4,
         "layer_scale_init_value": 1e-6,
+        "drop_path_rate": 0.4,
     },
 )
 

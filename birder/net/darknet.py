@@ -1,5 +1,8 @@
 """
 Paper "YOLOv3: An Incremental Improvement", https://arxiv.org/abs/1804.02767
+
+Changes from original:
+* Leaky ReLU uses a negative slope of 0.01 instead of 0.1
 """
 
 from collections import OrderedDict
@@ -100,10 +103,14 @@ class Darknet(DetectorBackbone):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
-        self.feature_dim = filters[-1]
-        self.embedding_size = filters[-1]
         self.return_channels = return_channels[1:5]
+        self.embedding_size = filters[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = filters[0]
+        self.feature_dim = filters[-1]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

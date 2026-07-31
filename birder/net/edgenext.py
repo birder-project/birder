@@ -314,9 +314,13 @@ class EdgeNeXt(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = dims[-1]
         self.embedding_size = dims[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = dims[0]
+        self.feature_dim = dims[-1]
 
         # Weights initialization
         for m in self.modules():

@@ -56,6 +56,7 @@ from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import inference_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import DetectorBackbone
 from birder.net.base import get_signature
 
 logger = logging.getLogger(__name__)
@@ -75,13 +76,26 @@ class TrainOverrides:
 
 
 class EmbeddingDistillWrapper(torch.nn.Module):
-    def __init__(self, model: torch.nn.Module) -> None:
+    def __init__(self, model: torch.nn.Module, moe_aux_loss: bool = False) -> None:
         super().__init__()
         self.model = model
+        self.moe_aux_loss = moe_aux_loss
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        embedding = self.model.embedding(x)
+    def forward(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor] | tuple[tuple[torch.Tensor, torch.Tensor], dict[str, torch.Tensor]]:
+        if self.moe_aux_loss is True:
+            features, aux_losses = typing.cast(
+                tuple[torch.Tensor, dict[str, torch.Tensor]], self.model.forward_features(x)
+            )
+            embedding = self.model.embedding_from_features(features)
+        else:
+            embedding = self.model.embedding(x)
+
         outputs = self.model.classify(embedding)
+        if self.moe_aux_loss is True:
+            return ((outputs, embedding), aux_losses)
+
         return (outputs, embedding)
 
 
@@ -351,6 +365,18 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         student = student.to(memory_format=torch.channels_last)
         logger.debug("Using channels-last memory format")
 
+    if args.freeze_body is True:
+        student.freeze(freeze_classifier=False, unfreeze_features=args.unfreeze_features)
+    elif args.freeze_stages is not None:
+        student.freeze_stages(up_to_stage=args.freeze_stages)
+    elif args.freeze_layers is not None:
+        frozen_layers = training_utils.freeze_layers_by_block_group_regex(student, args.freeze_layers)
+        logger.info(f"Froze {frozen_layers} layers using block_group_regex")
+
+    if args.freeze_modules is not None:
+        training_utils.freeze_modules_by_name(student, args.freeze_modules)
+        logger.info(f"Froze modules: {', '.join(args.freeze_modules)}")
+
     if args.freeze_bn is True:
         student = training_utils.freeze_batchnorm2d(student)
     elif args.sync_bn is True and args.distributed is True:
@@ -495,7 +521,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     logger.debug(f"EMA warmup steps = {ema_warmup_steps}")
     train_student = student
     if distillation_type == "embedding":
-        train_student = EmbeddingDistillWrapper(student)
+        train_student = EmbeddingDistillWrapper(student, moe_aux_loss=args.moe_aux_loss)
 
     # Compile networks
     if args.compile is True:
@@ -624,6 +650,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             },
         )
 
+    if args.moe_aux_loss is True:
+        if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
+            net_without_ddp._orig_mod.set_moe_loss_output(True)
+        else:
+            net_without_ddp.set_moe_loss_output(True)
+
     #
     # Training loop
     #
@@ -633,6 +665,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
     top_k = args.top_k
     running_loss = training_utils.SmoothedValue(window_size=64)
+    running_moe_aux_loss: Optional[training_utils.SmoothedValue] = None
+    if args.moe_aux_loss is True:
+        running_moe_aux_loss = training_utils.SmoothedValue(window_size=64)
+
     running_val_loss = training_utils.SmoothedValue()
     train_accuracy = training_utils.SmoothedValue(window_size=64)
     val_accuracy = training_utils.SmoothedValue()
@@ -651,6 +687,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         # Clear metrics
         running_loss.clear()
+        if running_moe_aux_loss is not None:
+            running_moe_aux_loss.clear()
+
         running_val_loss.clear()
         train_accuracy.clear()
         val_accuracy.clear()
@@ -707,7 +746,14 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                             teacher_embedding = teacher.embedding(inputs)
                             teacher_embedding = F.normalize(teacher_embedding, dim=-1)
 
-                        outputs, student_embedding = train_student(inputs)
+                        student_output = train_student(inputs)
+                        if args.moe_aux_loss is True:
+                            student_output, aux_losses = student_output
+                            moe_aux_loss = aux_losses["auxiliary_loss"]
+                        else:
+                            moe_aux_loss = None
+
+                        outputs, student_embedding = student_output
                         student_embedding = embedding_projection(student_embedding)  # type: ignore[misc]
                         student_embedding = F.normalize(student_embedding, dim=-1)
                         dist_loss = distillation_criterion(student_embedding, teacher_embedding)
@@ -720,21 +766,32 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                             else:
                                 teacher_targets = teacher_outputs.argmax(dim=-1)
 
+                        student_output = train_student(inputs)
+                        if args.moe_aux_loss is True:
+                            student_output, aux_losses = student_output
+                            moe_aux_loss = aux_losses["auxiliary_loss"]
+                        else:
+                            moe_aux_loss = None
+
                         if distillation_type == "soft":
-                            outputs = train_student(inputs)
+                            outputs = student_output
                             dist_output = F.log_softmax(outputs / args.temperature, dim=-1)
                             dist_loss = distillation_criterion(dist_output, teacher_targets) * (args.temperature**2)
                         elif distillation_type == "hard":
-                            outputs = train_student(inputs)
+                            outputs = student_output
                             dist_loss = distillation_criterion(outputs, teacher_targets)
                         elif distillation_type == "deit":
-                            outputs, dist_output = torch.unbind(train_student(inputs), dim=1)
+                            outputs, dist_output = torch.unbind(student_output, dim=1)
                             dist_loss = distillation_criterion(dist_output, teacher_targets)
                         else:
                             raise RuntimeError
 
                     target_loss = criterion(outputs, targets)
-                    raw_loss = (1 - args.lambda_param) * target_loss + (args.lambda_param * dist_loss)
+                    student_loss = (1 - args.lambda_param) * target_loss + (args.lambda_param * dist_loss)
+                    if moe_aux_loss is not None:
+                        raw_loss = student_loss + moe_aux_loss
+                    else:
+                        raw_loss = student_loss
 
                 loss = raw_loss / effective_accum_steps
                 if scaler is not None:
@@ -779,7 +836,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     model_ema.n_averaged.fill_(0)
 
             # Statistics
-            running_loss.update(raw_loss.detach())
+            running_loss.update(student_loss.detach())
+            if running_moe_aux_loss is not None:
+                running_moe_aux_loss.update(moe_aux_loss.detach())
+
             if targets.ndim == 2:
                 targets = targets.argmax(dim=1)
 
@@ -806,6 +866,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 cur_lr = float(max(scheduler.get_last_lr()))
 
                 running_loss.synchronize_between_processes(device)
+                if running_moe_aux_loss is not None:
+                    running_moe_aux_loss.synchronize_between_processes(device)
+
                 train_accuracy.synchronize_between_processes(device)
                 if train_topk is not None:
                     train_topk.synchronize_between_processes(device)
@@ -820,6 +883,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         f"R: {rate:.1f} samples/s  "
                         f"LR: {cur_lr:.4e}"
                     )
+                    if running_moe_aux_loss is not None:
+                        log.info(
+                            f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
+                            f"MoE auxiliary loss: {running_moe_aux_loss.avg:.4f}"
+                        )
                     log.info(
                         f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
                         f"Accuracy: {train_accuracy.avg:.4f}"
@@ -840,6 +908,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         {"training": running_loss.avg},
                         ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
+                    if running_moe_aux_loss is not None:
+                        summary_writer.add_scalars(
+                            "loss",
+                            {"moe_auxiliary": running_moe_aux_loss.avg},
+                            ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
+                        )
                     summary_writer.add_scalars(
                         "performance",
                         performance,
@@ -853,6 +927,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         # Epoch training metrics
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
+        if running_moe_aux_loss is not None:
+            logger.info(
+                f"[Trn] Epoch {epoch}/{epochs-1} training_moe_auxiliary_loss: {running_moe_aux_loss.global_avg:.4f}"
+            )
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_accuracy: {train_accuracy.global_avg:.4f}")
         if train_topk is not None:
             logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_accuracy@{top_k}: {train_topk.global_avg:.4f}")
@@ -1104,6 +1182,8 @@ def get_args_parser() -> argparse.ArgumentParser:
         help="controls the smoothness of the output distributions (only used in 'soft')",
     )
     parser.add_argument("--lambda-param", type=float, default=0.5, help="importance of the distillation loss")
+    parser.add_argument("--moe-aux-loss", default=False, action="store_true", help="enable student MoE auxiliary loss")
+    training_cli.add_freeze_args(parser, model=True, unfreeze_features=True)
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
     training_cli.add_lr_scheduler_args(parser)
@@ -1146,11 +1226,22 @@ def validate_args(args: argparse.Namespace) -> None:
     if registry.exists(args.student, task=Task.IMAGE_CLASSIFICATION) is False:
         raise cli.ValidationError(f"--student {args.student} not supported, see list-models tool for available options")
 
+    if args.freeze_stages is not None and registry.exists(args.student, net_type=DetectorBackbone) is False:
+        raise cli.ValidationError(
+            "--freeze-stages only supported on detector backbone type student networks, "
+            "see list-models tool for available options"
+        )
+
     if args.type == "embedding" and (args.pts is True or args.pt2 is True):
         raise cli.ValidationError("--type embedding does not support --pts or --pt2 teachers")
 
     if args.smoothing_alpha < 0 or args.smoothing_alpha >= 0.5:
         raise cli.ValidationError(f"--smoothing-alpha must be in range of [0, 0.5), got {args.smoothing_alpha}")
+    if args.moe_aux_loss is True:
+        if args.batch_size % 8 != 0:
+            raise cli.ValidationError("--moe-aux-loss requires local --batch-size to be divisible by 8")
+        if args.drop_last is False:
+            raise cli.ValidationError("--moe-aux-loss requires --drop-last")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

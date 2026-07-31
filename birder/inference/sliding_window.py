@@ -259,7 +259,7 @@ def _merge_sliding_window_detections(
     if mode == "wbf":
         skip_box_thr = 0.0 if filter_threshold is None else filter_threshold
         return fuse_detections_wbf_single(
-            detections, iou_thr=merge_threshold, skip_box_thr=skip_box_thr, conf_type="avg"
+            detections, iou_thr=merge_threshold, skip_box_thr=skip_box_thr, conf_type="cluster_avg"
         )
 
     merged = _concat_detections(detections)

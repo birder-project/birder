@@ -166,8 +166,9 @@ class MobileViT_v1(DetectorBackbone):
         expansion: int = self.config["expansion"]
         self.head_bias = self.config.get("head_bias", False)
         dropout: float = self.config.get("dropout", 0.0)
-        attention_dropout: float = self.config.get("attention_dropout", 0.1)
-        projection_dropout: float = self.config.get("projection_dropout", 0.0)
+        attention_dropout: float = self.config.get("attention_dropout", 0.0)
+        projection_dropout: float = self.config.get("projection_dropout", 0.1)
+        classifier_dropout: float = self.config.get("classifier_dropout", 0.1)
 
         self.stem = Conv2dNormActivation(
             self.input_channels,
@@ -240,7 +241,7 @@ class MobileViT_v1(DetectorBackbone):
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             Conv2dNormActivation(
-                channels_b[-2],
+                channels_b[-1],
                 last_dim,
                 kernel_size=(1, 1),
                 stride=(1, 1),
@@ -249,11 +250,16 @@ class MobileViT_v1(DetectorBackbone):
             ),
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
+            nn.Dropout(p=classifier_dropout),
         )
         self.return_channels = return_channels
-        self.feature_dim = channels_b[-2]
         self.embedding_size = last_dim
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = channels_a[0]
+        self.feature_dim = channels_b[-1]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

@@ -119,15 +119,19 @@ class StarNet(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = embed_dim
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = first_channels
+        self.feature_dim = embed_dim
 
         # Weight initialization
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.trunc_normal_(m.weight, std=0.02)
-                if m.bias is not None:
+                if isinstance(m, nn.Linear) and m.bias is not None:
                     nn.init.zeros_(m.bias)
 
             elif isinstance(m, nn.BatchNorm2d):

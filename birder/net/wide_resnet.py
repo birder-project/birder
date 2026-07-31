@@ -3,6 +3,8 @@ Wide ResNet, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/resnet.py
 
 Paper "Wide Residual Networks", https://arxiv.org/abs/1605.07146
+and
+Paper "Squeeze-and-Excitation Networks", https://arxiv.org/abs/1709.01507
 """
 
 # Reference license: BSD 3-Clause
@@ -17,6 +19,7 @@ import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint_sequential
 from torchvision.ops import Conv2dNormActivation
+from torchvision.ops import SqueezeExcitation
 
 from birder.common.masking import mask_tensor
 from birder.model_registry import registry
@@ -29,7 +32,9 @@ logger = logging.getLogger(__name__)
 
 
 class ResidualBlock(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, stride: tuple[int, int], bottle_neck: bool) -> None:
+    def __init__(
+        self, in_channels: int, out_channels: int, stride: tuple[int, int], bottle_neck: bool, squeeze_excitation: bool
+    ) -> None:
         super().__init__()
         if bottle_neck is True:
             self.block1 = nn.Sequential(
@@ -69,7 +74,7 @@ class ResidualBlock(nn.Module):
                 nn.BatchNorm2d(out_channels),
             )
 
-        if in_channels == out_channels:
+        if in_channels == out_channels and stride == (1, 1):
             self.block2 = nn.Identity()
         else:
             self.block2 = nn.Sequential(
@@ -78,10 +83,15 @@ class ResidualBlock(nn.Module):
             )
 
         self.relu = nn.ReLU(inplace=True)
+        if squeeze_excitation is True:
+            self.se = SqueezeExcitation(out_channels, out_channels // 16)
+        else:
+            self.se = nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = x
         x = self.block1(x)
+        x = self.se(x)
         identity = self.block2(identity)
         x += identity
         x = self.relu(x)
@@ -106,6 +116,7 @@ class Wide_ResNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         bottle_neck = True
         filter_list = [64, 256, 512, 1024, 2048]
         units: list[int] = self.config["units"]
+        squeeze_excitation: bool = self.config.get("squeeze_excitation", False)
 
         assert len(units) + 1 == len(filter_list)
         num_unit = len(units)
@@ -138,10 +149,24 @@ class Wide_ResNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             else:
                 stride = (2, 2)
 
-            layers.append(ResidualBlock(filter_list[i], filter_list[i + 1], stride=stride, bottle_neck=bottle_neck))
+            layers.append(
+                ResidualBlock(
+                    filter_list[i],
+                    filter_list[i + 1],
+                    stride=stride,
+                    bottle_neck=bottle_neck,
+                    squeeze_excitation=squeeze_excitation,
+                )
+            )
             for _ in range(1, units[i]):
                 layers.append(
-                    ResidualBlock(filter_list[i + 1], filter_list[i + 1], stride=(1, 1), bottle_neck=bottle_neck)
+                    ResidualBlock(
+                        filter_list[i + 1],
+                        filter_list[i + 1],
+                        stride=(1, 1),
+                        bottle_neck=bottle_neck,
+                        squeeze_excitation=squeeze_excitation,
+                    )
                 )
 
             stages[f"stage{i+1}"] = nn.Sequential(*layers)
@@ -153,12 +178,13 @@ class Wide_ResNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = filter_list[-1]
         self.embedding_size = filter_list[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = filter_list[0]
+        self.feature_dim = filter_list[-1]
 
     def set_grad_checkpointing(
         self,
@@ -267,3 +293,20 @@ registry.register_model_config("wide_resnet_101", Wide_ResNet, config={"units": 
 registry.register_model_config("wide_resnet_152", Wide_ResNet, config={"units": [3, 8, 36, 3]})
 registry.register_model_config("wide_resnet_200", Wide_ResNet, config={"units": [3, 24, 36, 3]})
 registry.register_model_config("wide_resnet_269", Wide_ResNet, config={"units": [3, 30, 48, 8]})
+
+# Squeeze-and-Excitation Networks
+registry.register_model_config(
+    "se_wide_resnet_50", Wide_ResNet, config={"units": [3, 4, 6, 3], "squeeze_excitation": True}
+)
+registry.register_model_config(
+    "se_wide_resnet_101", Wide_ResNet, config={"units": [3, 4, 23, 3], "squeeze_excitation": True}
+)
+registry.register_model_config(
+    "se_wide_resnet_152", Wide_ResNet, config={"units": [3, 8, 36, 3], "squeeze_excitation": True}
+)
+registry.register_model_config(
+    "se_wide_resnet_200", Wide_ResNet, config={"units": [3, 24, 36, 3], "squeeze_excitation": True}
+)
+registry.register_model_config(
+    "se_wide_resnet_269", Wide_ResNet, config={"units": [3, 30, 48, 8], "squeeze_excitation": True}
+)

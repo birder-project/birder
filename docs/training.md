@@ -86,6 +86,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [MobileViT v1](#mobilevit-v1)
 - [MobileViT v2](#mobilevit-v2)
 - [MogaNet](#moganet)
+- [MViT v1](#mvit-v1)
 - [MViT v2](#mvit-v2)
 - [Next-ViT](#next-vit)
 - [NFNet](#nfnet)
@@ -97,6 +98,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [RegionViT](#regionvit)
 - [RegNet](#regnet)
 - [RepGhost](#repghost)
+- [RepLKNet](#replknet)
 - [RepVgg](#repvgg)
 - [RepViT](#repvit)
 - [ResMLP](#resmlp)
@@ -1727,6 +1729,26 @@ torchrun --nproc_per_node=2 train.py --network moganet_l --batch-size 128 --opt 
 torchrun --nproc_per_node=2 train.py --network moganet_xl --batch-size 64 --opt adamw --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-5 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
+### MViT v1
+
+#### MViT v1: Small, depth 16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mvit_v1_s_d16 --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.00025 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 70 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile
+```
+
+#### MViT v1: Base, depth 16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mvit_v1_b_d16 --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.00025 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 70 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile
+```
+
+#### MViT v1: Base, depth 24
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mvit_v1_b_d24 --batch-size 64 --opt adamw --clip-grad-norm 1 --grad-accum-steps 2 --lr 0.00025 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 70 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile
+```
+
 ### MViT v2
 
 #### MViT v2: Tiny
@@ -2131,6 +2153,14 @@ torchrun --nproc_per_node=2 train.py --network regnet_z_4g --batch-size 128 --lr
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network repghost_1_0 --batch-size 256 --lr 0.6 --wd 0.00001 --lr-scheduler cosine --epochs 300 --warmup-epochs 5 --model-ema --model-ema-steps 1 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --ra-sampler --ra-reps 2 --fast-matmul --compile
+```
+
+### RepLKNet
+
+#### RepLKNet: 31B
+
+```sh
+torchrun --nproc_per_node=2 train.py --network replknet_31b --batch-size 64 --opt adamw --grad-accum-steps 16 --lr 0.004 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 10 --model-ema --model-ema-steps 1 --model-ema-decay 0.9999 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
 ```
 
 ### RepVgg

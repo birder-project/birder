@@ -1,6 +1,8 @@
 """
 Paper "ImageNet Classification with Deep Convolutional Neural Networks",
 https://papers.nips.cc/paper/2012/hash/c399862d3b9d6b76c8436e924a68c45b-Abstract.html
+
+The convolutional architecture follows the simplified AlexNet variant rather than the original two-GPU model.
 """
 
 from typing import Any
@@ -52,9 +54,11 @@ class AlexNet(BaseNet):
             nn.ReLU(inplace=True),
             nn.Dropout(p=0.5),
         )
-        self.feature_dim = 256
         self.embedding_size = 4096
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.feature_dim = 256
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         return self.body(x)

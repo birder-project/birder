@@ -39,6 +39,7 @@ NET_TEST_CASES = [
     ("cswin_transformer_t"),
     ("darknet_53"),
     ("davit_tiny"),
+    ("davit_fl_tiny"),
     ("deit_t16", True),
     ("deit3_t16"),
     ("deit3_reg4_t16"),
@@ -106,6 +107,7 @@ NET_TEST_CASES = [
     ("mobilevit_v1_xxs"),
     ("mobilevit_v2_0_25"),
     ("moganet_xt"),
+    ("mvit_v1_s_d16"),
     ("mvit_v2_t"),
     ("mvit_v2_t_cls"),
     ("nextvit_s"),
@@ -120,6 +122,7 @@ NET_TEST_CASES = [
     ("regnet_y_200m"),
     ("regnet_z_500m"),
     ("repghost_0_5"),
+    ("replknet_31b"),
     ("repvgg_a0"),
     ("repvit_m0_6", False, False, 2),
     ("resmlp_12", False, False, 1, 0),  # No resize support
@@ -194,8 +197,165 @@ NET_TEST_CASES = [
     ("xcit_nano12_p16"),
 ]
 
+DETECTION_BACKBONE_CASES = [
+    ("biformer_t"),
+    ("cas_vit_xs"),
+    ("coat_tiny"),
+    ("coat_lite_tiny"),
+    ("conv2former_n"),
+    ("convnext_v1_atto"),
+    ("convnext_v1_iso_small"),
+    ("convnext_v2_atto"),
+    ("crossformer_t"),
+    ("csp_resnet_50"),
+    ("csp_resnext_50"),
+    ("csp_darknet_53"),
+    ("csp_se_resnet_50"),
+    ("cswin_transformer_t"),
+    ("darknet_53"),
+    ("davit_tiny"),
+    ("davit_fl_tiny"),
+    ("deit3_t16"),
+    ("deit3_reg4_t16"),
+    ("densenet_121"),
+    ("edgenext_xxs"),
+    ("edgevit_xxs"),
+    ("efficientformer_v1_l1"),
+    ("efficientformer_v2_s0"),
+    ("efficientmod_xxs"),
+    ("efficientnet_lite0"),
+    ("efficientnet_v1_b0"),
+    ("efficientnet_v2_s"),
+    ("efficientvim_m1"),
+    ("efficientvit_mit_b0"),
+    ("efficientvit_mit_l1"),
+    ("efficientvit_msft_m0"),
+    ("fasternet_t0"),
+    ("fastvit_t8"),
+    ("mobileclip_v1_i0"),
+    ("mobileclip_v2_i3"),
+    ("flexivit_s16"),
+    ("focalnet_t_srf"),
+    ("gc_vit_xxt"),
+    ("ghostnet_v1_0_5"),
+    ("ghostnet_v2_1_0"),
+    ("ghostnet_v3_0_5"),
+    ("groupmixformer_mobile"),
+    ("hgnet_v1_tiny"),
+    ("hgnet_v2_b0"),
+    ("hiera_tiny"),
+    ("hiera_abswin_tiny"),
+    ("hiera_abswin_base_plus_ap"),
+    ("hieradet_tiny"),
+    ("hieradet_d_tiny"),
+    ("hornet_tiny_7x7"),
+    ("hornet_tiny_gf"),
+    ("iformer_s"),
+    ("inception_next_t"),
+    ("inception_resnet_v1"),
+    ("inception_resnet_v2"),
+    ("inception_v3"),
+    ("inception_v4"),
+    ("lit_v1_s"),
+    ("lit_v1_t"),
+    ("lit_v2_s"),
+    ("maxvit_t"),
+    ("poolformer_v1_s12"),
+    ("poolformer_v2_s12"),
+    ("convformer_s18"),
+    ("caformer_s18"),
+    ("microvit_v1_s1"),
+    ("microvit_v2_s1"),
+    ("mnasnet_0_5"),
+    ("mobilenet_v1_0_25"),
+    ("mobilenet_v2_0_25"),
+    ("mobilenet_v3_small_1_0"),
+    ("mobilenet_v3_large_0_75"),
+    ("mobilenet_v4_s"),
+    ("mobilenet_v4_hybrid_m"),
+    ("mobileone_s0"),
+    ("mobilevit_v1_xxs"),
+    ("mobilevit_v2_0_25"),
+    ("moganet_xt"),
+    ("mvit_v1_s_d16"),
+    ("mvit_v2_t"),
+    ("mvit_v2_t_cls"),
+    ("nextvit_s"),
+    ("nfnet_f0"),
+    ("pit_t"),
+    ("pvt_v1_t"),
+    ("pvt_v2_b0"),
+    ("rdnet_t"),
+    ("regionvit_t"),
+    ("regnet_y_200m"),
+    ("regnet_z_500m"),
+    ("repghost_0_5"),
+    ("replknet_31b"),
+    ("repvgg_a0"),
+    ("repvit_m0_6"),
+    ("resnest_14", 2),
+    ("resnet_v1_18"),
+    ("se_resnet_v1_18"),
+    ("resnet_d_50"),
+    ("resnet_v2_18"),
+    ("se_resnet_v2_18"),
+    ("resnext_50"),
+    ("se_resnext_50"),
+    ("rexnet_1_0", 2),
+    ("rexnet_lite_1_0", 2),
+    ("rope_deit3_t16"),
+    ("rope_deit3_reg4_t16"),
+    ("rope_flexivit_s16"),
+    ("rope_vit_s32"),
+    ("rope_vit_b16_qkn_ls"),
+    ("rope_a_vit_s16"),
+    ("rope_cs_vit_reg4_s16_nape_ls_c1"),
+    ("rope_i_vit_s16_pn_aps_c1"),
+    ("rope_vit_reg4_b32"),
+    ("rope_vit_reg4_m16_rms_avg"),
+    ("rope_vit_reg8_b14_nps_ap"),
+    ("rope_vit_so150m_p14_ap"),
+    ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
+    ("rope_vit_s16_soft_moe_32e_4s_avg"),
+    ("rope_vit5_reg4_s16"),
+    ("shufflenet_v1_8"),
+    ("shufflenet_v2_0_5"),
+    ("shvit_s1"),
+    ("smt_t"),
+    ("squeezenext_0_5"),
+    ("starnet_esm05"),
+    ("swiftformer_xs"),
+    ("swin_transformer_v1_t"),
+    ("swin_transformer_v2_t"),
+    ("tiny_vit_5m"),
+    ("transnext_micro"),
+    ("uniformer_s"),
+    ("van_b0"),
+    ("vgg_11"),
+    ("vgg_reduced_11"),
+    ("vit_s32"),
+    ("vit_s16_pn"),
+    ("vit_b16_qkn_ls"),
+    ("vit_reg1_b16_nap_avg"),
+    ("vit_reg4_b32"),
+    ("vit_reg4_m16_rms_avg"),
+    ("vit_so150m_p14_ap"),
+    ("vit_reg8_so150m_p14_swiglu_avg"),
+    ("vit_s16_soft_moe_32e_4s_avg"),
+    ("vit_parallel_s16_18x2_ls"),
+    ("vit_det_b16"),
+    ("vit_sam_b16"),
+    ("vit_windowed_reg4_s14_nps_ls_avg"),
+    ("vovnet_v1_27s"),
+    ("vovnet_v2_19"),
+    ("wide_resnet_50"),
+    ("xception"),
+    ("xcit_nano12_p16", 1, True),
+]
+
 DYNAMIC_SIZE_CASES = [
     ("davit_tiny"),
+    ("davit_fl_tiny"),
     ("deit_t16"),
     ("deit3_t16"),
     ("deit3_reg4_t16"),
@@ -204,6 +364,7 @@ DYNAMIC_SIZE_CASES = [
     ("iformer_s"),
     ("lit_v1_s"),
     ("lit_v1_t"),
+    ("mvit_v1_s_d16"),
     ("rope_deit3_t16"),
     ("rope_deit3_reg4_t16"),
     ("rope_flexivit_s16"),
@@ -370,6 +531,23 @@ class TestNet(unittest.TestCase):
 
             embedding = n.embedding(inputs)
 
+            if non_standard_features is False:
+                self.assertTrue(hasattr(n, "max_stride"))
+                self.assertIsInstance(n.max_stride, int)
+                self.assertGreater(n.max_stride, 0)
+
+                # Padding can shift the final feature grid by one cell in either direction
+                feature_height = size[0] // n.max_stride
+                feature_width = size[1] // n.max_stride
+                valid_feature_sizes = {
+                    (feature_height + h_offset) * (feature_width + w_offset)
+                    for h_offset in (-1, 0, 1)
+                    for w_offset in (-1, 0, 1)
+                    if feature_height + h_offset > 0 and feature_width + w_offset > 0
+                }
+                visual_features = n.flatten_features(features, include_special_tokens=False)
+                self.assertIn(visual_features.size(1), valid_feature_sizes)
+
         n.train()
         if isinstance(embedding_from_features, torch.Tensor):
             torch.testing.assert_close(embedding_from_features, embedding)
@@ -532,160 +710,7 @@ class TestNet(unittest.TestCase):
     #     out = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size), dtype=torch.bfloat16))
     #     self.assertEqual(out.numel(), 100 * batch_size)
 
-    @parameterized.expand(  # type: ignore[untyped-decorator]
-        [
-            ("biformer_t"),
-            ("cas_vit_xs"),
-            ("coat_tiny"),
-            ("coat_lite_tiny"),
-            ("conv2former_n"),
-            ("convnext_v1_atto"),
-            ("convnext_v1_iso_small"),
-            ("convnext_v2_atto"),
-            ("crossformer_t"),
-            ("csp_resnet_50"),
-            ("csp_resnext_50"),
-            ("csp_darknet_53"),
-            ("csp_se_resnet_50"),
-            ("cswin_transformer_t"),
-            ("darknet_53"),
-            ("davit_tiny"),
-            ("deit3_t16"),
-            ("deit3_reg4_t16"),
-            ("densenet_121"),
-            ("edgenext_xxs"),
-            ("edgevit_xxs"),
-            ("efficientformer_v1_l1"),
-            ("efficientformer_v2_s0"),
-            ("efficientmod_xxs"),
-            ("efficientnet_lite0"),
-            ("efficientnet_v1_b0"),
-            ("efficientnet_v2_s"),
-            ("efficientvim_m1"),
-            ("efficientvit_mit_b0"),
-            ("efficientvit_mit_l1"),
-            ("efficientvit_msft_m0"),
-            ("fasternet_t0"),
-            ("fastvit_t8"),
-            ("mobileclip_v1_i0"),
-            ("mobileclip_v2_i3"),
-            ("flexivit_s16"),
-            ("focalnet_t_srf"),
-            ("gc_vit_xxt"),
-            ("ghostnet_v1_0_5"),
-            ("ghostnet_v2_1_0"),
-            ("ghostnet_v3_0_5"),
-            ("groupmixformer_mobile"),
-            ("hgnet_v1_tiny"),
-            ("hgnet_v2_b0"),
-            ("hiera_tiny"),
-            ("hiera_abswin_tiny"),
-            ("hiera_abswin_base_plus_ap"),
-            ("hieradet_tiny"),
-            ("hieradet_d_tiny"),
-            ("hornet_tiny_7x7"),
-            ("hornet_tiny_gf"),
-            ("iformer_s"),
-            ("inception_next_t"),
-            ("inception_resnet_v1"),
-            ("inception_resnet_v2"),
-            ("inception_v3"),
-            ("inception_v4"),
-            ("lit_v1_s"),
-            ("lit_v1_t"),
-            ("lit_v2_s"),
-            ("maxvit_t"),
-            ("poolformer_v1_s12"),
-            ("poolformer_v2_s12"),
-            ("convformer_s18"),
-            ("caformer_s18"),
-            ("microvit_v1_s1"),
-            ("microvit_v2_s1"),
-            ("mnasnet_0_5"),
-            ("mobilenet_v1_0_25"),
-            ("mobilenet_v2_0_25"),
-            ("mobilenet_v3_small_1_0"),
-            ("mobilenet_v3_large_0_75"),
-            ("mobilenet_v4_s"),
-            ("mobilenet_v4_hybrid_m"),
-            ("mobileone_s0"),
-            ("mobilevit_v1_xxs"),
-            ("mobilevit_v2_0_25"),
-            ("moganet_xt"),
-            ("mvit_v2_t"),
-            ("mvit_v2_t_cls"),
-            ("nextvit_s"),
-            ("nfnet_f0"),
-            ("pit_t"),
-            ("pvt_v1_t"),
-            ("pvt_v2_b0"),
-            ("rdnet_t"),
-            ("regionvit_t"),
-            ("regnet_y_200m"),
-            ("regnet_z_500m"),
-            ("repghost_0_5"),
-            ("repvgg_a0"),
-            ("repvit_m0_6"),
-            ("resnest_14", 2),
-            ("resnet_v1_18"),
-            ("se_resnet_v1_18"),
-            ("resnet_d_50"),
-            ("resnet_v2_18"),
-            ("se_resnet_v2_18"),
-            ("resnext_50"),
-            ("se_resnext_50"),
-            ("rexnet_1_0", 2),
-            ("rexnet_lite_1_0", 2),
-            ("rope_deit3_t16"),
-            ("rope_deit3_reg4_t16"),
-            ("rope_flexivit_s16"),
-            ("rope_vit_s32"),
-            ("rope_vit_b16_qkn_ls"),
-            ("rope_a_vit_s16"),
-            ("rope_cs_vit_reg4_s16_nape_ls_c1"),
-            ("rope_i_vit_s16_pn_aps_c1"),
-            ("rope_vit_reg4_b32"),
-            ("rope_vit_reg4_m16_rms_avg"),
-            ("rope_vit_reg8_b14_nps_ap"),
-            ("rope_vit_so150m_p14_ap"),
-            ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
-            ("rope_vit_s16_soft_moe_32e_4s_avg"),
-            ("rope_vit5_reg4_s16"),
-            ("shufflenet_v1_8"),
-            ("shufflenet_v2_0_5"),
-            ("shvit_s1"),
-            ("smt_t"),
-            ("squeezenext_0_5"),
-            ("starnet_esm05"),
-            ("swiftformer_xs"),
-            ("swin_transformer_v1_t"),
-            ("swin_transformer_v2_t"),
-            ("tiny_vit_5m"),
-            ("transnext_micro"),
-            ("uniformer_s"),
-            ("van_b0"),
-            ("vgg_11"),
-            ("vgg_reduced_11"),
-            ("vit_s32"),
-            ("vit_s16_pn"),
-            ("vit_b16_qkn_ls"),
-            ("vit_reg1_b16_nap_avg"),
-            ("vit_reg4_b32"),
-            ("vit_reg4_m16_rms_avg"),
-            ("vit_so150m_p14_ap"),
-            ("vit_reg8_so150m_p14_swiglu_avg"),
-            ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_parallel_s16_18x2_ls"),
-            ("vit_det_b16"),
-            ("vit_sam_b16"),
-            ("vit_windowed_reg4_s14_nps_ls_avg"),
-            ("vovnet_v1_27s"),
-            ("vovnet_v2_19"),
-            ("wide_resnet_50"),
-            ("xception"),
-            ("xcit_nano12_p16", 1, True),
-        ]
-    )
+    @parameterized.expand(DETECTION_BACKBONE_CASES)  # type: ignore[untyped-decorator]
     def test_detection_backbone(
         self,
         network_name: str,
@@ -695,8 +720,12 @@ class TestNet(unittest.TestCase):
         n = registry.net_factory(network_name, 100)
         size = n.default_size
 
+        self.assertIsInstance(n.max_stride, int)
         self.assertEqual(len(n.return_channels), len(n.return_stages))
         out = n.detection_features(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
+        last_features = out[n.return_stages[-1]]
+        self.assertAlmostEqual(last_features.shape[-2], size[0] // n.max_stride, delta=1)
+        self.assertAlmostEqual(last_features.shape[-1], size[1] // n.max_stride, delta=1)
         for i, stage_name in enumerate(n.return_stages):
             self.assertIn(stage_name, out)
             self.assertEqual(out[stage_name].shape[1], n.return_channels[i])
@@ -718,6 +747,24 @@ class TestNet(unittest.TestCase):
         num_stages = len(n.return_stages)
         for idx in range(num_stages):
             n.freeze_stages(idx)
+
+    @parameterized.expand(DETECTION_BACKBONE_CASES)  # type: ignore[untyped-decorator]
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_detection_backbone_backward(
+        self,
+        network_name: str,
+        batch_size: int = 1,
+        _allow_equal_stages: bool = False,
+    ) -> None:
+        n = registry.net_factory(network_name, 100)
+        n.transform_to_backbone()
+
+        out = n.detection_features(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *n.default_size)))
+        loss = sum(feature.sum() for feature in out.values())
+        loss.backward()
+
+        for name, param in n.named_parameters():
+            self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
@@ -763,6 +810,7 @@ class TestNet(unittest.TestCase):
             ("convnext_v2_atto"),
             ("crossformer_t"),
             ("davit_tiny"),
+            ("davit_fl_tiny"),
             ("deit3_t16"),
             ("deit3_reg4_t16"),
             ("densenet_121"),
@@ -797,6 +845,7 @@ class TestNet(unittest.TestCase):
             ("regnet_x_200m"),
             ("regnet_y_200m"),
             ("regnet_z_500m"),
+            ("replknet_31b"),
             ("repvit_m0_6", 2),
             ("resnest_14", 2),
             ("resnet_v1_18"),
@@ -990,6 +1039,7 @@ class TestNet(unittest.TestCase):
             ("convnext_v2_atto"),
             ("cswin_transformer_t"),
             ("davit_tiny"),
+            ("davit_fl_tiny"),
             ("deit3_t16"),
             ("efficientnet_v1_b0"),
             ("efficientnet_v2_s"),
@@ -1003,6 +1053,7 @@ class TestNet(unittest.TestCase):
             ("poolformer_v1_s12"),
             ("rdnet_t"),
             ("regnet_x_200m"),
+            ("replknet_31b"),
             ("rope_deit3_t16"),
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
@@ -1029,21 +1080,26 @@ class TestNet(unittest.TestCase):
         with torch.no_grad():
             expected = n(x)
 
-        n.set_grad_checkpointing(segments=4)
-        out = n(x)
+        for use_reentrant in (True, False):
+            with self.subTest(use_reentrant=use_reentrant):
+                n.zero_grad()
+                n.set_grad_checkpointing(segments=4, use_reentrant=use_reentrant)
+                out = n(x)
 
-        # Verify forward with checkpointing
-        self.assertEqual(out.size(), expected.size())
-        self.assertTrue(torch.allclose(out, expected))
-        self.assertEqual(out.numel(), 100 * batch_size)
-        self.assertTrue(torch.isfinite(out).all().item(), msg=f"{network_name} non-finite output")
+                # Verify forward with checkpointing
+                self.assertEqual(out.size(), expected.size())
+                self.assertTrue(torch.allclose(out, expected))
+                self.assertEqual(out.numel(), 100 * batch_size)
+                self.assertTrue(torch.isfinite(out).all().item(), msg=f"{network_name} non-finite output")
 
-        # Check grads
-        loss = out.sum()
-        loss.backward()
-        for name, param in n.named_parameters():
-            self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
-            self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}")
+                # Check grads
+                loss = out.sum()
+                loss.backward()
+                for name, param in n.named_parameters():
+                    self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
+                    self.assertTrue(
+                        torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}"
+                    )
 
 
 class TestNonSquareNet(unittest.TestCase):
@@ -1068,6 +1124,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("csp_se_resnet_50"),
             ("darknet_53"),
             ("davit_tiny"),
+            ("davit_fl_tiny"),
             ("deit_t16"),
             ("deit3_t16"),
             ("deit3_reg4_t16"),
@@ -1134,6 +1191,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("mobilevit_v1_xxs"),
             ("mobilevit_v2_0_25"),
             ("moganet_xt"),
+            ("mvit_v1_s_d16"),
             ("mvit_v2_t"),
             ("mvit_v2_t_cls"),
             ("nextvit_s"),
@@ -1148,6 +1206,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("regnet_y_200m"),
             ("regnet_z_500m"),
             ("repghost_0_5"),
+            ("replknet_31b"),
             ("repvgg_a0"),
             ("repvit_m0_6", 2),
             ("resmlp_12", 1, 0),  # No resize support
@@ -1550,6 +1609,24 @@ class TestSpecialFunctions(unittest.TestCase):
         self.assertEqual(flexivit_s16.conv_proj.weight.shape[-2:], (20, 20))
 
         self.assertEqual(flexivit_s16.pos_embedding.size(1), (160 // 20) * (160 // 20))
+
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("flexivit_s16"),
+            ("rope_flexivit_s16"),
+        ]
+    )
+    def test_flexivit_adjust_size_patch_sizes(self, network_name: str) -> None:
+        flexivit = registry.net_factory(network_name, 100, size=(240, 240))
+
+        self.assertEqual(flexivit.patch_size_list, [8, 10, 12, 15, 16, 20, 24, 30, 40, 48])
+
+        flexivit.adjust_size((256, 256))
+
+        self.assertEqual(flexivit.patch_size_list, [8, 16, 32])
+        for patch_size in flexivit.patch_size_list:
+            self.assertEqual(flexivit.size[0] % patch_size, 0)
+            self.assertEqual(flexivit.size[1] % patch_size, 0)
 
     def test_flexivit_weight_import(self) -> None:
         # ViT

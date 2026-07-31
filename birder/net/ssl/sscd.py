@@ -32,10 +32,14 @@ class SSCD(SSLBaseNet):
         size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(backbone, config=config, size=size)
-        assert self.config is None, "config not supported"
+        assert self.config is not None, "must set config"
 
-        fixed_gem_pool_3: type[nn.Module] = partial(FixedGeMPool2d, 3.0)  # type: ignore[assignment]
-        self.backbone = training_utils.replace_module(self.backbone, nn.AdaptiveAvgPool2d, fixed_gem_pool_3)
+        replace_pooling: bool = self.config.get("replace_pooling", False)
+        if replace_pooling is True:
+            fixed_gem_pool_3: type[nn.Module] = partial(FixedGeMPool2d, 3.0)  # type: ignore[assignment]
+            self.backbone.features = training_utils.replace_module(
+                self.backbone.features, nn.AdaptiveAvgPool2d, fixed_gem_pool_3
+            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.backbone(x)

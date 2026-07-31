@@ -91,14 +91,14 @@ def shifted_window_attention(
     _, pad_h, pad_w, _ = x.size()
 
     # If window size is larger than feature size, there is no need to shift window
-    shift_size_w = shift_size[0]
-    shift_size_h = shift_size[1]
+    shift_size_h = shift_size[0]
+    shift_size_w = shift_size[1]
     if window_size[0] >= pad_h:
         shift_size_h = 0
     if window_size[1] >= pad_w:
         shift_size_w = 0
 
-    shift_size = (shift_size_w, shift_size_h)
+    shift_size = (shift_size_h, shift_size_w)
 
     # Cyclic shift
     if sum(shift_size) > 0:
@@ -371,12 +371,13 @@ class Swin_Transformer_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = num_features
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = patch_size
         self.stem_width = embed_dim
+        self.feature_dim = num_features
 
         # Weight initialization
         for m in self.modules():
@@ -495,24 +496,23 @@ class Swin_Transformer_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
         if new_size == self.size:
             return
 
-        old_size = self.size
         super().adjust_size(new_size)
 
         with torch.no_grad():
             for m in self.body.modules():
                 if isinstance(m, SwinTransformerBlock):
-                    old_window_size = (old_size[0] // (2**5), old_size[1] // (2**5))
+                    old_window_size = m.attn.window_size
                     new_window_size = (new_size[0] // (2**5), new_size[1] // (2**5))
                     m.attn.window_size = new_window_size
-                    shift_size_w = m.attn.shift_size[0]
-                    shift_size_h = m.attn.shift_size[1]
-                    if m.attn.shift_size[0] != 0:
-                        shift_size_w = m.attn.window_size[0] // 2
+                    shift_size_h = m.attn.shift_size[0]
+                    shift_size_w = m.attn.shift_size[1]
+                    if shift_size_h != 0:
+                        shift_size_h = m.attn.window_size[0] // 2
 
-                    if m.attn.shift_size[1] != 0:
-                        shift_size_h = m.attn.window_size[1] // 2
+                    if shift_size_w != 0:
+                        shift_size_w = m.attn.window_size[1] // 2
 
-                    m.attn.shift_size = (shift_size_w, shift_size_h)
+                    m.attn.shift_size = (shift_size_h, shift_size_w)
 
                     m.attn.define_relative_position_index()
 

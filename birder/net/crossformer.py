@@ -383,12 +383,13 @@ class CrossFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = last_features
         self.embedding_size = last_features
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = self.patch_sizes[0]
         self.stem_width = embed_dim
+        self.feature_dim = last_features
 
         # Weights initialization
         for m in self.modules():

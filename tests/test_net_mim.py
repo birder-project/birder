@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import unittest
@@ -72,7 +73,27 @@ class TestNetMIM(unittest.TestCase):
         encoder = registry.net_factory(encoder, 10)
         size = (encoder.max_stride * 6, encoder.max_stride * 6)
         encoder.adjust_size(size)
+        encoder_state = copy.deepcopy(encoder.state_dict())
         n = registry.mim_net_factory(network_name, encoder, size=size)
+
+        # MIM construction must not replace the encoder or modify its state
+        self.assertIs(n.encoder, encoder)
+        mim_encoder_state = n.encoder.state_dict()
+        unexpected_keys = mim_encoder_state.keys() - encoder_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in mim_encoder_state.items():
+            torch.testing.assert_close(
+                value,
+                encoder_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: (
+                    f"{network_name} modified encoder state '{name}' during construction:\n{msg}"
+                ),
+            )
+
+        del encoder_state
 
         # Ensure config is serializable
         _ = json.dumps(n.config)
@@ -161,7 +182,7 @@ class TestNetMIM(unittest.TestCase):
 
         prefix_lengths = n._sample_prefix_lengths(1024, 300, torch.device("cpu"))
         self.assertGreaterEqual(prefix_lengths.min().item(), 1)
-        self.assertLessEqual(prefix_lengths.max().item(), 255)
+        self.assertLessEqual(prefix_lengths.max().item(), 299)
 
         prefix_lengths = n._sample_prefix_lengths(1024, 7, torch.device("cpu"))
         self.assertGreaterEqual(prefix_lengths.min().item(), 1)
@@ -189,7 +210,26 @@ class TestNetMIM(unittest.TestCase):
         with torch.no_grad():
             target_tokens = teacher.flatten_features(teacher.forward_features(inputs), include_special_tokens=False)
 
+        student_state = copy.deepcopy(student.state_dict())
         n = registry.mim_net_factory("eva", student, config={"teacher_dim": target_tokens.size(-1)}, size=size)
+
+        # EVA construction must not replace the student encoder or modify its state
+        self.assertIs(n.encoder, student)
+        eva_encoder_state = n.encoder.state_dict()
+        unexpected_keys = eva_encoder_state.keys() - student_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in eva_encoder_state.items():
+            torch.testing.assert_close(
+                value,
+                student_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: f"EVA modified encoder state '{name}' during construction:\n{msg}",
+            )
+
+        del student_state
+
         mask = torch.zeros((inputs.size(0), target_tokens.size(1)))
         mask[:, ::2] = 1
 

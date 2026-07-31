@@ -1,6 +1,9 @@
 """
 EfficientNet Lite, adapted from
 https://github.com/tensorflow/tpu/blob/master/models/official/efficientnet/lite/efficientnet_lite_builder.py
+
+Changes from original:
+* Using nn.BatchNorm2d with eps 1e-5 and momentum 0.1 instead of 1e-3 and 0.01
 """
 
 # Reference license: Apache-2.0
@@ -209,6 +212,7 @@ class EfficientNet_Lite(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionM
         self.embedding_size = 1280
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 2
         self.stem_width = in_channels[0]
         self.feature_dim = out_channels[-1]
@@ -227,7 +231,8 @@ class EfficientNet_Lite(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionM
             elif isinstance(m, nn.Linear):
                 init_range = 1.0 / math.sqrt(m.out_features)
                 nn.init.uniform_(m.weight, -init_range, init_range)
-                nn.init.zeros_(m.bias)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
@@ -301,7 +306,7 @@ registry.register_model_config(
 registry.register_model_config(
     "efficientnet_lite4",
     EfficientNet_Lite,
-    config={"width_coefficient": 1.4, "depth_coefficient": 1.8, "dropout_rate": 0.4},
+    config={"width_coefficient": 1.4, "depth_coefficient": 1.8, "dropout_rate": 0.35},
 )
 
 registry.register_weights(

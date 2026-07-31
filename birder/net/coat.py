@@ -465,12 +465,16 @@ class CoaT(DetectorBackbone):
             # CoaT-Lite series: use feature of last scale for classification.
             self.aggregate = None
 
-        self.return_channels = embed_dims[1:]
         self.return_stages = self.return_stages[1:]
-        self.feature_dim = embed_dims[-1]
+        self.return_channels = embed_dims[1:]
         self.num_special_tokens = 3 if parallel_depth > 0 else 1
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = patch_size[0]
+        self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
 
         # Weights initialization
         for m in self.modules():
@@ -487,6 +491,22 @@ class CoaT(DetectorBackbone):
         nn.init.trunc_normal_(self.cls_token2, std=0.02)
         nn.init.trunc_normal_(self.cls_token3, std=0.02)
         nn.init.trunc_normal_(self.cls_token4, std=0.02)
+
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        super().freeze(freeze_classifier=freeze_classifier, unfreeze_features=unfreeze_features)
+
+        if unfreeze_features is True:
+            if self.norm2 is not None:
+                for param in self.norm2.parameters():
+                    param.requires_grad_(True)
+            if self.norm3 is not None:
+                for param in self.norm3.parameters():
+                    param.requires_grad_(True)
+            for param in self.norm4.parameters():
+                param.requires_grad_(True)
+            if self.aggregate is not None:
+                for param in self.aggregate.parameters():
+                    param.requires_grad_(True)
 
     def transform_to_backbone(self) -> None:
         if self.norm2 is not None:
@@ -564,26 +584,23 @@ class CoaT(DetectorBackbone):
         return out
 
     def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.patch_embed1.parameters():
+            param.requires_grad_(False)
+
         if up_to_stage >= 1:
-            self.cls_token1.requires_grad_(False)
-            for param in self.patch_embed1.parameters():
-                param.requires_grad_(False)
             for param in self.serial_blocks1.parameters():
                 param.requires_grad_(False)
         if up_to_stage >= 2:
-            self.cls_token2.requires_grad_(False)
             for param in self.patch_embed2.parameters():
                 param.requires_grad_(False)
             for param in self.serial_blocks2.parameters():
                 param.requires_grad_(False)
         if up_to_stage >= 3:
-            self.cls_token3.requires_grad_(False)
             for param in self.patch_embed3.parameters():
                 param.requires_grad_(False)
             for param in self.serial_blocks3.parameters():
                 param.requires_grad_(False)
         if up_to_stage >= 4:
-            self.cls_token4.requires_grad_(False)
             for param in self.patch_embed4.parameters():
                 param.requires_grad_(False)
             for param in self.serial_blocks4.parameters():

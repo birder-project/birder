@@ -146,7 +146,9 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         self.rope_grid_indexing = rope_grid_indexing
         self.rope_grid_offset = rope_grid_offset
         self.rope_temperature = rope_temperature
-        self.patch_size_list = get_patch_sizes(min_patch_size, max_patch_size, self.size)
+        self.min_patch_size = min_patch_size
+        self.max_patch_size = max_patch_size
+        self.patch_size_list = get_patch_sizes(self.min_patch_size, self.max_patch_size, self.size)
 
         # Cast in case config was loaded from a json (no tuples),
         # TorchScript does not accept a list when tuple expected
@@ -162,6 +164,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             kernel_size=(patch_size, patch_size),
             stride=(patch_size, patch_size),
             padding=(0, 0),
+            bias=not pre_norm,
         )
         self.patch_embed = PatchEmbed()
 
@@ -344,6 +347,10 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
                 param.requires_grad_(True)
 
         if unfreeze_features is True:
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
+            for param in self.embedding_norm.parameters():
+                param.requires_grad_(True)
             if self.attn_pool is not None:
                 for param in self.attn_pool.parameters():
                     param.requires_grad_(True)
@@ -370,6 +377,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         super().transform_to_backbone()
         self.norm = nn.Identity()
         self.embedding_norm = nn.Identity()
+        self.attn_pool = None
 
     def _pool(self, x: torch.Tensor) -> torch.Tensor:
         if self.attn_pool is not None:
@@ -430,11 +438,20 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         if self.pos_embedding is not None:
             self.pos_embedding.requires_grad_(False)
 
-        for idx, module in enumerate(self.encoder.children()):
-            if idx >= up_to_stage:
-                break
+        if up_to_stage <= 0:
+            return
 
-            for param in module.parameters():
+        for param in self.encoder.pre_block.parameters():
+            param.requires_grad_(False)
+
+        if self.out_indices is None:
+            stage_boundaries = [self.num_layers - 1]
+        else:
+            stage_boundaries = sorted(set(self.out_indices))
+
+        last_block = stage_boundaries[min(up_to_stage, len(stage_boundaries)) - 1]
+        for block in self.encoder.block[: last_block + 1]:
+            for param in block.parameters():
                 param.requires_grad_(False)
 
     def masked_encoding_omission(
@@ -458,15 +475,17 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             else:
                 x = x + pos_embedding
 
+        rope = self._get_rope_embed(H, W)
+
         # Mask tokens
         if ids_keep is not None:
             x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
 
-            rope_dim = self.rope.pos_embed.size(1)
-            rope = self.rope.pos_embed.unsqueeze(0).repeat(x.size(0), 1, 1)
+            rope_dim = rope.size(1)
+            rope = rope.unsqueeze(0).expand(x.size(0), -1, -1)
             rope_masked = torch.gather(rope, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, rope_dim))
         else:
-            rope_masked = self.rope.pos_embed
+            rope_masked = rope
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
@@ -625,7 +644,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         super().set_dynamic_size(dynamic_size)
-        assert self.dynamic_size is True, "FlexiViT only support dynamic mode"
+        assert dynamic_size is True, "FlexiViT only supports dynamic mode"
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
@@ -636,6 +655,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
 
         old_size = self.size
         super().adjust_size(new_size)
+        self.patch_size_list = get_patch_sizes(self.min_patch_size, self.max_patch_size, self.size)
 
         if self.pos_embedding is not None:
             if self.pos_embed_special_tokens is True:
@@ -693,6 +713,8 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
 
         logger.debug(f"Setting patch size to: {patch_size}")
         self.conv_proj.weight = nn.Parameter(interpolate_proj(self.conv_proj.weight, patch_size))
+        self.conv_proj.kernel_size = (patch_size, patch_size)
+        self.conv_proj.stride = (patch_size, patch_size)
         if self.pos_embedding is not None:
             # Adjust pos_embedding accordingly
             if self.pos_embed_special_tokens is True:
@@ -723,7 +745,27 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             device=self.rope.pos_embed.device,
         ).to(dtype=old_dtype)
 
+        # Define adjusted decoder block
+        self.decoder_block = partial(
+            MAEDecoderBlock,
+            16,
+            num_special_tokens=self.num_special_tokens,
+            activation_layer=self.act_layer,
+            grid_size=(self.size[0] // patch_size, self.size[1] // patch_size),
+            rope_grid_indexing=self.rope_grid_indexing,
+            rope_grid_offset=self.rope_grid_offset,
+            rope_temperature=self.rope_temperature,
+            layer_scale_init_value=self.layer_scale_init_value,
+            norm_layer=self.norm_layer,
+            norm_layer_eps=self.norm_layer_eps,
+            mlp_layer=self.mlp_layer,
+            rope_style=self.rope_style,
+            rope_rot_type=self.rope_rot_type,
+        )
+
         self.patch_size = patch_size
+        self.max_stride = patch_size
+        self.stem_stride = patch_size
 
     def load_rope_vit_weights(self, state_dict: dict[str, Any]) -> None:
         if self.pos_embedding is None:
@@ -743,6 +785,10 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
 
         # Adjust pos_embedding
         if self.pos_embed_special_tokens is False and vit_pos_embed_special_tokens is True:
+            logger.warning(
+                "Loading RoPE ViT weights with positional embeddings for special tokens into RoPE FlexiViT, "
+                "the special-token positional embeddings will be discarded"
+            )
             if state_dict["pos_embedding"].ndim == 2:
                 state_dict["pos_embedding"] = state_dict["pos_embedding"][num_special_tokens:, :]
             else:

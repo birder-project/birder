@@ -32,6 +32,11 @@ def _build_default_rotary_pos_embed(
     exp = torch.arange(0, num_bands, 1, device=device) / num_bands
     bands = 1.0 / (temperature**exp)
 
+    if grid_indexing == "xy":
+        grid_size = (grid_size[1], grid_size[0])
+        if pt_grid_size is not None:
+            pt_grid_size = (pt_grid_size[1], pt_grid_size[0])
+
     if pt_grid_size is None:
         pt_grid_size = grid_size
 

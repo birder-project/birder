@@ -63,7 +63,7 @@ class PiTStage(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, cls_tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        token_length = cls_tokens.shape[1]
+        token_length = cls_tokens.size(1)
         if self.pool is not None:
             x, cls_tokens = self.pool(x, cls_tokens)
 
@@ -168,11 +168,19 @@ class PiT(DetectorBackbone):
 
         self.return_stages = [f"stage{idx + 1}" for idx in range(len(depths))]
         self.return_channels = return_channels
-        self.feature_dim = embed_dim
         self.embedding_size = embed_dim
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
         self.distillation_output = False
+
+        self.max_stride = patch_stride[0] * 2 ** (len(depths) - 1)
+        self.stem_stride = patch_stride[0]
+        self.stem_width = base_dims[0] * heads[0]
+        self.feature_dim = embed_dim
+
+        # Weight initialization
+        nn.init.trunc_normal_(self.pos_embed, std=0.02)
+        nn.init.trunc_normal_(self.cls_token, std=0.02)
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
@@ -213,6 +221,7 @@ class PiT(DetectorBackbone):
         return out
 
     def freeze_stages(self, up_to_stage: int) -> None:
+        self.pos_embed.requires_grad_(False)
         for param in self.stem.parameters():
             param.requires_grad_(False)
 
@@ -274,7 +283,7 @@ class PiT(DetectorBackbone):
         width = (new_size[1] - self.patch_size[1]) // self.patch_stride[1] + 1
 
         with torch.no_grad():
-            pos_embed = F.interpolate(self.pos_embed, (height, width), mode="bicubic")
+            pos_embed = F.interpolate(self.pos_embed, (height, width), mode="bicubic", antialias=True)
 
         self.pos_embed = nn.Parameter(pos_embed)
 

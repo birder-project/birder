@@ -199,7 +199,9 @@ class VisionTransformerPredictor(nn.Module):
         self.predictor_embed = nn.Linear(embed_dim, predictor_embed_dim)
         self.mask_token = nn.Parameter(torch.zeros(1, 1, predictor_embed_dim))
 
-        pos_embedding = pos_embedding_sin_cos_2d(h=size[0], w=size[1], dim=predictor_embed_dim, num_special_tokens=0)
+        pos_embedding = pos_embedding_sin_cos_2d(
+            h=size[0], w=size[1], dim=predictor_embed_dim, num_special_tokens=0, include_frequency_endpoint=False
+        )
         self.pos_embedding = nn.Buffer(pos_embedding)
 
         self.encoder = Encoder(
@@ -216,6 +218,7 @@ class VisionTransformerPredictor(nn.Module):
         self.predictor_proj = nn.Linear(predictor_embed_dim, embed_dim)
 
         # Weight initialization
+        nn.init.trunc_normal_(self.mask_token, std=0.02)
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)

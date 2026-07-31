@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import unittest
@@ -41,10 +42,10 @@ NET_DETECTION_TEST_CASES = [
     ("rt_detr_v1", "resnet_v1_50"),
     ("rt_detr_v2", "se_resnet_d_50"),
     ("rt_detr_v2_s_dsp", "vovnet_v2_19"),
-    ("ssd", "efficientnet_v2_s"),
-    ("ssd", "vit_s16"),  # 1 stage network
-    ("ssdlite", "mobilenet_v2_0_25", (512, 512)),
-    ("ssdlite", "vit_t16"),  # 1 stage network
+    ("ssd", "efficientnet_v2_s", (256, 256), 2),
+    ("ssd", "vit_s16", (256, 256), 2),  # 1 stage network
+    ("ssdlite", "mobilenet_v2_0_25", (512, 512), 2),
+    ("ssdlite", "vit_t16", (256, 256), 2),  # 1 stage network
     ("vitdet", "vit_sam_b16"),
     ("yolo_v2", "resnet_v1_18"),
     ("yolo_v3", "darknet_17"),
@@ -72,8 +73,8 @@ DETECTION_DYNAMIC_SIZE_CASES = [
     ("rt_detr_v1", "resnet_v1_50"),
     ("rt_detr_v2", "se_resnet_d_50"),
     ("rt_detr_v2_s_dsp", "vovnet_v2_19"),
-    ("ssd", "efficientnet_v2_s"),
-    ("ssdlite", "mobilenet_v2_0_25", (512, 512)),
+    ("ssd", "efficientnet_v2_s", (256, 256), 2),
+    ("ssdlite", "mobilenet_v2_0_25", (512, 512), 2),
     ("vitdet", "vit_b32"),
     ("yolo_v2", "resnet_v1_18"),
     ("yolo_v3", "darknet_17"),
@@ -132,16 +133,38 @@ class TestNetDetection(unittest.TestCase):
         network_name: str,
         encoder: str,
         size: tuple[int, int] = (256, 256),
+        batch_size: int = 1,
     ) -> None:
         backbone = registry.net_factory(encoder, 10, size=size)
+        backbone_state = copy.deepcopy(backbone.state_dict())
         n = registry.detection_net_factory(network_name, 10, backbone, size=size, export_mode=True)
+
+        # Detector construction may remove classification-only modules, but it must not
+        # replace the backbone or modify any surviving feature-extractor state
+        self.assertIs(n.backbone, backbone)
+        detection_backbone_state = n.backbone.state_dict()
+        unexpected_keys = detection_backbone_state.keys() - backbone_state.keys()
+        self.assertSetEqual(set(unexpected_keys), set())
+        for name, value in detection_backbone_state.items():
+            torch.testing.assert_close(
+                value,
+                backbone_state[name],
+                rtol=0,
+                atol=0,
+                equal_nan=True,
+                msg=lambda msg, name=name: (
+                    f"{network_name} modified backbone state '{name}' during construction:\n{msg}"
+                ),
+            )
+
+        del backbone_state
 
         # Ensure config is serializable
         _ = json.dumps(n.config)
 
         # Test network
         n.eval()
-        out = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+        out = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
         detections, losses = out
         self.assertEqual(len(losses), 0)
         for detection in detections:
@@ -157,16 +180,17 @@ class TestNetDetection(unittest.TestCase):
 
         # Reset classifier
         n.reset_classifier(20)
-        n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+        n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
 
         n.train()
         out = n(
-            torch.rand((1, DEFAULT_NUM_CHANNELS, *size)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)),
             targets=[
                 {
                     "boxes": torch.tensor([[10.1, 10.1, 30.2, 40.2]]),
                     "labels": torch.tensor([1]),
                 }
+                for _ in range(batch_size)
             ],
         )
         detections, losses = out
@@ -183,12 +207,13 @@ class TestNetDetection(unittest.TestCase):
 
         # Background-only images must produce a finite, non-zero learning signal
         _, empty_losses = n(
-            torch.rand((1, DEFAULT_NUM_CHANNELS, *size)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)),
             targets=[
                 {
                     "boxes": torch.empty((0, 4), dtype=torch.float32),
                     "labels": torch.empty((0,), dtype=torch.int64),
                 }
+                for _ in range(batch_size)
             ],
         )
         self.assertGreater(len(empty_losses), 0)
@@ -204,18 +229,18 @@ class TestNetDetection(unittest.TestCase):
             torch.jit.script(n)
         else:
             n.eval()
-            torch.jit.trace(n, example_inputs=torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+            torch.jit.trace(n, example_inputs=torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
             n.train()
 
         # Freeze
         n.eval()
         n.freeze(freeze_classifier=False)
-        n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+        n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
 
         # Reparameterize
         if reparameterize_available(n) is True:
             n.reparameterize_model()
-            detections, losses = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+            detections, losses = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
             self.assertEqual(len(losses), 0)
             for detection in detections:
                 for key in ["boxes", "labels", "scores"]:
@@ -228,6 +253,7 @@ class TestNetDetection(unittest.TestCase):
         network_name: str,
         encoder: str,
         size: tuple[int, int] = (256, 256),
+        _batch_size: int = 1,
     ) -> None:
         with torch.device("meta"):
             backbone = registry.net_factory(encoder, 10, size=size)
@@ -250,6 +276,7 @@ class TestNetDetection(unittest.TestCase):
         network_name: str,
         encoder: str,
         size: tuple[int, int] = (256, 256),
+        batch_size: int = 1,
         size_step: int = 2**5,
     ) -> None:
         backbone = registry.net_factory(encoder, 10, size=size)
@@ -263,12 +290,13 @@ class TestNetDetection(unittest.TestCase):
 
         n.train()
         _, losses = n(
-            torch.rand((1, DEFAULT_NUM_CHANNELS, *size)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)),
             targets=[
                 {
                     "boxes": torch.tensor([[10.1, 10.1, 30.2, 40.2]]),
                     "labels": torch.tensor([1]),
                 }
+                for _ in range(batch_size)
             ],
         )
         self.assertGreater(len(losses), 0)
@@ -286,12 +314,13 @@ class TestNetDetection(unittest.TestCase):
 
         # A batch containing no objects
         _, empty_losses = n(
-            torch.rand((1, DEFAULT_NUM_CHANNELS, *size)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)),
             targets=[
                 {
                     "boxes": torch.empty((0, 4), dtype=torch.float32),
                     "labels": torch.empty((0,), dtype=torch.int64),
                 }
+                for _ in range(batch_size)
             ],
         )
         empty_loss = sum(empty_losses.values())
@@ -307,7 +336,7 @@ class TestNetDetection(unittest.TestCase):
         if reparameterize_available(n) is True:
             n.eval()
             n.reparameterize_model()
-            n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+            n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
             for name, param in n.named_parameters():
                 self.assertIsNone(param.grad, msg=f"{network_name} reparameterize_model set grad for {name}")
                 self.assertIsNone(param.grad_fn, msg=f"{network_name} reparameterize_model tracked grad for {name}")
@@ -319,6 +348,7 @@ class TestNetDetection(unittest.TestCase):
         network_name: str,
         encoder: str,
         size: tuple[int, int] = (256, 256),
+        _batch_size: int = 1,
     ) -> None:
         backbone = registry.net_factory(encoder, 10, size=size)
         n = registry.detection_net_factory(network_name, 10, backbone, size=size, export_mode=True)
@@ -335,20 +365,21 @@ class TestNetDetection(unittest.TestCase):
         network_name: str,
         encoder: str,
         size: tuple[int, int] = (256, 256),
+        batch_size: int = 1,
     ) -> None:
         backbone = registry.net_factory(encoder, 10, size=size)
         n = registry.detection_net_factory(network_name, 10, backbone, size=size)
         n.eval()
         n.set_dynamic_size()
 
-        detections, losses = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+        detections, losses = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
         self.assertEqual(len(losses), 0)
         for detection in detections:
             for key in ["boxes", "labels", "scores"]:
                 self.assertTrue(torch.isfinite(detection[key]).all())
 
         size = (size[0] + 32, size[1] + 64)
-        detections, losses = n(torch.rand((1, DEFAULT_NUM_CHANNELS, *size)))
+        detections, losses = n(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
         self.assertEqual(len(losses), 0)
         for detection in detections:
             for key in ["boxes", "labels", "scores"]:
@@ -361,6 +392,7 @@ class TestNetDetection(unittest.TestCase):
         network_name: str,
         encoder: str,
         size: tuple[int, int] = (256, 256),
+        batch_size: int = 1,
         size_step: int = 2**5,
     ) -> None:
         backbone = registry.net_factory(encoder, 10, size=size)
@@ -370,12 +402,13 @@ class TestNetDetection(unittest.TestCase):
 
         size = (size[0] + size_step, size[1] + size_step)
         _, losses = n(
-            torch.rand((1, DEFAULT_NUM_CHANNELS, *size)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)),
             targets=[
                 {
                     "boxes": torch.tensor([[10.1, 10.1, 30.2, 40.2]]),
                     "labels": torch.tensor([1]),
                 }
+                for _ in range(batch_size)
             ],
         )
         self.assertGreater(len(losses), 0)
@@ -411,6 +444,22 @@ class TestNetDetection(unittest.TestCase):
     #                 (torch.randn(1, DEFAULT_NUM_CHANNELS, *size),),
     #                 dynamic_shapes={"x": {2: height_dim, 3: width_dim}},
     #             )
+
+    def test_faster_rcnn_anchor_sizes(self) -> None:
+        size = (256, 256)
+
+        backbone = registry.net_factory("efficientvit_msft_m0", 10, size=size)
+        n = registry.detection_net_factory("faster_rcnn", 10, backbone, size=size)
+        self.assertEqual(n.rpn.anchor_generator.sizes, [[s] for s in [128, 256, 512, 1024]])
+
+        backbone = registry.net_factory("efficientvit_msft_m0", 10, size=size)
+        delattr(backbone, "stem_stride")
+        n = registry.detection_net_factory("faster_rcnn", 10, backbone, size=size)
+        self.assertEqual(n.rpn.anchor_generator.sizes, [[s] for s in [128, 256, 512, 1024]])
+
+        backbone = registry.net_factory("xcit_nano12_p16", 10, size=size)
+        n = registry.detection_net_factory("faster_rcnn", 10, backbone, size=size)
+        self.assertEqual(n.rpn.anchor_generator.sizes, [[s] for s in [32, 64, 128, 256, 512]])
 
     def test_fcos_infers_anchor_sizes_from_max_stride(self) -> None:
         size = (256, 256)

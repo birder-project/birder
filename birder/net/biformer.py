@@ -11,7 +11,7 @@ Changes from original:
 * Stem bias term removed
 """
 
-# Reference license: Apache-2.0
+# Reference license: MIT
 
 from collections import OrderedDict
 from typing import Any
@@ -210,7 +210,7 @@ class Attention(nn.Module):
         x = self.proj(x)
         x = self.proj_drop(x)
 
-        x = x.reshape(B, C, H, W).permute(0, 3, 1, 2)
+        x = x.transpose(1, 2).reshape(B, C, H, W)
 
         return x
 
@@ -449,12 +449,13 @@ class BiFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
 
         # Weight initialization
         for m in self.modules():

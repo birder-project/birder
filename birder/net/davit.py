@@ -120,7 +120,7 @@ class ChannelAttention(nn.Module):
         self.proj = nn.Linear(dim, dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        B, N, C = x.shape
+        B, N, C = x.size()
 
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)
@@ -135,6 +135,30 @@ class ChannelAttention(nn.Module):
         return x
 
 
+class FlorenceChannelAttention(nn.Module):
+    def __init__(self, dim: int, num_heads: int, qkv_bias: bool) -> None:
+        super().__init__()
+        self.num_heads = num_heads
+
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.proj = nn.Linear(dim, dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, N, C = x.size()
+
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv.unbind(0)
+
+        q = q * N**-0.5
+        attn = q.transpose(-1, -2) @ k
+        attn = attn.softmax(dim=-1)
+        x = (attn @ v.transpose(-1, -2)).transpose(-1, -2)
+        x = x.transpose(1, 2).reshape(B, N, C)
+        x = self.proj(x)
+
+        return x
+
+
 class ChannelBlock(nn.Module):
     def __init__(
         self,
@@ -143,12 +167,13 @@ class ChannelBlock(nn.Module):
         mlp_ratio: float,
         qkv_bias: bool,
         drop_path: float,
+        channel_attention: type[ChannelAttention | FlorenceChannelAttention],
         cpe_act: bool = False,
     ) -> None:
         super().__init__()
         self.cpe1 = ConvPosEnc(dim=dim, kernel_size=(3, 3), act=cpe_act)
         self.norm1 = nn.LayerNorm(dim)
-        self.attn = ChannelAttention(dim, num_heads=num_heads, qkv_bias=qkv_bias)
+        self.attn = channel_attention(dim, num_heads=num_heads, qkv_bias=qkv_bias)
 
         self.cpe2 = ConvPosEnc(dim=dim, kernel_size=(3, 3), act=cpe_act)
         self.norm2 = nn.LayerNorm(dim)
@@ -274,6 +299,7 @@ class DaViTStage(nn.Module):
         drop_path_rates: list[float],
         cpe_act: bool,
         down_kernel_size: int,
+        channel_attention: type[ChannelAttention | FlorenceChannelAttention],
     ) -> None:
         super().__init__()
         if downsample:
@@ -301,6 +327,7 @@ class DaViTStage(nn.Module):
                     mlp_ratio=mlp_ratio,
                     qkv_bias=qkv_bias,
                     drop_path=drop_path_rates[block_idx],
+                    channel_attention=channel_attention,
                     cpe_act=cpe_act,
                 )
             )
@@ -329,12 +356,27 @@ class DaViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         mlp_ratio = 4.0
         qkv_bias = True
-        down_kernel_size = 2
-        window_size = (int(self.size[0] / (2**5)), int(self.size[1] / (2**5)))
+        down_kernel_size: int = self.config.get("down_kernel_size", 2)
+        window_size: Optional[tuple[int, int]] = self.config.get("window_size", None)
+        channel_attention_type: Literal["ChannelAttention", "FlorenceChannelAttention"] = self.config.get(
+            "channel_attention_type", "ChannelAttention"
+        )
         depths: list[int] = self.config["depths"]
         dims: list[int] = self.config["dims"]
         heads: list[int] = self.config["heads"]
         drop_path_rate: float = self.config["drop_path_rate"]
+
+        if channel_attention_type == "ChannelAttention":
+            channel_attention = ChannelAttention
+        elif channel_attention_type == "FlorenceChannelAttention":
+            channel_attention = FlorenceChannelAttention
+        else:
+            raise ValueError(f"Unknown channel attention type '{channel_attention_type}'")
+
+        if window_size is None:
+            self.window_size = (int(self.size[0] / (2**5)), int(self.size[1] / (2**5)))
+        else:
+            self.window_size = (window_size[0], window_size[1])
 
         self.grad_checkpointing = False
         self.grad_checkpointing_segments: Optional[int] = None
@@ -357,12 +399,13 @@ class DaViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 depth=depths[stage_idx],
                 downsample=stage_idx > 0,
                 num_heads=heads[stage_idx],
-                window_size=window_size,
+                window_size=self.window_size,
                 mlp_ratio=mlp_ratio,
                 qkv_bias=qkv_bias,
                 drop_path_rates=dpr[stage_idx],
                 cpe_act=False,
                 down_kernel_size=down_kernel_size,
+                channel_attention=channel_attention,
             )
             return_channels.append(out_channels)
             in_channels = out_channels
@@ -370,13 +413,14 @@ class DaViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
-            LayerNorm2d(dims[-1], eps=1e-6),
+            LayerNorm2d(dims[-1]),
             nn.Flatten(1),
         )
         self.return_channels = return_channels
         self.embedding_size = dims[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = dims[0]
         self.feature_dim = dims[-1]
@@ -504,7 +548,13 @@ class DaViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         super().adjust_size(new_size)
 
-        new_window_size = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
+        window_size: Optional[tuple[int, int]] = self.config.get("window_size", None)  # type: ignore[union-attr]
+        if window_size is None:
+            new_window_size = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
+        else:
+            new_window_size = (window_size[0], window_size[1])
+
+        self.window_size = new_window_size
         for m in self.body.modules():
             if isinstance(m, SpatialBlock):
                 m.window_size = new_window_size
@@ -541,6 +591,86 @@ registry.register_model_config(
     config={"depths": [1, 1, 12, 3], "dims": [384, 768, 1536, 3072], "heads": [12, 24, 48, 96], "drop_path_rate": 0.5},
 )
 
+# Florence v2 variants
+registry.register_model_config(
+    "davit_fl_tiny",
+    DaViT,
+    config={
+        "down_kernel_size": 3,
+        "window_size": (12, 12),
+        "channel_attention_type": "FlorenceChannelAttention",
+        "depths": [1, 1, 3, 1],
+        "dims": [96, 192, 384, 768],
+        "heads": [3, 6, 12, 24],
+        "drop_path_rate": 0.1,
+    },
+)
+registry.register_model_config(
+    "davit_fl_small",
+    DaViT,
+    config={
+        "down_kernel_size": 3,
+        "window_size": (12, 12),
+        "channel_attention_type": "FlorenceChannelAttention",
+        "depths": [1, 1, 9, 1],
+        "dims": [96, 192, 384, 768],
+        "heads": [3, 6, 12, 24],
+        "drop_path_rate": 0.2,
+    },
+)
+registry.register_model_config(
+    "davit_fl_base",
+    DaViT,
+    config={
+        "down_kernel_size": 3,
+        "window_size": (12, 12),
+        "channel_attention_type": "FlorenceChannelAttention",
+        "depths": [1, 1, 9, 1],
+        "dims": [128, 256, 512, 1024],
+        "heads": [4, 8, 16, 32],
+        "drop_path_rate": 0.4,
+    },
+)
+registry.register_model_config(
+    "davit_fl_large",
+    DaViT,
+    config={
+        "down_kernel_size": 3,
+        "window_size": (12, 12),
+        "channel_attention_type": "FlorenceChannelAttention",
+        "depths": [1, 1, 9, 1],
+        "dims": [192, 384, 768, 1536],
+        "heads": [6, 12, 24, 48],
+        "drop_path_rate": 0.4,
+    },
+)
+registry.register_model_config(
+    "davit_fl_huge",
+    DaViT,
+    config={
+        "down_kernel_size": 3,
+        "window_size": (12, 12),
+        "channel_attention_type": "FlorenceChannelAttention",
+        "depths": [1, 1, 9, 1],
+        "dims": [256, 512, 1024, 2048],
+        "heads": [8, 16, 32, 64],
+        "drop_path_rate": 0.5,
+    },
+)
+registry.register_model_config(
+    "davit_fl_giant",
+    DaViT,
+    config={
+        "down_kernel_size": 3,
+        "window_size": (12, 12),
+        "channel_attention_type": "FlorenceChannelAttention",
+        "depths": [1, 1, 12, 3],
+        "dims": [384, 768, 1536, 3072],
+        "heads": [12, 24, 48, 96],
+        "drop_path_rate": 0.5,
+    },
+)
+
 registry.register_weights(
     "davit_tiny_il-all",
     {
@@ -554,5 +684,20 @@ registry.register_weights(
             }
         },
         "net": {"network": "davit_tiny", "tag": "il-all"},
+    },
+)
+registry.register_weights(  # Florence v2: https://arxiv.org/abs/2311.06242
+    "davit_fl_base_florence-v2",
+    {
+        "url": "https://huggingface.co/birder-project/davit_fl_base_florence-v2/resolve/main",
+        "description": "",
+        "resolution": (768, 768),
+        "formats": {
+            "pt": {
+                "file_size": 344.9,
+                "sha256": "44e968b7752165dd713155f49ea4e78af0264ae4aaaaeb6c9d1cefa8a6bd34c0",
+            }
+        },
+        "net": {"network": "davit_fl_base", "tag": "florence-v2"},
     },
 )

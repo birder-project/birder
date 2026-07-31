@@ -7,7 +7,6 @@ Paper "Less is More: Pay Less Attention in Vision Transformers", https://arxiv.o
 
 # Reference license: Apache-2.0
 
-import math
 from collections import OrderedDict
 from typing import Any
 from typing import Optional
@@ -333,14 +332,17 @@ class LIT_v1(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = num_features
+        self.patch_size = patch_size
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
-        self.patch_size = patch_size
+        self.max_stride = patch_size * 2 ** (num_stages - 1)
+        self.stem_stride = patch_size
+        self.stem_width = embed_dim
+        self.feature_dim = num_features
 
         # Weight initialization
-        for name, m in self.named_modules():
+        for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
@@ -348,15 +350,6 @@ class LIT_v1(DetectorBackbone):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.Conv2d):
-                if name.endswith("offset_conv") is True:
-                    continue
-
-                fan_out = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                fan_out //= m.groups
-                nn.init.normal_(m.weight, mean=0.0, std=math.sqrt(2.0 / fan_out))
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

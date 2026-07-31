@@ -396,6 +396,7 @@ class iFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 4 * 2 ** (num_stages - 1)
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
         self.feature_dim = embed_dims[-1]

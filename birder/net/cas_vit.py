@@ -6,7 +6,7 @@ Paper "CAS-ViT: Convolutional Additive Self-attention Vision Transformers for Ef
 https://arxiv.org/abs/2408.03703
 
 Changes from original:
-* Removed biases before norms
+* Removed biases before norms in the stem, downsampling and local integration paths
 """
 
 # Reference license: MIT
@@ -249,11 +249,15 @@ class CAS_ViT(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
         self.distillation_output = False
+
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
 
         # Weight initialization
         for m in self.modules():
@@ -326,7 +330,7 @@ class CAS_ViT(DetectorBackbone):
         if self.training is True and self.distillation_output is True:
             x = torch.stack([x_cls, x_dist], dim=1)
         else:
-            # Classifier "token" as an average of both tokens (during normal training or inference)
+            # Average both classifier heads during normal training or inference
             x = (x_cls + x_dist) / 2
 
         return x

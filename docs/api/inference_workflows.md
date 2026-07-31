@@ -95,4 +95,4 @@ sample_paths, detections, targets = infer_dataloader(
 ## TTA Guidance
 
 - Classification TTA (`tta=True`) can improve stability for borderline cases at extra compute cost.
-- Detection TTA (`tta=True`) runs multi-scale + horizontal flip and fuses predictions; use when quality matters more than latency.
+- Detection TTA (`tta=True`) runs multi-scale + horizontal flip and fuses predictions, use when quality matters more than latency.

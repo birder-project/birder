@@ -112,10 +112,10 @@ class MobileNet_v2(DetectorBackbone):
             [6, 320, 1, 1],
         ]
 
-        base = make_divisible(32 * alpha, 8)
+        stem_width = make_divisible(32 * alpha, 8)
         self.stem = Conv2dNormActivation(
             self.input_channels,
-            base,
+            stem_width,
             kernel_size=(3, 3),
             stride=(2, 2),
             padding=(1, 1),
@@ -123,6 +123,7 @@ class MobileNet_v2(DetectorBackbone):
             activation_layer=nn.ReLU6,
         )
 
+        base = stem_width
         layers: list[nn.Module] = []
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
@@ -143,7 +144,7 @@ class MobileNet_v2(DetectorBackbone):
                     stride=(s, s),
                     padding=(1, 1),
                     expansion_factor=t,
-                    shortcut=False,
+                    shortcut=s == 1 and base == c,
                 )
             )
             for _ in range(1, n):
@@ -181,9 +182,13 @@ class MobileNet_v2(DetectorBackbone):
             nn.Dropout(0.2),
         )
         self.return_channels = return_channels[1:5]
-        self.feature_dim = c
         self.embedding_size = last_channels
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = stem_width
+        self.feature_dim = c
 
         # Weight initialization
         for m in self.modules():

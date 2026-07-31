@@ -1,11 +1,13 @@
 """
 FocalNet, adapted from
 https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/focalnet.py
+with model configurations from
+https://github.com/microsoft/FocalNet/tree/main/configs
 
 Paper "Focal Modulation Networks", https://arxiv.org/abs/2203.11926
 """
 
-# Reference license: Apache-2.0
+# Reference license: Apache-2.0 and MIT
 
 import logging
 from collections import OrderedDict
@@ -329,6 +331,7 @@ class FocalNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         use_post_norm: bool = self.config["use_post_norm"]
         use_overlap_down: bool = self.config["use_overlap_down"]
         use_post_norm_in_modulation: bool = self.config["use_post_norm_in_modulation"]
+        normalize_modulator: bool = self.config.get("normalize_modulator", False)
         drop_path_rate: float = self.config["drop_path_rate"]
 
         num_stages = len(depths)
@@ -367,7 +370,7 @@ class FocalNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 use_overlap_down=use_overlap_down,
                 use_post_norm=use_post_norm,
                 use_post_norm_in_modulation=use_post_norm_in_modulation,
-                normalize_modulator=False,
+                normalize_modulator=normalize_modulator,
                 layer_scale_value=layer_scale_value,
                 proj_drop=proj_drop_rate,
                 drop_path=dpr[sum(depths[:idx]) : sum(depths[: idx + 1])],
@@ -387,6 +390,7 @@ class FocalNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
+        self.max_stride = 4 * 2 ** (num_stages - 1)
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
         self.feature_dim = num_features
@@ -615,6 +619,7 @@ registry.register_model_config(
         "use_post_norm": True,
         "use_overlap_down": True,
         "use_post_norm_in_modulation": False,
+        "normalize_modulator": True,
         "drop_path_rate": 0.3,
     },
 )
@@ -655,7 +660,7 @@ registry.register_model_config(
         "depths": [2, 2, 18, 2],
         "embed_dim": 352,
         "focal_levels": (3, 3, 3, 3),
-        "focal_windows": (5, 5, 5, 5),
+        "focal_windows": (3, 3, 3, 3),
         "layer_scale_value": 1e-4,
         "use_post_norm": True,
         "use_overlap_down": True,

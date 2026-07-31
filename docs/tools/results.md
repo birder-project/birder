@@ -35,4 +35,4 @@ Key features include:
 - The results files contain raw probabilities, allowing for flexible post-hoc analysis and metric calculation
 - The tool supports shell-style wildcards for specifying multiple result files or classes
 - When comparing multiple results, the tool will generate a summary table for quick overview
-- For visualization options (like ROC curves, precision-recall curves, and confusion matrices), you can specify which classes to include, allowing for focused analysis on specific species or groups
+- For visualization options (like ROC curves, precision-recall curves and confusion matrices), you can specify which classes to include, allowing for focused analysis on specific species or groups

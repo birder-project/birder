@@ -166,6 +166,7 @@ class LayerScaleBlock(nn.Module):
 
 class CaiT(PreTrainEncoder, MaskedTokenRetentionMixin):
     block_group_regex = r"block1\.(\d+)"  # ClassAttentionBlock combined with the head
+    layer_freeze_exempt_parameters = frozenset({"cls_token"})
 
     def __init__(
         self,
@@ -236,8 +237,6 @@ class CaiT(PreTrainEncoder, MaskedTokenRetentionMixin):
 
         self.norm = nn.LayerNorm(embed_dim, eps=1e-6)
 
-        self.feature_dim = embed_dim
-
         self.num_special_tokens = 1
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
@@ -245,6 +244,7 @@ class CaiT(PreTrainEncoder, MaskedTokenRetentionMixin):
         self.max_stride = patch_size[0]
         self.stem_stride = patch_size[0]
         self.stem_width = embed_dim
+        self.feature_dim = embed_dim
 
         # Weights initialization
         for m in self.modules():
@@ -259,6 +259,21 @@ class CaiT(PreTrainEncoder, MaskedTokenRetentionMixin):
 
         nn.init.trunc_normal_(self.pos_embed, std=0.02)
         nn.init.trunc_normal_(self.cls_token, std=0.02)
+
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        for param in self.parameters():
+            param.requires_grad_(False)
+
+        if freeze_classifier is False:
+            for param in self.classifier.parameters():
+                param.requires_grad_(True)
+
+        if unfreeze_features is True:
+            self.cls_token.requires_grad_(True)
+            for param in self.block2.parameters():
+                param.requires_grad_(True)
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
 
     def set_grad_checkpointing(
         self,
@@ -395,7 +410,7 @@ class CaiT(PreTrainEncoder, MaskedTokenRetentionMixin):
         old_size = self.size
         super().adjust_size(new_size)
 
-        # Add back class tokens
+        # Interpolate patch position embeddings
         with torch.no_grad():
             pos_embed = adjust_position_embedding(
                 self.pos_embed,

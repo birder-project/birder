@@ -110,6 +110,12 @@ class RoPEAttention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
+        # Weight initialization
+        for m in (self.qkv, self.proj):
+            nn.init.trunc_normal_(m.weight, std=0.02)
+            if m.bias is not None:
+                nn.init.zeros_(m.bias)
+
     def forward(self, x: torch.Tensor, rope: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
@@ -744,6 +750,10 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
                 param.requires_grad_(True)
 
         if unfreeze_features is True:
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
+            for param in self.embedding_norm.parameters():
+                param.requires_grad_(True)
             if self.attn_pool is not None:
                 for param in self.attn_pool.parameters():
                     param.requires_grad_(True)
@@ -770,6 +780,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         super().transform_to_backbone()
         self.norm = nn.Identity()
         self.embedding_norm = nn.Identity()
+        self.attn_pool = None
 
     def _pool(self, x: torch.Tensor) -> torch.Tensor:
         if self.attn_pool is not None:
@@ -830,11 +841,20 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         if self.pos_embedding is not None:
             self.pos_embedding.requires_grad_(False)
 
-        for idx, module in enumerate(self.encoder.children()):
-            if idx >= up_to_stage:
-                break
+        if up_to_stage <= 0:
+            return
 
-            for param in module.parameters():
+        for param in self.encoder.pre_block.parameters():
+            param.requires_grad_(False)
+
+        if self.out_indices is None:
+            stage_boundaries = [self.num_layers - 1]
+        else:
+            stage_boundaries = sorted(set(self.out_indices))
+
+        last_block = stage_boundaries[min(up_to_stage, len(stage_boundaries)) - 1]
+        for block in self.encoder.block[: last_block + 1]:
+            for param in block.parameters():
                 param.requires_grad_(False)
 
     def masked_encoding_omission(
@@ -858,15 +878,17 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             else:
                 x = x + pos_embedding
 
+        rope = self._get_rope_embed(H, W)
+
         # Mask tokens
         if ids_keep is not None:
             x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
 
-            rope_dim = self.rope.pos_embed.size(1)
-            rope = self.rope.pos_embed.unsqueeze(0).repeat(x.size(0), 1, 1)
+            rope_dim = rope.size(1)
+            rope = rope.unsqueeze(0).expand(x.size(0), -1, -1)
             rope_masked = torch.gather(rope, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, rope_dim))
         else:
-            rope_masked = self.rope.pos_embed
+            rope_masked = rope
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
@@ -1402,5 +1424,25 @@ registry.register_weights(
             }
         },
         "net": {"network": "rope_deit3_reg4_m14", "tag": "arabian-peninsula"},
+    },
+)
+
+# BIO-DINO
+registry.register_weights(
+    "rope_deit3_m14_dino-v2-dist-bio",
+    {
+        "url": "https://huggingface.co/birder-project/rope_deit3_m14_dino-v2-dist-bio/resolve/main",
+        "description": (
+            "RoPE DeiT3 m14 image encoder pretrained using DINOv2 distillation on natural biological images. "
+            "This model has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (252, 252),
+        "formats": {
+            "pt": {
+                "file_size": 146.2,
+                "sha256": "0600611934dd31081eec28f8da0e8e19728377fdee71196431ead94aa4373db6",
+            },
+        },
+        "net": {"network": "rope_deit3_m14", "tag": "dino-v2-dist-bio"},
     },
 )

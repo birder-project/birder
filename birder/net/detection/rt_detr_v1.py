@@ -31,8 +31,8 @@ from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import aligned_box_iou
 from birder.net.detection.base import aligned_generalized_box_iou
 from birder.net.detection.deformable_detr import DeformableTransformerDecoderLayer
-from birder.net.detection.deformable_detr import HungarianMatcher
 from birder.net.detection.deformable_detr import inverse_sigmoid
+from birder.net.detection.hungarian_matcher import HungarianMatcher
 from birder.net.repvgg import RepVggBlock
 
 
@@ -360,7 +360,7 @@ class HybridEncoder(nn.Module):
 
     Architecture:
     1. Input projection for each scale
-    2. AIFI (transformer) on the highest resolution feature
+    2. AIFI (transformer) on the highest-level, lowest-resolution feature
     3. Top-down FPN path with CSPRepLayers
     4. Bottom-up PAN path with CSPRepLayers
     """
@@ -437,7 +437,7 @@ class HybridEncoder(nn.Module):
         for idx, proj in enumerate(self.input_proj):
             proj_feats.append(proj(feats[idx]))
 
-        # Apply AIFI to highest scale feature
+        # Apply AIFI to the highest-level, lowest-resolution feature
         encoder_mask = masks[-1] if masks is not None else None
         proj_feats[-1] = self.encoder(proj_feats[-1], mask=encoder_mask)
 
@@ -474,7 +474,7 @@ class HybridEncoder(nn.Module):
 
 class RT_DETRDecoder(nn.Module):
     """
-    RT-DETR Decoder with uncertainty-minimal query selection.
+    RT-DETR Decoder with classification-confidence query selection.
 
     Key difference from Deformable DETR: queries are selected from encoder output
     based on classification confidence, rather than using learned query embeddings.
@@ -482,6 +482,7 @@ class RT_DETRDecoder(nn.Module):
 
     def __init__(
         self,
+        in_channels: list[int],
         hidden_dim: int,
         num_classes: int,
         num_queries: int,
@@ -495,6 +496,15 @@ class RT_DETRDecoder(nn.Module):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.num_queries = num_queries
+
+        self.input_proj = nn.ModuleList()
+        for ch in in_channels:
+            self.input_proj.append(
+                nn.Sequential(
+                    nn.Conv2d(ch, hidden_dim, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0), bias=False),
+                    nn.BatchNorm2d(hidden_dim),
+                )
+            )
 
         self.enc_output = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
@@ -520,7 +530,10 @@ class RT_DETRDecoder(nn.Module):
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         nn.init.xavier_uniform_(self.enc_output[0].weight)
-        nn.init.xavier_uniform_(self.enc_score_head.weight)
+        for layer in self.query_pos_head:
+            if isinstance(layer, nn.Linear):
+                nn.init.xavier_uniform_(layer.weight)
+
         nn.init.constant_(self.enc_score_head.bias, bias_value)
         nn.init.zeros_(self.enc_bbox_head[-2].weight)
         nn.init.zeros_(self.enc_bbox_head[-2].bias)
@@ -653,7 +666,8 @@ class RT_DETRDecoder(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         memory = []
         mask_flatten = []
-        for idx, feat in enumerate(feats):
+        for idx, input_proj in enumerate(self.input_proj):
+            feat = input_proj(feats[idx])
             feat = feat.flatten(2).permute(0, 2, 1)  # (B, H*W, C)
             memory.append(feat)
             if padding_mask is not None:
@@ -793,6 +807,7 @@ class RT_DETR_v1(DetectionBaseNet):
             depth_multiplier=depth_multiplier,
         )
         self.decoder = RT_DETRDecoder(
+            in_channels=[hidden_dim] * self.num_levels,
             hidden_dim=hidden_dim,
             num_classes=self.num_classes,
             num_queries=self.num_queries,
@@ -804,7 +819,7 @@ class RT_DETR_v1(DetectionBaseNet):
             num_decoder_points=num_decoder_points,
         )
 
-        self.matcher = HungarianMatcher(cost_class=2.0, cost_bbox=5.0, cost_giou=2.0, use_giou=use_giou)
+        self.matcher = HungarianMatcher(class_weight=2.0, bbox_weight=5.0, giou_weight=2.0, use_giou=use_giou)
 
         # Denoising class embedding for Contrastive denoising (CDN) training
         if self.num_denoising > 0:
@@ -1000,8 +1015,8 @@ class RT_DETR_v1(DetectionBaseNet):
         loss_giou_list = []
 
         # Decoder losses (all layers)
-        for layer_idx in range(out_logits.shape[0]):
-            indices = self.matcher(out_logits[layer_idx], out_bboxes[layer_idx], targets)
+        indices_per_layer = self.matcher.match_grouped(out_logits.movedim(0, 1), out_bboxes.movedim(0, 1), targets)
+        for layer_idx, indices in enumerate(indices_per_layer):
             loss_ce = self._class_loss(out_logits[layer_idx], out_bboxes[layer_idx], targets, indices, num_boxes)
             loss_bbox, loss_giou = self._box_loss(out_bboxes[layer_idx], targets, indices, num_boxes)
             loss_ce_list.append(loss_ce)
@@ -1009,7 +1024,7 @@ class RT_DETR_v1(DetectionBaseNet):
             loss_giou_list.append(loss_giou)
 
         # Encoder auxiliary loss
-        enc_indices = self.matcher(enc_topk_logits, enc_topk_bboxes, targets)
+        enc_indices = self.matcher.match(enc_topk_logits, enc_topk_bboxes, targets)
         loss_ce_enc = self._class_loss(enc_topk_logits, enc_topk_bboxes, targets, enc_indices, num_boxes)
         loss_bbox_enc, loss_giou_enc = self._box_loss(enc_topk_bboxes, targets, enc_indices, num_boxes)
         loss_ce_list.append(loss_ce_enc)

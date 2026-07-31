@@ -21,7 +21,6 @@ from torch import nn
 from torch.utils.checkpoint import checkpoint
 from torchvision.ops import MLP
 
-from birder.common import masking
 from birder.common import training_utils
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
@@ -263,9 +262,9 @@ class CrossAttention(nn.Module):
         self.num_heads = num_heads
         head_dim = decoder_dim // num_heads
         self.scale = head_dim**-0.5
-        self.q = nn.Linear(decoder_dim, decoder_dim)
-        self.kv = nn.Linear(encoder_dim, decoder_dim * 2)
-        self.proj = nn.Linear(decoder_dim, decoder_dim)
+        self.q = nn.Linear(decoder_dim, decoder_dim, bias=False)
+        self.kv = nn.Linear(encoder_dim, decoder_dim * 2, bias=False)
+        self.proj = nn.Linear(decoder_dim, decoder_dim, bias=False)
 
     def forward(self, tgt: torch.Tensor, memory: torch.Tensor) -> torch.Tensor:
         B, N, C = tgt.size()
@@ -287,7 +286,7 @@ class CrossAttentionBlock(nn.Module):
         self.norm1 = nn.RMSNorm(decoder_dim, eps=1e-5)
         self.cross_attn = CrossAttention(encoder_dim, decoder_dim, num_heads=num_heads)
         self.norm2 = nn.RMSNorm(decoder_dim, eps=1e-5)
-        self.mlp = MLP(decoder_dim, [int(decoder_dim * mlp_ratio), decoder_dim], activation_layer=nn.GELU)
+        self.mlp = MLP(decoder_dim, [int(decoder_dim * mlp_ratio), decoder_dim], activation_layer=nn.GELU, bias=False)
 
     def forward(self, tgt: torch.Tensor, memory: torch.Tensor) -> torch.Tensor:
         x = tgt + self.cross_attn(self.norm1(tgt), memory)
@@ -335,9 +334,11 @@ class Decoder(nn.Module):
                 if hasattr(m, "bias") and m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-    def mask_tokens_grid(self, mask: torch.Tensor) -> torch.Tensor:
-        N = mask.size(0)
-        x = self.decoder_pos_embed.masked_select(mask.bool().unsqueeze(-1)).reshape(N, -1, self.mask_token.size(-1))
+    def mask_tokens_grid(self, ids_predict: torch.Tensor) -> torch.Tensor:
+        B = ids_predict.size(0)
+        pos_embed = self.decoder_pos_embed.expand(B, -1, -1)
+        gather_indices = ids_predict.unsqueeze(-1).expand(-1, -1, self.mask_token.size(-1))
+        x = torch.gather(pos_embed, dim=1, index=gather_indices)
         x = x.to(self.mask_token.dtype) + self.mask_token
 
         return x
@@ -349,8 +350,8 @@ class Decoder(nn.Module):
         self.grad_checkpointing_preserve_rng_state = preserve_rng_state
         self.grad_checkpointing_use_reentrant = use_reentrant
 
-    def forward(self, memory: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        x = self.mask_tokens_grid(mask)
+    def forward(self, memory: torch.Tensor, ids_predict: torch.Tensor) -> torch.Tensor:
+        x = self.mask_tokens_grid(ids_predict)
 
         for _, layer in enumerate(self.decoder_layers):
             if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
@@ -411,8 +412,7 @@ class CAPIStudent(SSLBaseNet):
     ) -> torch.Tensor:
         x = self.backbone.masked_encoding_omission(x, ids_keep)["tokens"]
 
-        mask = masking.mask_from_indices(ids_predict, self.seq_len)
-        x = self.decoder(x, mask)
+        x = self.decoder(x, ids_predict)
         x = self.head(x.flatten(0, 1))
 
         return x

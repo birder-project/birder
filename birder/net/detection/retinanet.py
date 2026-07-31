@@ -22,6 +22,7 @@ from torchvision.ops import generalized_box_iou_loss
 from torchvision.ops import sigmoid_focal_loss
 from torchvision.ops.feature_pyramid_network import LastLevelP6P7
 
+from birder.layers import LayerNorm2d
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import AnchorGenerator
@@ -290,28 +291,46 @@ class RetinaNet(DetectionBaseNet):
         self.detections_per_img = detections_per_img
         self.topk_candidates = topk_candidates
 
+        # Skip stage1 because it generates too many anchors (according to the paper)
+        self.backbone.return_channels = self.backbone.return_channels[-3:]
+        self.backbone.return_stages = self.backbone.return_stages[-3:]
+        num_backbone_stages = len(self.backbone.return_stages)
+
         if feature_pyramid_type == "fpn":
-            feature_pyramid: Callable[..., nn.Module] = BackboneWithFPN
-            num_anchor_sizes = len(self.backbone.return_stages) + 2
+            feature_pyramid: Callable[..., nn.Module] = partial(BackboneWithFPN, norm_layer=None)
             extra_blocks = LastLevelP6P7(self.backbone.return_channels[-1], fpn_width)
+
+            stem_stride = getattr(self.backbone, "stem_stride", None)
+            if num_backbone_stages > 1 and stem_stride == self.backbone.max_stride:
+                anchor_base_sizes = [32, 64, 128, 256, 512]
+                anchor_base_sizes = anchor_base_sizes[-num_backbone_stages - 2 :]
+            else:
+                first_stride = self.backbone.max_stride // 2 ** (num_backbone_stages - 1)
+                anchor_base_sizes = [4 * first_stride * 2**level_idx for level_idx in range(num_backbone_stages + 2)]
+
         elif feature_pyramid_type == "sfp":
-            feature_pyramid = partial(BackboneWithSimpleFPN, num_stages=3)
-            num_anchor_sizes = 3 + 2
+            num_sfp_stages = 3
+            feature_pyramid = partial(
+                BackboneWithSimpleFPN,
+                num_stages=num_sfp_stages,
+                norm_layer=partial(LayerNorm2d, eps=1e-6),
+            )
             extra_blocks = LastLevelP6P7(fpn_width, fpn_width)
+
+            # The first of the three Simple-FPN levels upsamples the final backbone feature by two
+            first_stride = self.backbone.max_stride // 2
+            anchor_base_sizes = [4 * first_stride * 2**level_idx for level_idx in range(num_sfp_stages + 2)]
+
         else:
             raise ValueError(f"Unknown feature_pyramid_type '{feature_pyramid_type}'")
 
-        # Skip stage1 because it generates too many anchors (according to their paper)
-        self.backbone.return_channels = self.backbone.return_channels[-3:]
-        self.backbone.return_stages = self.backbone.return_stages[-3:]
         self.backbone_with_fpn = feature_pyramid(
             self.backbone,
             fpn_width,
             extra_blocks=extra_blocks,
         )
 
-        anchor_sizes = [[x, int(x * 2 ** (1.0 / 3)), int(x * 2 ** (2.0 / 3))] for x in [32, 64, 128, 256, 512]]
-        anchor_sizes = anchor_sizes[-num_anchor_sizes:]
+        anchor_sizes = [[x, int(x * 2 ** (1.0 / 3)), int(x * 2 ** (2.0 / 3))] for x in anchor_base_sizes]
         aspect_ratios = [[0.5, 1.0, 2.0]] * len(anchor_sizes)
         self.anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
 

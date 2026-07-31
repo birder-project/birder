@@ -7,6 +7,7 @@ Paper "RegionViT: Regional-to-Local Attention for Vision Transformers", https://
 Changes from original:
 * Default size is 256 instead of 224 (window size is 8 instead of 7),
   note that the window does NOT change with resolution changes
+* Fixed the bottom-right padding mask to intersect the valid rows and columns
 """
 
 # Reference license: Apache-2.0
@@ -447,11 +448,15 @@ class RegionViT(DetectorBackbone):
             return_channels.append(embed_dims[i + 1])
 
         self.body = SequentialWithTwo(stages)
-        self.norm = nn.LayerNorm(embed_dims[-1])
+        self.norm = nn.LayerNorm(embed_dims[-1], eps=1e-6)
         self.return_channels = return_channels
-        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = patch_size[0]
+        self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
 
         # Weights initialization
         for m in self.modules():
@@ -474,6 +479,10 @@ class RegionViT(DetectorBackbone):
         if unfreeze_features is True:
             for param in self.norm.parameters():
                 param.requires_grad_(True)
+
+    def transform_to_backbone(self) -> None:
+        super().transform_to_backbone()
+        self.norm = nn.Identity()
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         o_x = x

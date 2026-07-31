@@ -303,7 +303,7 @@ def evaluate_cct_single(
 
     if stats["category_unseen_test_classes"] > 0:
         logger.warning(
-            f"Found {stats['category_unseen_test_classes']} test classes not present in train locations; "
+            f"Found {stats['category_unseen_test_classes']} test classes not present in train locations, "
             "these classes will be counted as errors in cross-location category accuracy"
         )
 

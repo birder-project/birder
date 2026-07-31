@@ -38,8 +38,8 @@ from birder.net.base import reparameterize_available
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.base import aligned_box_iou
 from birder.net.detection.base import aligned_generalized_box_iou
-from birder.net.detection.deformable_detr import HungarianMatcher
 from birder.net.detection.deformable_detr import inverse_sigmoid
+from birder.net.detection.hungarian_matcher import HungarianMatcher
 from birder.net.detection.rt_detr_v1 import AIFI
 from birder.net.detection.rt_detr_v1 import get_contrastive_denoising_training_group
 from birder.net.detection.rt_detr_v1 import varifocal_loss
@@ -888,7 +888,7 @@ class D_FINE(DetectionBaseNet):
             layer_scale=layer_scale,
         )
         self.matcher = HungarianMatcher(
-            cost_class=2.0, cost_bbox=5.0, cost_giou=2.0, use_giou=use_giou, clamp_box_sizes=True
+            class_weight=2.0, bbox_weight=5.0, giou_weight=2.0, use_giou=use_giou, clamp_predicted_box_sizes=True
         )
 
         if num_denoising > 0:
@@ -1164,19 +1164,19 @@ class D_FINE(DetectionBaseNet):
 
         num_boxes_tensor = torch.clamp(num_boxes_tensor / training_utils.get_world_size(), min=1).squeeze(0)
 
-        indices = self.matcher(out_logits[-1], out_bboxes[-1], targets)
+        indices = self.matcher.match(out_logits[-1], out_bboxes[-1], targets)
         auxiliary_indices = [
-            self.matcher(layer_logits, layer_bboxes, targets)
+            self.matcher.match(layer_logits, layer_bboxes, targets)
             for layer_logits, layer_bboxes in zip(out_logits[:-1], out_bboxes[:-1])
         ]
-        pre_indices = self.matcher(pre_logits, pre_bboxes, targets)
+        pre_indices = self.matcher.match(pre_logits, pre_bboxes, targets)
 
         if self.decoder.query_select_method == "agnostic":
             encoder_targets = [{**target, "labels": torch.zeros_like(target["labels"])} for target in targets]
         else:
             encoder_targets = targets
 
-        encoder_indices = self.matcher(enc_logits, enc_bboxes, encoder_targets)
+        encoder_indices = self.matcher.match(enc_logits, enc_bboxes, encoder_targets)
 
         go_indices = self._get_go_indices(indices, [*auxiliary_indices, pre_indices, encoder_indices])
         num_go_boxes = sum(len(src) for src, _ in go_indices)

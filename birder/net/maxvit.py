@@ -1,11 +1,17 @@
 """
 MaxViT, adapted from
 https://github.com/pytorch/vision/blob/main/torchvision/models/maxvit.py
+and
+https://github.com/google-research/maxvit/blob/main/maxvit/models/maxvit.py
 
 Paper "MaxViT: Multi-Axis Vision Transformer", https://arxiv.org/abs/2204.01697
+
+Changes from original:
+* Scale attention logits by the per-head dimension instead of the full feature dimension,
+  following the original implementation
 """
 
-# Reference license: BSD 3-Clause
+# Reference license: BSD 3-Clause and Apache-2.0
 
 import logging
 from collections import OrderedDict
@@ -86,10 +92,12 @@ class MBConv(nn.Module):
         super().__init__()
 
         if stride[0] != 1 or stride[1] != 1 or in_channels != out_channels:
-            self.proj = nn.Sequential(
-                nn.AvgPool2d(kernel_size=(3, 3), stride=stride, padding=(1, 1)),
-                nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
-            )
+            projection: list[nn.Module] = []
+            if stride[0] != 1 or stride[1] != 1:
+                projection.append(nn.AvgPool2d(kernel_size=(3, 3), stride=stride, padding=(1, 1)))
+
+            projection.append(nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)))
+            self.proj = nn.Sequential(*projection)
         else:
             self.proj = nn.Identity()
 
@@ -148,7 +156,7 @@ class RelativePositionalMultiHeadAttention(nn.Module):
         self.max_seq_len = self.size[0] * self.size[1]
 
         self.to_qkv = nn.Linear(feat_dim, self.n_heads * self.head_dim * 3)
-        self.scale_factor = feat_dim**-0.5
+        self.scale_factor = head_dim**-0.5
 
         self.merge = nn.Linear(self.head_dim * self.n_heads, feat_dim)
         self.relative_position_bias_table = nn.Parameter(
@@ -557,6 +565,7 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.embedding_size = block_channels[-1]
         self.classifier = self.create_classifier()
 
+        self.max_stride = 2 * 2 ** len(block_channels)
         self.stem_stride = 2
         self.stem_width = stem_channels
         self.feature_dim = block_channels[-1]
@@ -715,11 +724,11 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         super().adjust_size(new_size)
 
         new_grid_size = _get_conv_output_shape(new_size, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-        new_grid_size = _get_conv_output_shape(new_grid_size, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
         self.partition_size = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
         for m in self.body.modules():
             if isinstance(m, MaxVitBlock):
                 m.grid_size = _get_conv_output_shape(new_grid_size, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+                new_grid_size = m.grid_size
                 for layer in m.block:
                     for i in range(1, 3):
                         mod = layer.layers[i]  # PartitionAttentionLayer
@@ -794,8 +803,6 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
                         attn.relative_position_bias_table = nn.Parameter(rel_pos_bias)
 
-                new_grid_size = m.grid_size
-
 
 registry.register_model_config(
     "maxvit_t",
@@ -812,7 +819,7 @@ registry.register_model_config(
     "maxvit_s",
     MaxViT,
     config={
-        "block_channels": [96, 128, 256, 512],
+        "block_channels": [96, 192, 384, 768],
         "block_layers": [2, 2, 5, 2],
         "stem_channels": 64,
         "head_dim": 32,
@@ -839,36 +846,5 @@ registry.register_model_config(
         "stem_channels": 128,
         "head_dim": 32,
         "drop_path_rate": 0.5,
-    },
-)
-
-registry.register_weights(
-    "maxvit_s_il-all256px",
-    {
-        "url": "https://huggingface.co/birder-project/maxvit_s_il-all/resolve/main",
-        "description": "MaxViT small trained on the il-all dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 119.6,
-                "sha256": "98dab86e4c5484746e44d5cdc930b6d34faeebbf33a328d9a9267a618b71c226",
-            }
-        },
-        "net": {"network": "maxvit_s", "tag": "il-all256px"},
-    },
-)
-registry.register_weights(
-    "maxvit_s_il-all",
-    {
-        "url": "https://huggingface.co/birder-project/maxvit_s_il-all/resolve/main",
-        "description": "MaxViT small trained on the il-all dataset",
-        "resolution": (384, 384),
-        "formats": {
-            "pt": {
-                "file_size": 122.6,
-                "sha256": "61200471d4279b8782b7136f3d65cafcdb92002af1f6c90fdac9d13dde0d1009",
-            }
-        },
-        "net": {"network": "maxvit_s", "tag": "il-all"},
     },
 )

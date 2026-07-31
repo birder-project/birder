@@ -5,8 +5,8 @@ https://github.com/facebookresearch/sam2/blob/main/sam2/modeling/backbones/hiera
 Paper "SAM 2: Segment Anything in Images and Videos", https://arxiv.org/abs/2408.00714
 
 Changes from original:
-* Support only 2d
 * Allow dynamic window_spec (by defining divisor as a negative number)
+* Normalize features before global pooling
 """
 
 # Reference license: Apache-2.0
@@ -288,6 +288,7 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
 
+        self.max_stride = patch_stride[0] * q_stride[0] ** q_pool
         self.stem_stride = patch_stride[0]
         self.stem_width = stem_dim
         self.feature_dim = embed_dim
@@ -346,6 +347,9 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     def freeze_stages(self, up_to_stage: int) -> None:
         for param in self.stem.parameters():
             param.requires_grad_(False)
+
+        self.pos_embed.requires_grad_(False)
+        self.pos_embed_win.requires_grad_(False)
 
         for idx, module in enumerate(self.body.children()):
             if idx >= up_to_stage:

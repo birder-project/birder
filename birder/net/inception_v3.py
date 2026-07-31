@@ -264,9 +264,13 @@ class Inception_v3(DetectorBackbone):
             nn.Dropout(p=0.5),
         )
         self.return_channels = return_channels[1:]
-        self.feature_dim = 2048
         self.embedding_size = 2048
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = 32
+        self.feature_dim = 2048
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

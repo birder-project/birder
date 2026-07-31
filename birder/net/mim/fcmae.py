@@ -67,18 +67,22 @@ class FCMAE(MIMBaseNet):
         )
 
         # Weights initialization
-        for m in self.modules():
+        nn.init.trunc_normal_(self.proj.weight, std=0.02)
+        nn.init.zeros_(self.proj.bias)
+
+        for m in self.decoder.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-            if isinstance(m, nn.LayerNorm):
+            elif isinstance(m, nn.LayerNorm):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
 
-            if hasattr(self, "mask_token") is True:
-                nn.init.normal_(self.mask_token, std=0.02)
+        nn.init.trunc_normal_(self.pred.weight, std=0.02)
+        nn.init.zeros_(self.pred.bias)
+        nn.init.normal_(self.mask_token, std=0.02)
 
     def patchify(self, imgs: torch.Tensor) -> torch.Tensor:
         """
@@ -99,7 +103,7 @@ class FCMAE(MIMBaseNet):
 
     def unpatchify(self, x: torch.Tensor) -> torch.Tensor:
         """
-        x: (N, conv_out**2, L*C) or (N, L*C, conv_out, conv_out)
+        x: (N, grid_h * grid_w, L*C) or (N, L*C, grid_h, grid_w)
         imgs: (N, C, H, W)
         """
 
@@ -109,8 +113,8 @@ class FCMAE(MIMBaseNet):
             x = torch.einsum("ncl->nlc", x)
 
         p = self.patch_size
-        h = int(x.shape[1] ** 0.5)
-        w = int(x.shape[1] ** 0.5)
+        h = self.size[0] // p
+        w = self.size[1] // p
         assert h * w == x.shape[1]
 
         x = x.reshape(shape=(x.shape[0], h, w, p, p, self.input_channels))
@@ -144,6 +148,10 @@ class FCMAE(MIMBaseNet):
         pred = torch.einsum("ncl->nlc", pred)
 
         target = self.patchify(x)
+        mean = target.mean(dim=-1, keepdim=True)
+        var = target.var(dim=-1, keepdim=True)
+        target = (target - mean) / (var + 1.0e-6) ** 0.5
+
         loss = (pred - target) ** 2
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
         loss = (loss * mask).sum() / mask.sum()  # Mean loss on removed patches

@@ -49,7 +49,13 @@ class SeparableConv2d(nn.Module):
 
 class XceptionBlock(nn.Module):
     def __init__(
-        self, in_channels: int, out_channels: int, repeats: int, stride: tuple[int, int], grow_first: bool
+        self,
+        in_channels: int,
+        out_channels: int,
+        repeats: int,
+        stride: tuple[int, int],
+        grow_first: bool,
+        inplace_first_relu: bool = False,
     ) -> None:
         super().__init__()
 
@@ -83,7 +89,11 @@ class XceptionBlock(nn.Module):
                 else:
                     out_c = out_channels
 
-            layers.append(nn.ReLU(inplace=True))
+            inplace = True
+            if i == 0:
+                inplace = inplace_first_relu
+
+            layers.append(nn.ReLU(inplace=inplace))
             layers.append(SeparableConv2d(in_c, out_c, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)))
             layers.append(nn.BatchNorm2d(out_c))
 
@@ -127,7 +137,7 @@ class Xception(DetectorBackbone):
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
 
-        stages["stage1"] = XceptionBlock(64, 128, repeats=2, stride=(2, 2), grow_first=True)
+        stages["stage1"] = XceptionBlock(64, 128, repeats=2, stride=(2, 2), grow_first=True, inplace_first_relu=True)
         return_channels.append(128)
 
         stages["stage2"] = XceptionBlock(128, 256, repeats=2, stride=(2, 2), grow_first=True)
@@ -163,9 +173,13 @@ class Xception(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = 2048
         self.embedding_size = 2048
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = 64
+        self.feature_dim = 2048
 
         # Weight initialization
         for m in self.modules():

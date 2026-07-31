@@ -30,15 +30,20 @@ from birder.net.detection.base import clip_boxes_to_image
 from birder.ops.soft_nms import SoftNMS
 
 
-def _infer_anchor_sizes(input_stride: int, num_backbone_levels: int) -> list[list[int]]:
+def _infer_anchor_sizes(max_stride: int, stem_stride: Optional[int], num_backbone_levels: int) -> list[list[int]]:
+    if num_backbone_levels > 1 and stem_stride == max_stride:
+        anchor_base_sizes = [max_stride] * num_backbone_levels
+        anchor_base_sizes.extend([max_stride * 2, max_stride * 4])
+        return [[size] for size in anchor_base_sizes]
+
     divisor = 2 ** (num_backbone_levels - 1)
-    if input_stride % divisor != 0:
+    if max_stride % divisor != 0:
         raise ValueError(
-            f"FCOS cannot infer anchor sizes from input_stride={input_stride} "
+            f"FCOS cannot infer anchor sizes from max_stride={max_stride} "
             f"and num_backbone_levels={num_backbone_levels}"
         )
 
-    first_stride = input_stride // divisor
+    first_stride = max_stride // divisor
     return [[first_stride * (2**level_idx)] for level_idx in range(num_backbone_levels + 2)]
 
 
@@ -319,12 +324,13 @@ class FCOS(DetectionBaseNet):
             self.backbone,
             fpn_width,
             extra_blocks=LastLevelP6P7(fpn_width, fpn_width),
+            norm_layer=None,
         )
 
-        # FCOS expects one anchor per location, with level size matching the stride schedule of the pyramid.
-        # We infer that schedule backwards from the backbone's final stride and the number of retained backbone levels.
-        input_stride = getattr(self.backbone, "max_stride", 32)
-        anchor_sizes = _infer_anchor_sizes(input_stride, len(self.backbone.return_stages))
+        # Isotropic backbone stages share the stem stride, while P6 and P7 each downsample by two.
+        # Otherwise, infer the pyramid schedule backwards from the final backbone stride.
+        stem_stride = getattr(self.backbone, "stem_stride", None)
+        anchor_sizes = _infer_anchor_sizes(self.backbone.max_stride, stem_stride, len(self.backbone.return_stages))
         aspect_ratios = [[1.0]] * len(anchor_sizes)  # Set only one anchor
         self.anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
         assert (

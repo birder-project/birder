@@ -6,6 +6,7 @@ Paper "EfficientDet: Scalable and Efficient Object Detection", https://arxiv.org
 
 Changes from original:
 * Head BatchNorm layers are shared across feature-pyramid levels instead of using per-level statistics
+* Applies a score threshold before selecting the global top N pre-NMS candidates
 """
 
 # Reference license: Apache-2.0
@@ -27,9 +28,9 @@ from torchvision.ops import sigmoid_focal_loss
 
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.net.detection.base import AnchorGenerator
 from birder.net.detection.base import BoxCoder
 from birder.net.detection.base import DetectionBaseNet
+from birder.net.detection.base import ImageList
 from birder.net.detection.base import Matcher
 from birder.net.detection.base import clip_boxes_to_image
 from birder.ops.soft_nms import SoftNMS
@@ -66,12 +67,96 @@ def get_bifpn_config(min_level: int, max_level: int, weight_method: Literal["fas
     return nodes
 
 
-def _sum(x: list[torch.Tensor]) -> torch.Tensor:
-    res = x[0]
-    for i in x[1:]:
-        res = res + i
+class EfficientDetAnchorGenerator(nn.Module):
+    def __init__(
+        self,
+        num_levels: int,
+        num_scales: int = 3,
+        aspect_ratios: tuple[float, ...] = (1.0, 2.0, 0.5),
+        anchor_scale: float = 4.0,
+    ) -> None:
+        super().__init__()
+        self.num_levels = num_levels
+        self.num_scales = num_scales
+        self.aspect_ratios = aspect_ratios
+        self.anchor_scale = anchor_scale
 
-    return res
+    def num_anchors_per_location(self) -> list[int]:
+        num_anchors = self.num_scales * len(self.aspect_ratios)
+        return [num_anchors for _ in range(self.num_levels)]
+
+    def forward(self, image_list: ImageList, feature_maps: list[torch.Tensor]) -> list[torch.Tensor]:
+        torch._assert(
+            len(feature_maps) == self.num_levels,
+            f"Expected {self.num_levels} feature maps, got {len(feature_maps)}",
+        )
+
+        image_height, image_width = image_list.tensors.shape[-2:]
+        dtype = image_list.tensors.dtype
+        device = feature_maps[0].device
+        octave_scales = 2 ** (torch.arange(self.num_scales, dtype=dtype, device=device) / float(self.num_scales))
+        aspect_ratios = torch.as_tensor(self.aspect_ratios, dtype=dtype, device=device)
+        aspect_x = torch.sqrt(aspect_ratios)
+        aspect_y = 1.0 / aspect_x
+
+        anchors_over_all_feature_maps = []
+        for feature_map in feature_maps:
+            grid_height, grid_width = feature_map.shape[-2:]
+            stride_height = image_height / grid_height
+            stride_width = image_width / grid_width
+            base_anchor_widths = (
+                self.anchor_scale * stride_width * octave_scales[:, None] * aspect_x[None, :]
+            ).reshape(-1)
+            base_anchor_heights = (
+                self.anchor_scale * stride_height * octave_scales[:, None] * aspect_y[None, :]
+            ).reshape(-1)
+            base_anchors = (
+                torch.stack(
+                    [-base_anchor_widths, -base_anchor_heights, base_anchor_widths, base_anchor_heights],
+                    dim=1,
+                )
+                / 2
+            )
+
+            shifts_x = (torch.arange(grid_width, dtype=dtype, device=device) + 0.5) * stride_width
+            shifts_y = (torch.arange(grid_height, dtype=dtype, device=device) + 0.5) * stride_height
+            shift_y, shift_x = torch.meshgrid(shifts_y, shifts_x, indexing="ij")
+            shifts = torch.stack(
+                [shift_x.reshape(-1), shift_y.reshape(-1), shift_x.reshape(-1), shift_y.reshape(-1)],
+                dim=1,
+            )
+            anchors = (shifts[:, None, :] + base_anchors[None, :, :]).reshape(-1, 4)
+            anchors_over_all_feature_maps.append(anchors)
+
+        anchors_in_image = torch.concat(anchors_over_all_feature_maps, dim=0)
+        return [anchors_in_image for _ in range(len(image_list.image_sizes))]
+
+
+class EfficientDetMatcher(nn.Module):
+    def __init__(self, threshold: float) -> None:
+        super().__init__()
+        self.matcher = Matcher(threshold, threshold)
+
+    def forward(self, match_quality_matrix: torch.Tensor) -> torch.Tensor:
+        matches = self.matcher(match_quality_matrix)
+
+        # Select the first best anchor for every ground-truth box, then prefer
+        # the lowest ground-truth index if multiple boxes select the same anchor
+        best_anchor_per_target = torch.argmax(match_quality_matrix, dim=1)
+        target_indices = torch.arange(
+            match_quality_matrix.size(0), dtype=torch.int64, device=match_quality_matrix.device
+        )
+        forced_matches = torch.full_like(matches, match_quality_matrix.size(0))
+        forced_matches.scatter_reduce_(
+            0,
+            best_anchor_per_target,
+            target_indices,
+            reduce="amin",
+            include_self=True,
+        )
+        force_match_mask = forced_matches < match_quality_matrix.size(0)
+
+        return torch.where(force_match_mask, forced_matches, matches)
 
 
 class Interpolate2d(nn.Module):
@@ -308,6 +393,8 @@ class BiFpn(nn.Module):
         bifpn_config: list[dict[str, Any]],
     ):
         super().__init__()
+        norm_layer = partial(nn.BatchNorm2d, eps=0.001, momentum=0.01)
+        backbone_channels = backbone_channels.copy()
         self.resample = nn.ModuleList()
         num_backbone_levels = len(backbone_channels)
         extra_levels = max(0, num_levels - num_backbone_levels)
@@ -319,7 +406,7 @@ class BiFpn(nn.Module):
                     out_channels=fpn_channels,
                     downsample="max",
                     upsample="nearest",
-                    norm_layer=nn.BatchNorm2d,
+                    norm_layer=norm_layer,
                 )
             )
             in_channels = fpn_channels
@@ -336,10 +423,25 @@ class BiFpn(nn.Module):
                 num_levels=num_levels,
                 downsample="max",
                 upsample="nearest",
-                norm_layer=nn.BatchNorm2d,
+                norm_layer=norm_layer,
             )
             self.cells.append(fpn_layer)
             fpn_combine_channels = fpn_combine_channels[-num_levels::]
+
+        # Weights initialization
+        for module in self.modules():
+            if isinstance(module, nn.Conv2d):
+                receptive_field_size = module.weight[0, 0].numel()
+                fan_in = module.weight.size(1) * receptive_field_size
+                fan_out = module.weight.size(0) * receptive_field_size // module.groups
+                limit = math.sqrt(6.0 / (fan_in + fan_out))
+                nn.init.uniform_(module.weight, -limit, limit)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+            elif isinstance(module, nn.BatchNorm2d):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
 
     def forward(self, x: list[torch.Tensor]) -> list[torch.Tensor]:
         for resample in self.resample:
@@ -363,7 +465,13 @@ class HeadNet(nn.Module):
         for _ in range(repeats):
             layers.append(
                 nn.Conv2d(
-                    fpn_channels, fpn_channels, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=fpn_channels
+                    fpn_channels,
+                    fpn_channels,
+                    kernel_size=(3, 3),
+                    stride=(1, 1),
+                    padding=(1, 1),
+                    groups=fpn_channels,
+                    bias=False,
                 )
             )
             layers.append(
@@ -382,10 +490,29 @@ class HeadNet(nn.Module):
         self.conv_repeat = nn.Sequential(*layers)
         self.predict = nn.Sequential(
             nn.Conv2d(
-                fpn_channels, fpn_channels, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=fpn_channels
+                fpn_channels,
+                fpn_channels,
+                kernel_size=(3, 3),
+                stride=(1, 1),
+                padding=(1, 1),
+                groups=fpn_channels,
+                bias=False,
             ),
             nn.Conv2d(fpn_channels, num_outputs * num_anchors, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0)),
         )
+
+        # Weights initialization
+        for module in self.modules():
+            if isinstance(module, nn.Conv2d):
+                receptive_field_size = module.weight[0, 0].numel()
+                fan_in = module.weight.size(1) * receptive_field_size
+                nn.init.normal_(module.weight, std=math.sqrt(1.0 / fan_in))
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+            elif isinstance(module, nn.BatchNorm2d):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
 
     def forward(self, x: list[torch.Tensor]) -> torch.Tensor:
         raise NotImplementedError
@@ -406,11 +533,12 @@ class ClassificationHead(HeadNet):
         cls_logits: torch.Tensor,
         matched_idxs: list[torch.Tensor],
     ) -> torch.Tensor:
-        losses = []
+        loss = cls_logits.float().sum() * 0.0
+        num_foreground = torch.zeros((), dtype=torch.float32, device=cls_logits.device)
         for targets_per_image, cls_logits_per_image, matched_idxs_per_image in zip(targets, cls_logits, matched_idxs):
             # determine only the foreground
             foreground_idxs_per_image = matched_idxs_per_image >= 0
-            num_foreground = foreground_idxs_per_image.sum()
+            num_foreground += foreground_idxs_per_image.sum()
 
             # Create the target classification
             gt_classes_target = torch.zeros_like(cls_logits_per_image)
@@ -423,17 +551,15 @@ class ClassificationHead(HeadNet):
             valid_idxs_per_image = matched_idxs_per_image != self.BETWEEN_THRESHOLDS
 
             # Compute the classification loss
-            losses.append(
-                sigmoid_focal_loss(
-                    cls_logits_per_image[valid_idxs_per_image],
-                    gt_classes_target[valid_idxs_per_image],
-                    gamma=1.5,
-                    reduction="sum",
-                )
-                / max(1, num_foreground)
+            loss += sigmoid_focal_loss(
+                cls_logits_per_image[valid_idxs_per_image].float(),
+                gt_classes_target[valid_idxs_per_image].float(),
+                alpha=0.25,
+                gamma=1.5,
+                reduction="sum",
             )
 
-        return _sum(losses) / len(targets)
+        return loss / (num_foreground + 1.0)
 
     def forward(self, x: list[torch.Tensor]) -> torch.Tensor:
         all_cls_logits = []
@@ -457,6 +583,8 @@ class RegressionHead(HeadNet):
     def __init__(self, num_outputs: int, repeats: int, fpn_channels: int, num_anchors: int) -> None:
         super().__init__(num_outputs, repeats, fpn_channels, num_anchors)
         self.box_coder = BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))
+        self.loss_delta = 0.1
+        self.loss_weight = 50.0
 
     def compute_loss(
         self,
@@ -465,13 +593,14 @@ class RegressionHead(HeadNet):
         anchors: list[torch.Tensor],
         matched_idxs: list[torch.Tensor],
     ) -> torch.Tensor:
-        losses = []
+        loss = bbox_regression.float().sum() * 0.0
+        num_foreground = torch.zeros((), dtype=torch.float32, device=bbox_regression.device)
         for targets_per_image, bbox_regression_per_image, anchors_per_image, matched_idxs_per_image in zip(
             targets, bbox_regression, anchors, matched_idxs
         ):
             # Determine only the foreground indices, ignore the rest
             foreground_idxs_per_image = torch.where(matched_idxs_per_image >= 0)[0]
-            num_foreground = foreground_idxs_per_image.numel()
+            num_foreground += foreground_idxs_per_image.numel()
 
             # Select only the foreground boxes
             matched_gt_boxes_per_image = targets_per_image["boxes"][matched_idxs_per_image[foreground_idxs_per_image]]
@@ -480,11 +609,14 @@ class RegressionHead(HeadNet):
 
             # Compute the loss
             target_regression = self.box_coder.encode_single(matched_gt_boxes_per_image, anchors_per_image)
-            losses.append(
-                F.l1_loss(bbox_regression_per_image, target_regression, reduction="sum") / max(1, num_foreground)
+            loss += F.huber_loss(
+                bbox_regression_per_image.float(),
+                target_regression.float(),
+                delta=self.loss_delta,
+                reduction="sum",
             )
 
-        return _sum(losses) / max(1, len(targets))
+        return self.loss_weight * loss / (4.0 * (num_foreground + 1.0))
 
     def forward(self, x: list[torch.Tensor]) -> torch.Tensor:
         all_bbox_regression = []
@@ -524,13 +656,9 @@ class EfficientDet(DetectionBaseNet):
         min_level = 3
         max_level = 7
         num_levels = max_level - min_level + 1
-        anchor_sizes = [[x, int(x * 2 ** (1.0 / 3)), int(x * 2 ** (2.0 / 3))] for x in [32, 64, 128, 256, 512]]
-        aspect_ratios = [[0.5, 1.0, 2.0]] * len(anchor_sizes)
-
         score_thresh = 0.001
         fg_iou_thresh = 0.5
-        bg_iou_thresh = 0.3
-        topk_candidates = 2000
+        topk_candidates = 5000
         fpn_cell_repeats: int = self.config["fpn_cell_repeats"]
         box_class_repeats: int = self.config["box_class_repeats"]
         fpn_channels: int = self.config["fpn_channels"]
@@ -556,7 +684,7 @@ class EfficientDet(DetectionBaseNet):
             fpn_cell_repeats=fpn_cell_repeats,
             bifpn_config=bifpn_config,
         )
-        self.anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
+        self.anchor_generator = EfficientDetAnchorGenerator(num_levels)
         self.class_net = ClassificationHead(
             num_outputs=self.num_classes,
             repeats=box_class_repeats,
@@ -569,7 +697,7 @@ class EfficientDet(DetectionBaseNet):
             fpn_channels=fpn_channels,
             num_anchors=self.anchor_generator.num_anchors_per_location()[0],
         )
-        self.proposal_matcher = Matcher(fg_iou_thresh, bg_iou_thresh, allow_low_quality_matches=True)
+        self.proposal_matcher = EfficientDetMatcher(fg_iou_thresh)
         self.box_coder = BoxCoder(weights=(1.0, 1.0, 1.0, 1.0))
 
         self.score_thresh = score_thresh
@@ -633,46 +761,31 @@ class EfficientDet(DetectionBaseNet):
 
         detections: list[dict[str, torch.Tensor]] = []
         for index in range(num_images):
-            box_regression_per_image = [br[index] for br in box_regression]
-            logits_per_image = [cl[index] for cl in class_logits]
-            anchors_per_image = anchors[index]
+            box_regression_per_image = torch.concat([br[index] for br in box_regression], dim=0)
+            logits_per_image = torch.concat([cl[index] for cl in class_logits], dim=0)
+            anchors_per_image = torch.concat(anchors[index], dim=0)
             image_shape = image_sizes[index]
 
-            image_boxes_list = []
-            image_scores_list = []
-            image_labels_list = []
-            for box_regression_per_level, logits_per_level, anchors_per_level in zip(
-                box_regression_per_image, logits_per_image, anchors_per_image
-            ):
-                num_classes = logits_per_level.shape[-1]
+            # Remove low scoring boxes
+            num_classes = logits_per_image.shape[-1]
+            image_scores = torch.sigmoid(logits_per_image).flatten()
+            keep_idxs = image_scores > self.score_thresh
+            image_scores = image_scores[keep_idxs]
+            topk_idxs = torch.where(keep_idxs)[0]
 
-                # Remove low scoring boxes
-                scores_per_level = torch.sigmoid(logits_per_level).flatten()
-                keep_idxs = scores_per_level > self.score_thresh
-                scores_per_level = scores_per_level[keep_idxs]
-                topk_idxs = torch.where(keep_idxs)[0]
+            # Keep only the global top-k scoring predictions
+            num_topk = min(self.topk_candidates, topk_idxs.size(0))
+            image_scores, idxs = image_scores.topk(num_topk)
+            topk_idxs = topk_idxs[idxs]
 
-                # Keep only topk scoring predictions
-                num_topk = min(self.topk_candidates, topk_idxs.size(0))
-                scores_per_level, idxs = scores_per_level.topk(num_topk)
-                topk_idxs = topk_idxs[idxs]
+            anchor_idxs = torch.div(topk_idxs, num_classes, rounding_mode="floor")
+            image_labels = topk_idxs % num_classes
+            image_labels += 1  # Background offset
 
-                anchor_idxs = torch.div(topk_idxs, num_classes, rounding_mode="floor")
-                labels_per_level = topk_idxs % num_classes
-                labels_per_level += 1  # Background offset
-
-                boxes_per_level = self.box_coder.decode_single(
-                    box_regression_per_level[anchor_idxs], anchors_per_level[anchor_idxs]
-                )
-                boxes_per_level = clip_boxes_to_image(boxes_per_level, image_shape)
-
-                image_boxes_list.append(boxes_per_level)
-                image_scores_list.append(scores_per_level)
-                image_labels_list.append(labels_per_level)
-
-            image_boxes = torch.concat(image_boxes_list, dim=0)
-            image_scores = torch.concat(image_scores_list, dim=0)
-            image_labels = torch.concat(image_labels_list, dim=0)
+            image_boxes = self.box_coder.decode_single(
+                box_regression_per_image[anchor_idxs], anchors_per_image[anchor_idxs]
+            )
+            image_boxes = clip_boxes_to_image(image_boxes, image_shape)
 
             if self.export_mode is False:
                 # Non-maximum suppression

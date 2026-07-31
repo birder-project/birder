@@ -358,9 +358,13 @@ class PNASNet(BaseNet):
             nn.Flatten(1),
             nn.Dropout(p=dropout_rate, inplace=True),
         )
-        self.feature_dim = right_channels
         self.embedding_size = right_channels
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 2
+        self.stem_width = stem_channels
+        self.feature_dim = right_channels
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x_conv_0 = self.stem(x)

@@ -428,7 +428,7 @@ def train(args: argparse.Namespace) -> None:
             collate_fn=validation_collate_fn,
             world_size=args.world_size,
             pin_memory=args.pin_memory,
-            drop_last=args.drop_last,
+            drop_last=False,
             persistent_workers=args.persistent_workers,
         )
     else:
@@ -455,7 +455,7 @@ def train(args: argparse.Namespace) -> None:
             prefetch_factor=args.prefetch_factor,
             collate_fn=validation_collate_fn,
             pin_memory=args.pin_memory,
-            drop_last=args.drop_last,
+            drop_last=False,
             persistent_workers=args.persistent_workers,
         )
 
@@ -609,6 +609,13 @@ def train(args: argparse.Namespace) -> None:
     elif args.freeze_backbone_layers is not None:
         frozen_layers = training_utils.freeze_layers_by_block_group_regex(net.backbone, args.freeze_backbone_layers)
         logger.info(f"Froze {frozen_layers} backbone layers using block_group_regex")
+
+    if args.freeze_modules is not None:
+        training_utils.freeze_modules_by_name(net, args.freeze_modules)
+        logger.info(f"Froze modules: {', '.join(args.freeze_modules)}")
+    if args.freeze_backbone_modules is not None:
+        training_utils.freeze_modules_by_name(net.backbone, args.freeze_backbone_modules)
+        logger.info(f"Froze backbone modules: {', '.join(args.freeze_backbone_modules)}")
 
     if args.freeze_bn is True:
         net = training_utils.freeze_batchnorm2d(net)

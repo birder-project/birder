@@ -125,7 +125,14 @@ class MAE_Hiera(MIMBaseNet):
         )
 
         # Weight initialization
-        for m in self.modules():
+        nn.init.trunc_normal_(self.mask_token, std=0.02)
+        nn.init.trunc_normal_(self.decoder_pos_embed, std=0.02)
+        nn.init.ones_(self.encoder_norm.weight)
+        nn.init.zeros_(self.encoder_norm.bias)
+        nn.init.xavier_uniform_(self.decoder_embed.weight)
+        nn.init.zeros_(self.decoder_embed.bias)
+
+        for m in self.decoder_blocks.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
@@ -134,6 +141,11 @@ class MAE_Hiera(MIMBaseNet):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
+
+        nn.init.ones_(self.decoder_norm.weight)
+        nn.init.zeros_(self.decoder_norm.bias)
+        nn.init.xavier_uniform_(self.decoder_pred.weight)
+        nn.init.zeros_(self.decoder_pred.bias)
 
     def get_pixel_label_2d(self, input_img: torch.Tensor, mask: torch.Tensor, norm: bool) -> torch.Tensor:
         input_img = input_img.permute(0, 2, 3, 1)

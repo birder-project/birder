@@ -253,7 +253,7 @@ class TinyVitBlock(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        B, H, W, C = x.shape
+        B, H, W, C = x.size()
         L = H * W
 
         shortcut = x
@@ -265,7 +265,7 @@ class TinyVitBlock(nn.Module):
             pad_b = (self.window_size[0] - H % self.window_size[0]) % self.window_size[0]
             pad_r = (self.window_size[1] - W % self.window_size[1]) % self.window_size[1]
             padding = pad_b > 0 or pad_r > 0
-            if padding:
+            if padding is True:
                 x = F.pad(x, (0, 0, 0, pad_r, 0, pad_b))
 
             # Window partition
@@ -284,7 +284,7 @@ class TinyVitBlock(nn.Module):
             # Window reverse
             x = x.view(B, nH, nW, self.window_size[0], self.window_size[1], C).transpose(2, 3).reshape(B, pH, pW, C)
 
-            if padding:
+            if padding is True:
                 x = x[:, :H, :W].contiguous()
 
         x = shortcut + self.drop_path1(x)
@@ -408,9 +408,13 @@ class Tiny_ViT(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = num_features
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = embed_dims[0]
+        self.feature_dim = num_features
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
@@ -473,7 +477,7 @@ class Tiny_ViT(DetectorBackbone):
                             # Interpolate the actual table
                             m.attn.attention_biases = nn.Parameter(
                                 interpolate_attention_bias(
-                                    m.attn.attention_biases, old_window_sizes[idx], window_sizes[idx], mode="bilinear"
+                                    m.attn.attention_biases, old_window_sizes[idx], window_sizes[idx]
                                 )
                             )
 

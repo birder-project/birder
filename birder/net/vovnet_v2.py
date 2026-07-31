@@ -205,9 +205,13 @@ class VoVNet_v2(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = stage_out_channels[-1]
         self.embedding_size = stage_out_channels[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = stem_channels[-1]
+        self.feature_dim = stage_out_channels[-1]
 
         # Weight initialization
         for m in self.modules():

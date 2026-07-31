@@ -278,6 +278,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             "projection_dim": args.projection_dim,
             "projection_hidden_dim": args.projection_hidden_dim,
             "projection_layers": args.projection_layers,
+            "num_global_crops": 2,
             "loss_lambda": args.loss_lambda,
             "num_slices": args.num_slices,
             "num_knots": args.num_knots,

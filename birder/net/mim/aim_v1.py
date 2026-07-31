@@ -24,17 +24,15 @@ class MLPBlock(nn.Module):
     def __init__(self, dim: int) -> None:
         super().__init__()
 
-        self.norm1 = nn.LayerNorm(dim)
+        self.norm = nn.LayerNorm(dim, eps=1e-6)
         self.mlp = nn.Sequential(
             nn.Linear(dim, dim * 4, bias=False),
             nn.GELU(),
             nn.Linear(dim * 4, dim, bias=False),
         )
-        self.norm2 = nn.LayerNorm(dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x + self.norm1(x)
-        return x + self.mlp(self.norm2(x))
+        return x + self.mlp(self.norm(x))
 
 
 class AIM_v1(MIMBaseNet):
@@ -67,6 +65,7 @@ class AIM_v1(MIMBaseNet):
             w=self.size[1] // self.patch_size,
             dim=decoder_embed_dim,
             num_special_tokens=0,
+            include_frequency_endpoint=False,
         )
         self.decoder_pos_embed = nn.Buffer(pos_embedding.unsqueeze(0))
 
@@ -75,11 +74,14 @@ class AIM_v1(MIMBaseNet):
             layers.append(MLPBlock(decoder_embed_dim))
 
         self.decoder_blocks = nn.Sequential(*layers)
-        self.decoder_norm = nn.LayerNorm(decoder_embed_dim)
+        self.decoder_norm = nn.LayerNorm(decoder_embed_dim, eps=1e-6)
         self.decoder_pred = nn.Linear(decoder_embed_dim, self.patch_size**2 * self.input_channels)
 
         # Weight initialization
-        for m in self.modules():
+        nn.init.xavier_uniform_(self.decoder_embed.weight)
+        nn.init.zeros_(self.decoder_embed.bias)
+
+        for m in self.decoder_blocks.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
@@ -88,6 +90,9 @@ class AIM_v1(MIMBaseNet):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
+
+        nn.init.ones_(self.decoder_norm.weight)
+        nn.init.zeros_(self.decoder_norm.bias)
 
         scale = 1.0 / (1 + decoder_depth)
         std = math.sqrt(scale / self.decoder_pred.in_features)
@@ -131,8 +136,7 @@ class AIM_v1(MIMBaseNet):
         return imgs
 
     def _sample_prefix_lengths(self, batch_size: int, num_patches: int, device: torch.device) -> torch.Tensor:
-        prefix_max = min(255, num_patches - 1)
-        return torch.randint(1, prefix_max + 1, (batch_size,), dtype=torch.long, device=device)
+        return torch.randint(1, num_patches, (batch_size,), dtype=torch.long, device=device)
 
     def _make_prefix_mask(self, prefix_lengths: torch.Tensor, num_patches: int) -> torch.Tensor:
         patch_idx = torch.arange(num_patches, device=prefix_lengths.device).unsqueeze(0)

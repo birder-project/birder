@@ -46,7 +46,7 @@ def get_signature(input_shape: tuple[int, ...], num_outputs: int) -> SignatureTy
     }
 
 
-def make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> int:
+def make_divisible(v: float, divisor: int, min_value: Optional[int] = None, round_limit: float = 0.9) -> int:
     """
     This function is taken from the original TensorFlow repository.
     It ensures that all layers have a channel number that is divisible by 8
@@ -59,8 +59,8 @@ def make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> i
 
     new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
 
-    # Make sure that round down does not go down by more than 10%
-    if new_v < 0.9 * v:
+    # Make sure that round down does not go down by more than the round limit
+    if new_v < round_limit * v:
         new_v += divisor
 
     return new_v
@@ -208,6 +208,7 @@ class BaseNet(nn.Module):
             self.head_bias = self.config.get("head_bias", True)
             self.mlp_head = self.config.get("mlp_head", False)
 
+        self.max_stride: int
         self.feature_dim: int
         self.embedding_size: int
         self.classifier: nn.Module
@@ -322,7 +323,6 @@ class PreTrainEncoder(BaseNet):  # pylint: disable=abstract-method
         size: Optional[tuple[int, int]] = None,
     ) -> None:
         super().__init__(input_channels, num_classes, config=config, size=size)
-        self.max_stride: int = 32
         self.stem_stride: int
         self.stem_width: int
         self.decoder_block: Callable[[int], nn.Module]

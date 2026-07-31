@@ -13,6 +13,7 @@ from birder.conf import settings
 from birder.data.collators.detection import batch_images
 from birder.data.transforms.detection import InferenceTransform
 from birder.inference import sliding_window
+from birder.inference.wbf import ConfType
 from birder.inference.wbf import fuse_detections_wbf
 from birder.net.base import make_divisible
 
@@ -97,6 +98,7 @@ def infer_image(
     sample: Image.Image | str,
     transform: Callable[..., torch.Tensor],
     tta: bool = False,
+    tta_conf_type: ConfType = "absent_model_aware_avg",
     device: Optional[torch.device] = None,
     score_threshold: Optional[float] = None,
     **kwargs: Any,
@@ -124,7 +126,7 @@ def infer_image(
         device = torch.device("cpu")
 
     input_tensor = transform(image).unsqueeze(dim=0).to(device)
-    detections = infer_batch(net, input_tensor, tta=tta, **kwargs)
+    detections = infer_batch(net, input_tensor, tta=tta, tta_conf_type=tta_conf_type, **kwargs)
     if score_threshold is not None:
         for i, detection in enumerate(detections):
             idxs = torch.where(detection["scores"] > score_threshold)
@@ -145,6 +147,7 @@ def infer_batch(
     masks: Optional[torch.Tensor] = None,
     image_sizes: Optional[list[tuple[int, int]]] = None,
     tta: bool = False,
+    tta_conf_type: ConfType = "absent_model_aware_avg",
     channels_last: bool = False,
     **kwargs: Any,
 ) -> list[dict[str, torch.Tensor]]:
@@ -175,7 +178,7 @@ def infer_batch(
         flipped_detections = _rescale_detections(flipped_detections, scaled_sizes, normalized_sizes)
         detections_list.append(flipped_detections)
 
-    return fuse_detections_wbf(detections_list, iou_thr=0.55, conf_type="absent_model_aware_avg")
+    return fuse_detections_wbf(detections_list, iou_thr=0.55, conf_type=tta_conf_type)
 
 
 def infer_dataloader(
@@ -183,6 +186,7 @@ def infer_dataloader(
     net: torch.nn.Module | torch.ScriptModule,
     dataloader: DataLoader,
     tta: bool = False,
+    tta_conf_type: ConfType = "absent_model_aware_avg",
     channels_last: bool = False,
     model_dtype: torch.dtype = torch.float32,
     amp: bool = False,
@@ -219,6 +223,8 @@ def infer_dataloader(
         The DataLoader containing the dataset to perform inference on.
     tta
         Run inference with multi-scale and horizontal flip test time augmentation and fuse results with WBF.
+    tta_conf_type
+        WBF confidence aggregation mode used for test time augmentation.
     channels_last
         If True, convert input batches to channels-last memory format before inference.
     model_dtype
@@ -290,7 +296,13 @@ def infer_dataloader(
             with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
                 if sliding_window_tile_size is None:
                     detections = infer_batch(
-                        net, inputs, masks=masks, image_sizes=image_sizes, tta=tta, channels_last=channels_last
+                        net,
+                        inputs,
+                        masks=masks,
+                        image_sizes=image_sizes,
+                        tta=tta,
+                        tta_conf_type=tta_conf_type,
+                        channels_last=channels_last,
                     )
                 else:
                     detections = []

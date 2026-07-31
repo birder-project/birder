@@ -26,86 +26,12 @@ from birder.common import training_utils
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
-from birder.ops.linear_assignment import LinearAssignment
+from birder.net.detection.hungarian_matcher import HungarianMatcher
 from birder.ops.soft_nms import SoftNMS
 
 
 def _get_clones(module: nn.Module, N: int) -> nn.ModuleList:
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
-
-
-class HungarianMatcher(nn.Module):
-    """
-    This class computes an assignment between the targets and the predictions of the network
-    """
-
-    def __init__(self, cost_class: float, cost_bbox: float, cost_giou: float):
-        super().__init__()
-        assert cost_class != 0 or cost_bbox != 0 or cost_giou != 0
-        self.cost_class = cost_class
-        self.cost_bbox = cost_bbox
-        self.cost_giou = cost_giou
-        self.linear_assignment = LinearAssignment()
-
-    @torch.jit.unused  # type: ignore[untyped-decorator]
-    def forward(
-        self, class_logits: torch.Tensor, box_regression: torch.Tensor, targets: list[dict[str, torch.Tensor]]
-    ) -> list[tuple[torch.Tensor, torch.Tensor]]:
-        with torch.no_grad():
-            B, num_queries = class_logits.shape[:2]
-
-            # We flatten to compute the cost matrices in a batch
-            out_prob = class_logits.flatten(0, 1).softmax(-1)  # [batch_size * num_queries, num_classes]
-            out_bbox = box_regression.flatten(0, 1)  # [batch_size * num_queries, 4]
-
-            # Also concat the target labels and boxes
-            tgt_ids = torch.concat([v["labels"] for v in targets], dim=0)
-            tgt_bbox = torch.concat([v["boxes"] for v in targets], dim=0)
-
-            # Compute the classification cost. Contrary to the loss, we don't use the NLL,
-            # but approximate it in 1 - prob[target class].
-            # The 1 is a constant that doesn't change the matching, it can be omitted.
-            cost_class = -out_prob[:, tgt_ids]
-
-            # Compute the L1 cost between boxes
-            cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1.0)
-
-            # Compute the giou cost between boxes
-            cost_giou = -box_ops.generalized_box_iou(
-                box_ops.box_convert(out_bbox, in_fmt="cxcywh", out_fmt="xyxy"),
-                box_ops.box_convert(tgt_bbox, in_fmt="cxcywh", out_fmt="xyxy"),
-            )
-
-            # Final cost matrix
-            C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
-            C = C.view(B, num_queries, -1)
-            finite = torch.isfinite(C)
-            if not torch.all(finite):
-                penalty = C[finite].max().item() + 1.0 if finite.any().item() else 1.0
-                C.nan_to_num_(nan=penalty, posinf=penalty, neginf=penalty)
-
-            sizes = [len(v["boxes"]) for v in targets]
-            empty_indices = torch.empty(0, dtype=torch.int64, device=C.device)
-            indices: list[tuple[torch.Tensor, torch.Tensor]] = [(empty_indices, empty_indices) for _ in range(B)]
-            grouped_ranges: dict[int, list[tuple[int, int, int]]] = {}
-            start = 0
-            for batch_idx, size in enumerate(sizes):
-                end = start + size
-                if size > 0:
-                    grouped_ranges.setdefault(size, []).append((batch_idx, start, end))
-
-                start = end
-
-            for size, entries in grouped_ranges.items():
-                bucket_cost = torch.stack([C[batch_idx, :, start:end] for batch_idx, start, end in entries], dim=0)
-                col4row_batch, _row4col = self.linear_assignment(bucket_cost)
-                for row_idx, (batch_idx, _start, _end) in enumerate(entries):
-                    col4row = col4row_batch[row_idx]
-                    src_indices = torch.nonzero(col4row >= 0, as_tuple=False).flatten()
-                    tgt_indices = col4row[src_indices].to(torch.int64)
-                    indices[batch_idx] = (src_indices.to(torch.int64), tgt_indices)
-
-            return indices
 
 
 class TransformerEncoderLayer(nn.Module):
@@ -279,11 +205,14 @@ class Transformer(nn.Module):
 
 
 class PositionEmbeddingSine(nn.Module):
-    def __init__(self, num_pos_feats: int, temperature: int = 10000, normalize: bool = False) -> None:
+    def __init__(
+        self, num_pos_feats: int, temperature: int = 10000, normalize: bool = False, offset: float = 0.0
+    ) -> None:
         super().__init__()
         self.num_pos_feats = num_pos_feats
         self.temperature = temperature
         self.normalize = normalize
+        self.offset = offset
         self.scale = 2 * math.pi
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -296,8 +225,8 @@ class PositionEmbeddingSine(nn.Module):
         x_embed = not_mask.cumsum(2, dtype=torch.float32)
         if self.normalize is True:
             eps = 1e-6
-            y_embed = y_embed / (y_embed[:, -1:, :] + eps) * self.scale
-            x_embed = x_embed / (x_embed[:, :, -1:] + eps) * self.scale
+            y_embed = (y_embed - self.offset) / (y_embed[:, -1:, :] + eps) * self.scale
+            x_embed = (x_embed - self.offset) / (x_embed[:, :, -1:] + eps) * self.scale
 
         dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=x.device)
         dim_t = self.temperature ** (2 * (dim_t // 2) / self.num_pos_feats)
@@ -359,7 +288,7 @@ class DETR(DetectionBaseNet):
         )
         self.pos_enc = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
 
-        self.matcher = HungarianMatcher(cost_class=1.0, cost_bbox=5.0, cost_giou=2.0)
+        self.matcher = HungarianMatcher(class_weight=1.0, bbox_weight=5.0, giou_weight=2.0, use_focal_cost=False)
         empty_weight = torch.ones(self.num_classes)
         empty_weight[0] = 0.1
         self.empty_weight = nn.Buffer(empty_weight)
@@ -447,7 +376,7 @@ class DETR(DetectionBaseNet):
         loss_bbox_list = []
         loss_giou_list = []
         for idx in range(cls_logits.size(0)):
-            indices = self.matcher(cls_logits[idx], box_output[idx], targets)
+            indices = self.matcher.match(cls_logits[idx], box_output[idx], targets)
             loss_ce_i = self._class_loss(cls_logits[idx], targets, indices)
             loss_bbox_i, loss_giou_i = self._box_loss(box_output[idx], targets, indices, num_boxes)
             loss_ce_list.append(loss_ce_i)
@@ -507,7 +436,7 @@ class DETR(DetectionBaseNet):
         if masks is not None:
             masks = F.interpolate(masks[None].float(), size=x.shape[-2:], mode="nearest").to(torch.bool)[0]
 
-        pos = self.pos_enc(x, masks)
+        pos = self.pos_enc(x, masks).to(x.dtype)
         hs = self.transformer(self.input_proj(x), self.query_embed.weight, pos_embed=pos, mask=masks)
         outputs_class = self.class_embed(hs)
         outputs_coord = self.bbox_embed(hs).sigmoid()

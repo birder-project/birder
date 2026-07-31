@@ -85,6 +85,9 @@ class Data2Vec(SSLBaseNet):
         y = y[mask]
 
         x = self.head(x)
-        loss = F.smooth_l1_loss(x, y, reduction="none", beta=self.loss_beta).sum(dim=-1).mean()
+        if self.loss_beta == 0:
+            loss = F.mse_loss(x, y, reduction="none").sum(dim=-1).mean()
+        else:
+            loss = F.smooth_l1_loss(x, y, reduction="none", beta=self.loss_beta).sum(dim=-1).mean()
 
         return loss

@@ -25,7 +25,7 @@ safetensors~=0.8.0
 setuptools
 # tensorrt~=11.1.0.106
 torchprofile==0.1.0
-twine~=6.2.0
+twine~=7.0.0
 types-requests~=2.33.0
 # umap-learn~=0.5.12
 unidecode

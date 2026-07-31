@@ -262,11 +262,15 @@ class Inception_ResNet_v2(DetectorBackbone):
             nn.Flatten(1),
             nn.Dropout(p=0.2),
         )
-        self.return_channels = return_channels[1:]
         self.return_stages = self.return_stages[1:]
-        self.feature_dim = 1536
+        self.return_channels = return_channels[1:]
         self.embedding_size = 1536
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 8
+        self.stem_width = 192
+        self.feature_dim = 1536
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

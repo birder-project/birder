@@ -3,7 +3,6 @@ import ast
 import hashlib
 import json
 import logging
-import os
 import shutil
 import ssl
 import uuid
@@ -138,42 +137,40 @@ def download_file(
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
 
-    u = urlopen(req, context=ssl_context)  # pylint: disable=consider-using-with  # nosec
-    meta = u.info()
-    if hasattr(meta, "getheaders") is True:
-        content_length = meta.getheaders("Content-Length")
-    else:
-        content_length = meta.get_all("Content-Length")
-
-    if content_length is not None and len(content_length) > 0:
-        file_size = int(content_length[0])
-
-    # We deliberately save it in a temp file and move it after download is complete.
-    # This prevents a local working checkpoint being overridden by a broken download.
-    tmp_dst = str(dst) + "." + uuid.uuid4().hex + ".partial"
+    # We deliberately save it in a temp file and move it after download is complete
+    # This prevents a local working checkpoint being overridden by a broken download
+    tmp_dst = Path(f"{dst}.{uuid.uuid4().hex}.partial")
     try:
-        f = open(tmp_dst, "w+b")  # pylint: disable=consider-using-with
-        sha256 = hashlib.sha256()
-        with tqdm(total=file_size, unit="B", unit_scale=True, unit_divisor=1024, disable=not progress_bar) as progress:
-            while True:
-                buffer = u.read(chunk_size)
-                if len(buffer) == 0:
-                    break
+        with urlopen(req, context=ssl_context) as response:  # nosec
+            meta = response.info()
+            if hasattr(meta, "getheaders") is True:
+                content_length = meta.getheaders("Content-Length")
+            else:
+                content_length = meta.get_all("Content-Length")
 
-                f.write(buffer)
-                sha256.update(buffer)
-                progress.update(len(buffer))
+            if content_length is not None and len(content_length) > 0:
+                file_size = int(content_length[0])
+
+            sha256 = hashlib.sha256()
+            with open(tmp_dst, "w+b") as handle:
+                with tqdm(
+                    total=file_size, unit="B", unit_scale=True, unit_divisor=1024, disable=not progress_bar
+                ) as progress:
+                    while True:
+                        buffer = response.read(chunk_size)
+                        if len(buffer) == 0:
+                            break
+
+                        handle.write(buffer)
+                        sha256.update(buffer)
+                        progress.update(len(buffer))
 
         digest = sha256.hexdigest()
-        f.close()
         if expected_sha256 is not None and digest != expected_sha256:
             raise RuntimeError(f'invalid hash value (expected "{expected_sha256}", got "{digest}")')
 
-        shutil.move(f.name, dst)
+        shutil.move(tmp_dst, dst)
         logger.info(f"Finished, file saved at {dst}")
 
     finally:
-        f.close()
-        u.close()
-        if os.path.exists(f.name) is True:
-            os.remove(f.name)
+        tmp_dst.unlink(missing_ok=True)

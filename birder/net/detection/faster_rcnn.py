@@ -180,6 +180,9 @@ def _batched_nms_coordinate_trick(
     then runs standard NMS on all boxes together.
     """
 
+    if boxes.numel() == 0:
+        return torch.empty((0,), dtype=torch.int64, device=boxes.device)
+
     max_coordinate = boxes.max()
     offsets = idxs.to(boxes) * (max_coordinate + 1)
     boxes_for_nms = boxes + offsets[:, None]
@@ -342,12 +345,11 @@ class RegionProposalNetwork(nn.Module):
             if self.export_mode is False:
                 # Non-maximum suppression, independently done per level
                 keep = box_ops.batched_nms(boxes, scores, lvl, self.nms_thresh)
-
-                # Keep only topk scoring predictions
-                keep = keep[: self.post_nms_top_n()]
             else:
                 keep = _batched_nms_coordinate_trick(boxes, scores, lvl, self.nms_thresh)
 
+            # Keep only topk scoring predictions
+            keep = keep[: self.post_nms_top_n()]
             boxes = boxes[keep]
             scores = scores[keep]
             final_boxes.append(boxes)
@@ -819,8 +821,15 @@ class Faster_RCNN(DetectionBaseNet):
 
         self.backbone_with_fpn = BackboneWithFPN(self.backbone, fpn_width, extra_blocks=LastLevelMaxPool())
 
-        anchor_sizes = [[32], [64], [128], [256], [512]]
-        anchor_sizes = anchor_sizes[-len(self.backbone.return_stages) - 1 :]
+        num_backbone_stages = len(self.backbone.return_stages)
+        stem_stride = getattr(self.backbone, "stem_stride", None)
+        if num_backbone_stages > 1 and stem_stride == self.backbone.max_stride:
+            anchor_sizes = [[32], [64], [128], [256], [512]]
+            anchor_sizes = anchor_sizes[-num_backbone_stages - 1 :]
+        else:
+            first_stride = self.backbone.max_stride // 2 ** (num_backbone_stages - 1)
+            anchor_sizes = [[8 * first_stride * 2**level_idx] for level_idx in range(num_backbone_stages + 1)]
+
         aspect_ratios = [[0.5, 1.0, 2.0]] * len(anchor_sizes)
         rpn_anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
         rpn_head = RPNHead(

@@ -194,7 +194,7 @@ class RepVggDW(nn.Module):
             self.bn = nn.BatchNorm2d(dim)
 
         if use_se is True:
-            self.se = SqueezeExcitation(dim, make_divisible(dim // 4, 8))
+            self.se = SqueezeExcitation(dim, make_divisible(dim * 0.25, 8, round_limit=0.0))
         else:
             self.se = nn.Identity()
 
@@ -437,14 +437,15 @@ class RepViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.dist_classifier = self.create_classifier()
         self.classifier = self.create_classifier()
         self.distillation_output = False
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes
@@ -493,10 +494,6 @@ class RepViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             for param in module.parameters():
                 param.requires_grad_(False)
 
-    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.stem(x)
-        return self.body(x)
-
     def masked_encoding_retention(
         self,
         x: torch.Tensor,
@@ -515,6 +512,10 @@ class RepViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             result["embedding"] = self.features(x)
 
         return result
+
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
+        return self.body(x)
 
     def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
         return self.features(features)
@@ -559,7 +560,7 @@ class RepViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.reparameterized = True
 
 
-registry.register_model_config("repvit_m0_6", RepViT, config={"embed_dims": [48, 80, 160, 320], "depths": [1, 2, 9, 1]})
+registry.register_model_config("repvit_m0_6", RepViT, config={"embed_dims": [40, 80, 160, 320], "depths": [1, 1, 8, 1]})
 registry.register_model_config(
     "repvit_m0_9", RepViT, config={"embed_dims": [48, 96, 192, 384], "depths": [2, 2, 14, 2]}
 )
@@ -574,33 +575,4 @@ registry.register_model_config(
 )
 registry.register_model_config(
     "repvit_m2_3", RepViT, config={"embed_dims": [80, 160, 320, 640], "depths": [6, 6, 34, 2]}
-)
-
-registry.register_weights(
-    "repvit_m0_6_il-common",
-    {
-        "description": "RepViT M0.6 model trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 10.1,
-                "sha256": "4dfbad6d0f0b859d2d7bde9065dd6a93a72ff2fe32c923c7179004261bd2d700",
-            }
-        },
-        "net": {"network": "repvit_m0_6", "tag": "il-common"},
-    },
-)
-registry.register_weights(
-    "repvit_m0_6_il-common_reparameterized",
-    {
-        "description": "RepViT M0.6 (reparameterized) model trained on the il-common dataset",
-        "resolution": (256, 256),
-        "formats": {
-            "pt": {
-                "file_size": 9.8,
-                "sha256": "9f253719ce40cb5b5dbde1e56ced027f9f88f05cd2e4514b5736ba90a1410357",
-            }
-        },
-        "net": {"network": "repvit_m0_6", "tag": "il-common_reparameterized", "reparameterized": True},
-    },
 )

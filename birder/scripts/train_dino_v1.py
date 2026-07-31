@@ -286,6 +286,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         logger.info(f"Froze {frozen_layers} encoder layers using block_group_regex")
         training_utils.freeze_layers_by_block_group_regex(teacher_backbone, args.freeze_encoder_layers)
 
+    if args.freeze_encoder_modules is not None:
+        training_utils.freeze_modules_by_name(student_backbone, args.freeze_encoder_modules)
+        logger.info(f"Froze encoder modules: {', '.join(args.freeze_encoder_modules)}")
+
     student_backbone.set_dynamic_size()
     teacher_backbone.set_dynamic_size()
     student = DINO_v1(

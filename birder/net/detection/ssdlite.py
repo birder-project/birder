@@ -5,7 +5,7 @@ https://github.com/pytorch/vision/blob/main/torchvision/models/detection/ssdlite
 Paper "MobileNetV2: Inverted Residuals and Linear Bottlenecks", https://arxiv.org/abs/1801.04381
 
 Changes from original:
-* Different backbone feature strides
+* Different backbone feature maps
 * The implementation is not an exact replication of the original paper
 """
 
@@ -29,7 +29,7 @@ from birder.net.detection.ssd import SSDScoringHead
 class SSDLiteClassificationHead(SSDScoringHead):
     def __init__(self, in_channels: list[int], num_anchors: list[int], num_classes: int):
         cls_logits = nn.ModuleList()
-        for channels, anchors in zip(in_channels, num_anchors):
+        for channels, anchors in zip(in_channels, num_anchors, strict=True):
             cls_logits.append(
                 nn.Sequential(
                     Conv2dNormActivation(
@@ -58,7 +58,7 @@ class SSDLiteClassificationHead(SSDScoringHead):
 class SSDLiteRegressionHead(SSDScoringHead):
     def __init__(self, in_channels: list[int], num_anchors: list[int]):
         bbox_reg = nn.ModuleList()
-        for channels, anchors in zip(in_channels, num_anchors):
+        for channels, anchors in zip(in_channels, num_anchors, strict=True):
             bbox_reg.append(
                 nn.Sequential(
                     Conv2dNormActivation(
@@ -161,23 +161,22 @@ class SSDLite(SSD):
 
         self.backbone.return_channels = self.backbone.return_channels[-2:]
         self.backbone.return_stages = self.backbone.return_stages[-2:]
+        self.anchor_generator = DefaultBoxGenerator([[2, 3] for _ in range(6)], min_ratio=0.2, max_ratio=0.95)
+
+        num_extra_levels = len(self.anchor_generator.aspect_ratios) - len(self.backbone.return_channels)
+        extra_channels = [512] + [256] * (num_extra_levels - 2) + [128]
         self.extra_blocks = nn.ModuleList(
-            [
-                ExtraBlock(self.backbone.return_channels[-1], 512, stride=(2, 2)),
-                ExtraBlock(512, 256, stride=(2, 2)),
-                ExtraBlock(256, 256, stride=(2, 2)),
-                ExtraBlock(256, 128, stride=(1, 1)),
-            ]
+            ExtraBlock(in_channels, out_channels, stride=(2, 2))
+            for in_channels, out_channels in zip(
+                [self.backbone.return_channels[-1], *extra_channels[:-1]], extra_channels, strict=True
+            )
         )
 
-        self.anchor_generator = DefaultBoxGenerator(
-            [[2], [2, 3], [2, 3], [2, 3], [2], [2]],
-            scales=[0.07, 0.15, 0.33, 0.51, 0.69, 0.87, 1.05],
-        )
         self.box_coder = BoxCoder(weights=(10.0, 10.0, 5.0, 5.0))
 
+        self.head_in_channels = self.backbone.return_channels + extra_channels
         num_anchors = self.anchor_generator.num_anchors_per_location()
-        self.head = SSDLiteHead(self.backbone.return_channels + [512, 256, 256, 128], num_anchors, self.num_classes)
+        self.head = SSDLiteHead(self.head_in_channels, num_anchors, self.num_classes)
         self.proposal_matcher = SSDMatcher(iou_thresh)
 
         self.score_thresh = score_thresh
@@ -189,7 +188,7 @@ class SSDLite(SSD):
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes + 1
         self.head.classification_head = SSDLiteClassificationHead(
-            self.backbone.return_channels + [512, 256, 256, 128],
+            self.head_in_channels,
             self.anchor_generator.num_anchors_per_location(),
             self.num_classes,
         )

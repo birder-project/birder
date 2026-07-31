@@ -45,7 +45,7 @@ class HOGTarget(nn.Module):
         Parameters
         ----------
         x
-            Grayscale or RGB images of shape (B, C, H, W).
+            Images of shape (B, C, H, W).
 
         Returns
         -------

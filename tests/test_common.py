@@ -6,7 +6,9 @@ import tempfile
 import typing
 import unittest
 from collections import OrderedDict
+from pathlib import Path
 from typing import Any
+from unittest.mock import Mock
 from unittest.mock import mock_open
 from unittest.mock import patch
 
@@ -123,6 +125,13 @@ class TestCLI(unittest.TestCase):
 
 
 class TestFSOps(unittest.TestCase):
+    @staticmethod
+    def _checkpoint_path(name: str, mtime: float) -> Mock:
+        path = Mock()
+        path.name = name
+        path.stat.return_value.st_mtime = mtime
+        return path
+
     def test_fs_ops(self) -> None:
         # Test model paths
         path = fs_ops.model_path("net", states=True)
@@ -151,6 +160,34 @@ class TestFSOps(unittest.TestCase):
 
         path = fs_ops.model_path("net", epoch=17)
         self.assertEqual(path, settings.MODELS_DIR.joinpath("net_17.pt"))
+
+    def test_list_checkpoints(self) -> None:
+        checkpoint_0 = self._checkpoint_path("net_0.pt", 0.0)
+        checkpoint_1 = self._checkpoint_path("net_1.pt", 40.0)
+        checkpoint_2 = self._checkpoint_path("net_2.pt", 20.0)
+        checkpoint_3 = self._checkpoint_path("net_3.pt", 30.0)
+        other_checkpoint = self._checkpoint_path("net_experiment_4.pt", 10.0)
+        models_dir = Mock()
+        models_dir.joinpath.side_effect = Path("models").joinpath
+        models_dir.glob.return_value = iter([checkpoint_0, checkpoint_1, checkpoint_2, checkpoint_3, other_checkpoint])
+
+        with patch.object(settings, "MODELS_DIR", models_dir):
+            checkpoint_paths = fs_ops.list_checkpoints("net")
+
+        self.assertEqual(checkpoint_paths, [checkpoint_2, checkpoint_3, checkpoint_1])
+        models_dir.glob.assert_called_once_with("net_*[0-9].pt")
+
+        state_1 = self._checkpoint_path("net_1_states.pt", 20.0)
+        state_2 = self._checkpoint_path("net_2_states.pt", 10.0)
+        models_dir.reset_mock()
+        models_dir.joinpath.side_effect = Path("models").joinpath
+        models_dir.glob.return_value = iter([state_1, state_2])
+
+        with patch.object(settings, "MODELS_DIR", models_dir):
+            state_paths = fs_ops.list_checkpoints("net", states=True)
+
+        self.assertEqual(state_paths, [state_2, state_1])
+        models_dir.glob.assert_called_once_with("net_*[0-9]_states.pt")
 
 
 class TestTrainingUtils(unittest.TestCase):
@@ -340,6 +377,39 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertFalse(model.body.stage2.downsample.weight.requires_grad)
         self.assertFalse(model.body.stage2.blocks[0].weight.requires_grad)
         self.assertTrue(model.head.weight.requires_grad)
+
+    def test_freeze_modules_by_name_is_additive(self) -> None:
+        model = ViT(
+            3,
+            2,
+            config={
+                "patch_size": 32,
+                "num_layers": 6,
+                "num_heads": 4,
+                "hidden_dim": 64,
+                "mlp_dim": 256,
+                "num_reg_tokens": 0,
+                "drop_path_rate": 0.0,
+            },
+        )
+        training_utils.freeze_layers_by_block_group_regex(model, 4)
+        selected_modules = [model.encoder.block[5].mlp, model.encoder.block[5].norm2]
+
+        training_utils.freeze_modules_by_name(model, ["encoder.block.5.mlp", "encoder.block.5.norm2"])
+
+        self.assertTrue(all(parameter.requires_grad is False for parameter in model.encoder.block[3].parameters()))
+        self.assertTrue(all(parameter.requires_grad is True for parameter in model.encoder.block[4].parameters()))
+        self.assertTrue(
+            all(parameter.requires_grad is False for module in selected_modules for parameter in module.parameters())
+        )
+        self.assertTrue(all(parameter.requires_grad is True for parameter in model.encoder.block[5].attn.parameters()))
+        self.assertTrue(model.classifier.weight.requires_grad)
+
+        model = torch.nn.Sequential(torch.nn.Linear(4, 4), torch.nn.Linear(4, 2))
+        with self.assertRaisesRegex(ValueError, "missing"):
+            training_utils.freeze_modules_by_name(model, ["0", "missing"])
+
+        self.assertTrue(model[0].weight.requires_grad)
 
     def test_fsdp_modules_from_min_num_params(self) -> None:
         class ToyNet(torch.nn.Module):

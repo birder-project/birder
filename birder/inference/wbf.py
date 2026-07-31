@@ -13,7 +13,7 @@ from typing import Optional
 
 import torch
 
-ConfType = Literal["avg", "max", "box_and_model_avg", "absent_model_aware_avg"]
+ConfType = Literal["avg", "max", "box_and_model_avg", "absent_model_aware_avg", "cluster_avg", "cluster_max"]
 
 
 def _box_iou_single(box: torch.Tensor, boxes: torch.Tensor) -> torch.Tensor:
@@ -32,19 +32,25 @@ def _fuse_label_boxes(
     label_boxes: torch.Tensor,
     label_scores: torch.Tensor,
     label_weights: torch.Tensor,
+    label_source_ids: torch.Tensor,
+    source_weights: torch.Tensor,
     iou_thr: float,
     conf_type: ConfType,
-    total_weight: float,
-    num_models: int,
     allows_overflow: bool,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    order = torch.argsort(label_scores, descending=True)
+    order = torch.argsort(label_scores * label_weights, descending=True)
     num_boxes = label_boxes.size(0)
     cluster_boxes = torch.empty((num_boxes, 4), dtype=label_boxes.dtype, device=label_boxes.device)
     score_weight_sums = torch.empty((num_boxes,), dtype=label_scores.dtype, device=label_scores.device)
     weight_sums = torch.empty((num_boxes,), dtype=label_weights.dtype, device=label_weights.device)
     max_scores = torch.empty((num_boxes,), dtype=label_scores.dtype, device=label_scores.device)
+    max_weighted_scores = torch.empty((num_boxes,), dtype=label_scores.dtype, device=label_scores.device)
     boxes_counts = torch.empty((num_boxes,), dtype=label_scores.dtype, device=label_scores.device)
+    track_sources = conf_type in ("box_and_model_avg", "absent_model_aware_avg")
+    source_presence: Optional[torch.Tensor] = None
+    if track_sources is True:
+        source_presence = torch.zeros((num_boxes, source_weights.numel()), dtype=torch.bool, device=label_boxes.device)
+
     cluster_count = 0
 
     for idx in order:
@@ -52,13 +58,18 @@ def _fuse_label_boxes(
         score = label_scores[idx]
         weight = label_weights[idx]
         score_weight = score * weight
+        source_id = label_source_ids[idx]
 
         if cluster_count == 0:
             cluster_boxes[0] = box
             score_weight_sums[0] = score_weight
             weight_sums[0] = weight
             max_scores[0] = score
+            max_weighted_scores[0] = score_weight
             boxes_counts[0] = 1
+            if source_presence is not None:
+                source_presence[0, source_id] = True
+
             cluster_count = 1
             continue
 
@@ -72,28 +83,64 @@ def _fuse_label_boxes(
             score_weight_sums[cluster_idx] = total_score_weight
             weight_sums[cluster_idx] += weight
             max_scores[cluster_idx] = torch.maximum(max_scores[cluster_idx], score)
+            max_weighted_scores[cluster_idx] = torch.maximum(max_weighted_scores[cluster_idx], score_weight)
             boxes_counts[cluster_idx] += 1
+            if source_presence is not None:
+                source_presence[cluster_idx, source_id] = True
+
         else:
             cluster_boxes[cluster_count] = box
             score_weight_sums[cluster_count] = score_weight
             weight_sums[cluster_count] = weight
             max_scores[cluster_count] = score
+            max_weighted_scores[cluster_count] = score_weight
             boxes_counts[cluster_count] = 1
+            if source_presence is not None:
+                source_presence[cluster_count, source_id] = True
+
             cluster_count += 1
 
     active_score_weight_sums = score_weight_sums[:cluster_count]
+    active_weight_sums = weight_sums[:cluster_count]
+    active_boxes_counts = boxes_counts[:cluster_count]
+    total_source_weight = source_weights.sum()
+    num_sources = source_weights.numel()
+    unique_source_weight_sums: Optional[torch.Tensor] = None
+    absent_source_weight_sums: Optional[torch.Tensor] = None
+    if source_presence is not None:
+        active_source_presence = source_presence[:cluster_count]
+        source_weights_row = source_weights.unsqueeze(0)
+        unique_source_weight_sums = (active_source_presence.to(source_weights.dtype) * source_weights_row).sum(dim=1)
+        absent_source_weight_sums = ((~active_source_presence).to(source_weights.dtype) * source_weights_row).sum(dim=1)
+
     if conf_type == "avg":
-        scores = active_score_weight_sums / weight_sums[:cluster_count]
+        scores = active_score_weight_sums / active_boxes_counts
+        if allows_overflow is True:
+            scores = scores * active_boxes_counts / total_source_weight
+        else:
+            scores = scores * torch.clamp(active_boxes_counts, max=num_sources) / total_source_weight
+
     elif conf_type == "max":
-        scores = max_scores[:cluster_count]
+        scores = max_weighted_scores[:cluster_count] / source_weights.max()
+
     elif conf_type == "box_and_model_avg":
-        scores = (active_score_weight_sums / weight_sums[:cluster_count]) * (boxes_counts[:cluster_count] / num_models)
+        assert unique_source_weight_sums is not None
+        scores = (active_score_weight_sums / active_weight_sums) * (unique_source_weight_sums / total_source_weight)
+
     elif conf_type == "absent_model_aware_avg":
-        scores = active_score_weight_sums / total_weight
+        assert absent_source_weight_sums is not None
+        scores = active_score_weight_sums / (active_weight_sums + absent_source_weight_sums)
+
+    elif conf_type == "cluster_avg":
+        scores = active_score_weight_sums / active_weight_sums
+
+    elif conf_type == "cluster_max":
+        scores = max_scores[:cluster_count]
+
     else:
         raise ValueError(f"Unsupported conf_type: {conf_type}")
 
-    if allows_overflow is False:
+    if allows_overflow is False and conf_type in ("avg", "cluster_avg", "cluster_max"):
         scores = scores.clamp(max=1.0)
 
     return (cluster_boxes[:cluster_count], scores)
@@ -123,7 +170,8 @@ def weighted_boxes_fusion(
     scores_all: list[torch.Tensor] = []
     labels_all: list[torch.Tensor] = []
     weights_all: list[torch.Tensor] = []
-    for boxes, scores, labels, weight in zip(boxes_list, scores_list, labels_list, weights):
+    source_ids_all: list[torch.Tensor] = []
+    for source_idx, (boxes, scores, labels, weight) in enumerate(zip(boxes_list, scores_list, labels_list, weights)):
         if boxes.numel() == 0 or weight == 0:
             continue
 
@@ -144,6 +192,7 @@ def weighted_boxes_fusion(
         scores_all.append(scores_tensor)
         labels_all.append(labels_tensor)
         weights_all.append(weights_tensor)
+        source_ids_all.append(labels_tensor.new_full(labels_tensor.shape, source_idx))
 
     if len(boxes_all) == 0:
         empty_boxes = torch.zeros((0, 4), dtype=torch.float32, device=device)
@@ -155,15 +204,16 @@ def weighted_boxes_fusion(
     scores_tensor = torch.concat(scores_all, dim=0)
     labels_tensor = torch.concat(labels_all, dim=0)
     weights_tensor = torch.concat(weights_all, dim=0)
+    source_ids_tensor = torch.concat(source_ids_all, dim=0)
+    source_weights_tensor = weights_tensor.new_tensor(weights)
     label_order = torch.argsort(labels_tensor)
     boxes_tensor = boxes_tensor[label_order]
     scores_tensor = scores_tensor[label_order]
     labels_tensor = labels_tensor[label_order]
     weights_tensor = weights_tensor[label_order]
+    source_ids_tensor = source_ids_tensor[label_order]
     labels_unique, label_counts = torch.unique_consecutive(labels_tensor, return_counts=True)
 
-    total_weight = float(sum(weights))
-    num_models = len(weights)
     fused_boxes: list[torch.Tensor] = []
     fused_scores: list[torch.Tensor] = []
     fused_labels: list[torch.Tensor] = []
@@ -174,8 +224,16 @@ def weighted_boxes_fusion(
         label_boxes = boxes_tensor[start:end]
         label_scores = scores_tensor[start:end]
         label_weights = weights_tensor[start:end]
+        label_source_ids = source_ids_tensor[start:end]
         boxes, scores = _fuse_label_boxes(
-            label_boxes, label_scores, label_weights, iou_thr, conf_type, total_weight, num_models, allows_overflow
+            label_boxes,
+            label_scores,
+            label_weights,
+            label_source_ids,
+            source_weights_tensor,
+            iou_thr,
+            conf_type,
+            allows_overflow,
         )
         fused_boxes.append(boxes)
         fused_scores.append(scores)

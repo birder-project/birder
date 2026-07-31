@@ -152,6 +152,12 @@ class Attention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
+        # Weight initialization
+        for m in (self.qkv, self.proj):
+            nn.init.trunc_normal_(m.weight, std=0.02)
+            if m.bias is not None:
+                nn.init.zeros_(m.bias)
+
     def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
@@ -406,13 +412,13 @@ class ViT_Windowed(DetectorBackbone):
         num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
         self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
         self.return_channels = [hidden_dim] * num_return_stages
-        self.feature_dim = hidden_dim
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
 
         self.max_stride = patch_size
         self.stem_stride = patch_size
         self.stem_width = hidden_dim
+        self.feature_dim = hidden_dim
 
         # Weight initialization
         fan_in = self.conv_proj.in_channels * self.conv_proj.kernel_size[0] * self.conv_proj.kernel_size[1]
@@ -510,6 +516,18 @@ class ViT_Windowed(DetectorBackbone):
 
         return (x, window_size, window_grid, (grid_h, grid_w), local_attn_mask)
 
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        for param in self.parameters():
+            param.requires_grad_(False)
+
+        if freeze_classifier is False:
+            for param in self.classifier.parameters():
+                param.requires_grad_(True)
+
+        if unfreeze_features is True:
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
+
     def transform_to_backbone(self) -> None:
         super().transform_to_backbone()
         self.norm = nn.Identity()
@@ -541,11 +559,17 @@ class ViT_Windowed(DetectorBackbone):
 
         self.pos_embedding.requires_grad_(False)
 
-        for idx, module in enumerate(self.encoder.block.children()):
-            if idx >= up_to_stage:
-                break
+        if up_to_stage <= 0:
+            return
 
-            for param in module.parameters():
+        if self.out_indices is None:
+            stage_boundaries = [self.num_layers - 1]
+        else:
+            stage_boundaries = sorted(set(self.out_indices))
+
+        last_block = stage_boundaries[min(up_to_stage, len(stage_boundaries)) - 1]
+        for block in self.encoder.block[: last_block + 1]:
+            for param in block.parameters():
                 param.requires_grad_(False)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:

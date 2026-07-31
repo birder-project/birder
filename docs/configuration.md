@@ -20,7 +20,7 @@ Derived paths follow their parent setting unless they are set explicitly.
 Common settings:
 
 **`BASE_DIR`**  
-Root directory for data, models, training runs, and results.
+Root directory for data, models, training runs and results.
 
 **`DATA_DIR`**  
 Root directory for data files and datasets.

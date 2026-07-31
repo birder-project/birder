@@ -242,8 +242,8 @@ class VOLO(BaseNet):
 
         self.stem = Stem(self.input_channels, stem_hidden_dim, embed_dims[0], stem_stride, patch_size)
 
-        self.post_patch_h = self.size[0] // patch_size // 2
-        self.post_patch_w = self.size[1] // patch_size // 2
+        self.post_patch_h = (self.size[0] + 1) // (patch_size * 2)
+        self.post_patch_w = (self.size[1] + 1) // (patch_size * 2)
         self.pos_embed = nn.Parameter(torch.zeros(1, self.post_patch_h, self.post_patch_w, embed_dims[1]))
 
         total_blocks = sum(layers)
@@ -296,11 +296,14 @@ class VOLO(BaseNet):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dims[-1]))
         self.norm = nn.LayerNorm(embed_dims[-1])
 
-        self.feature_dim = embed_dims[-1]
-
         self.num_special_tokens = 1
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 16
+        self.stem_stride = patch_size
+        self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
 
         # Weight initialization
         for m in self.modules():
@@ -327,6 +330,21 @@ class VOLO(BaseNet):
         pos_embed = pos_embed.permute(0, 2, 3, 1).to(self.pos_embed.dtype)
 
         return pos_embed
+
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        for param in self.parameters():
+            param.requires_grad_(False)
+
+        if freeze_classifier is False:
+            for param in self.classifier.parameters():
+                param.requires_grad_(True)
+
+        if unfreeze_features is True:
+            self.cls_token.requires_grad_(True)
+            for param in self.post_network.parameters():
+                param.requires_grad_(True)
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -375,8 +393,8 @@ class VOLO(BaseNet):
         old_w = self.post_patch_w
         super().adjust_size(new_size)
 
-        self.post_patch_h = new_size[0] // 16  # patch_size=8, downsample=2
-        self.post_patch_w = new_size[1] // 16
+        self.post_patch_h = (new_size[0] + 1) // 16
+        self.post_patch_w = (new_size[1] + 1) // 16
         if (old_h, old_w) != (self.post_patch_h, self.post_patch_w):
             with torch.no_grad():
                 pos_embed = self.pos_embed.permute(0, 3, 1, 2).float()

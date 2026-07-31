@@ -262,7 +262,6 @@ class YOLONeck(nn.Module):
             padding=(0, 0),
             activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
         )
-        self.upsample_p5 = nn.Upsample(scale_factor=2, mode="nearest")
         self.p4_reduce = Conv2dNormActivation(
             c4,
             c4 // 2,
@@ -280,7 +279,6 @@ class YOLONeck(nn.Module):
             padding=(0, 0),
             activation_layer=partial(nn.LeakyReLU, negative_slope=0.1),
         )
-        self.upsample_p4 = nn.Upsample(scale_factor=2, mode="nearest")
         self.p3_reduce = Conv2dNormActivation(
             c3,
             c3 // 2,
@@ -345,11 +343,11 @@ class YOLONeck(nn.Module):
         p5 = self.spp(p5)
         p5 = self.p5_post_spp(p5)
 
-        p5_up = self.upsample_p5(self.p5_to_p4(p5))
+        p5_up = F.interpolate(self.p5_to_p4(p5), size=c4.shape[-2:], mode="nearest")
         p4_cat = torch.concat([self.p4_reduce(c4), p5_up], dim=1)
         p4 = self.p4_block(p4_cat)
 
-        p4_up = self.upsample_p4(self.p4_to_p3(p4))
+        p4_up = F.interpolate(self.p4_to_p3(p4), size=c3.shape[-2:], mode="nearest")
         p3_cat = torch.concat([self.p3_reduce(c3), p4_up], dim=1)
         p3 = self.p3_block(p3_cat)
 

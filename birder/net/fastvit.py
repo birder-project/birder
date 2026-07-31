@@ -17,9 +17,10 @@ https://arxiv.org/abs/2508.20691
 
 Changes from original:
 * Fixed ReparamLargeKernelConv activation (at forward)
+* No extra norms for detection
 """
 
-# Reference license: Apple MIT License (all)
+# Reference license: Apple MIT License and MIT
 
 from collections import OrderedDict
 from collections.abc import Callable
@@ -30,8 +31,6 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torch.nn.utils.fusion import fuse_conv_bn_weights
-from torchvision.ops import SqueezeExcitation
 from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
@@ -44,147 +43,7 @@ from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenRetentionResultType
 from birder.net.base import staged_stochastic_depth_rates
 from birder.net.mobileone import MobileOneBlock
-
-
-class ReparamLargeKernelConv(nn.Module):
-    """
-    Building Block of RepLKNet
-
-    This class defines overparameterized large kernel conv block
-    introduced in RepLKNet https://arxiv.org/abs/2203.06717
-
-    Reference: https://github.com/DingXiaoH/RepLKNet-pytorch (MIT License)
-    """
-
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        kernel_size: int,
-        stride: int,
-        groups: int,
-        small_kernel: int,
-        use_se: bool,
-        reparameterized: bool,
-    ) -> None:
-        super().__init__()
-        assert small_kernel <= kernel_size
-
-        self.reparameterized = reparameterized
-        self.stride = stride
-        self.groups = groups
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-
-        self.kernel_size = kernel_size
-        self.small_kernel = small_kernel
-        self.padding = kernel_size // 2
-        if reparameterized is True:
-            self.lkb_reparam = nn.Conv2d(
-                in_channels,
-                out_channels,
-                kernel_size=kernel_size,
-                stride=stride,
-                padding=self.padding,
-                groups=self.groups,
-            )
-        else:
-            self.lkb_reparam = None
-
-            self.lkb_origin = nn.Sequential()
-            self.lkb_origin.add_module(
-                "conv",
-                nn.Conv2d(
-                    in_channels,
-                    out_channels,
-                    kernel_size=kernel_size,
-                    stride=self.stride,
-                    padding=self.padding,
-                    groups=self.groups,
-                    bias=False,
-                ),
-            )
-            self.lkb_origin.add_module("bn", nn.BatchNorm2d(num_features=out_channels))
-
-            self.small_conv = nn.Sequential()
-            self.small_conv.add_module(
-                "conv",
-                nn.Conv2d(
-                    in_channels,
-                    out_channels,
-                    kernel_size=small_kernel,
-                    stride=self.stride,
-                    padding=small_kernel // 2,
-                    groups=self.groups,
-                    bias=False,
-                ),
-            )
-            self.small_conv.add_module("bn", nn.BatchNorm2d(num_features=out_channels))
-
-        if use_se is True:
-            self.se = SqueezeExcitation(out_channels, out_channels // 4)
-        else:
-            self.se = nn.Identity()
-
-        self.activation = nn.GELU()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.lkb_reparam is not None:
-            # Reparameterized forward pass
-            x = self.lkb_reparam(x)
-        else:
-            # Multi-branched train-time forward pass
-            x = self.lkb_origin(x) + self.small_conv(x)
-
-        x = self.se(x)
-        x = self.activation(x)
-
-        return x
-
-    def reparameterize(self) -> None:
-        if self.reparameterized is True:
-            return
-
-        kernel, bias = self._get_kernel_bias()
-        self.lkb_reparam = nn.Conv2d(
-            self.in_channels,
-            self.out_channels,
-            kernel_size=self.kernel_size,
-            stride=self.stride,
-            padding=self.padding,
-            groups=self.groups,
-            device=kernel.device,
-            dtype=kernel.dtype,
-        )
-
-        self.lkb_reparam.weight.data.copy_(kernel)
-        self.lkb_reparam.bias.data.copy_(bias)
-
-        # Delete unused branches
-        for param in self.parameters():
-            param.detach_()
-
-        del self.lkb_origin
-        del self.small_conv
-
-        self.reparameterized = True
-
-    def _get_kernel_bias(self) -> tuple[torch.Tensor, torch.Tensor]:
-        conv = self.lkb_origin.conv
-        bn = self.lkb_origin.bn
-        kernel, bias = fuse_conv_bn_weights(
-            conv.weight, conv.bias, bn.running_mean, bn.running_var, bn.eps, bn.weight, bn.bias
-        )
-
-        conv = self.small_conv.conv
-        bn = self.small_conv.bn
-        kernel_small, bias_small = fuse_conv_bn_weights(
-            conv.weight, conv.bias, bn.running_mean, bn.running_var, bn.eps, bn.weight, bn.bias
-        )
-        bias = bias + bias_small
-        kernel = kernel + F.pad(kernel_small, [(self.kernel_size - self.small_kernel) // 2] * 4)
-
-        return (kernel, bias)
+from birder.net.replknet import ReparamLargeKernelConv
 
 
 class MHSA(nn.Module):
@@ -806,8 +665,8 @@ class FastViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
-        self.return_channels = return_channels
         self.return_stages = [f"stage{i+1}" for i in range(num_stages)]
+        self.return_channels = return_channels
         self.embedding_size = int(embed_dims[-1] * cls_ratio)
         self.classifier = self.create_classifier()
 

@@ -54,6 +54,8 @@ class Conv2dNorm(nn.Sequential):
             ),
         )
         self.add_module("bn", nn.BatchNorm2d(out_channels))
+
+        # Weights initialization
         nn.init.constant_(self.bn.weight, bn_weight_init)
         nn.init.zeros_(self.bn.bias)
 
@@ -378,7 +380,9 @@ class EfficientViT_MSFT(DetectorBackbone):
         num_heads: list[int] = self.config["num_heads"]
         kernels: list[int] = self.config["kernels"]
         window_size = [(int(img_size[0] / (2**5)), int(img_size[1] / (2**5)))] * len(depths)
-        resolution = (img_size[0] // 16, img_size[1] // 16)
+
+        # Four padded stride-2 convolutions produce ceil(input_size / 16)
+        resolution = ((img_size[0] - 1) // 16 + 1, (img_size[1] - 1) // 16 + 1)
         attn_ratio = [embed_dims[i] / (key_dims[i] * num_heads[i]) for i in range(len(embed_dims))]
 
         self.stem = nn.Sequential(
@@ -421,9 +425,13 @@ class EfficientViT_MSFT(DetectorBackbone):
         )
         self.return_stages = self.return_stages[: len(depths)]
         self.return_channels = return_channels
-        self.feature_dim = embed_dims[-1]
         self.embedding_size = embed_dims[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 64
+        self.stem_stride = 16
+        self.stem_width = embed_dims[0]
+        self.feature_dim = embed_dims[-1]
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
@@ -464,9 +472,10 @@ class EfficientViT_MSFT(DetectorBackbone):
         old_size = self.size
         super().adjust_size(new_size)
 
-        old_resolution = (old_size[0] // 16, old_size[1] // 16)
+        # Four padded stride-2 convolutions produce ceil(input_size / 16)
+        old_resolution = ((old_size[0] - 1) // 16 + 1, (old_size[1] - 1) // 16 + 1)
         old_window_size = (int(old_size[0] / (2**5)), int(old_size[1] / (2**5)))
-        resolution = (new_size[0] // 16, new_size[1] // 16)
+        resolution = ((new_size[0] - 1) // 16 + 1, (new_size[1] - 1) // 16 + 1)
         window_size = (int(new_size[0] / (2**5)), int(new_size[1] / (2**5)))
         for module in self.body.children():  # pylint: disable=too-many-nested-blocks
             if isinstance(module, EfficientVitStage):

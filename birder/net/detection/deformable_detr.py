@@ -9,7 +9,10 @@ https://arxiv.org/abs/2010.04159
 
 Changes from original:
 * Removed two stage support
+* Uses all backbone feature stages instead of adding a downsampled feature level after the final backbone stage
+* Uses DETR positional encoding without Deformable DETR's 0.5 coordinate centering offset
 * Penalize cost matrix elements on overflow (HungarianMatcher)
+* Clamps decoder FFN residuals before LayerNorm for reduced-precision stability
 """
 
 # Reference license: Apache-2.0 (both)
@@ -31,108 +34,13 @@ from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.detection.base import DetectionBaseNet
 from birder.net.detection.detr import PositionEmbeddingSine
-from birder.ops.linear_assignment import LinearAssignment
+from birder.net.detection.hungarian_matcher import HungarianMatcher
 from birder.ops.msda import MultiScaleDeformableAttention as MSDA
 from birder.ops.soft_nms import SoftNMS
 
 
 def _get_clones(module: nn.Module, N: int) -> nn.ModuleList:
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
-
-
-class HungarianMatcher(nn.Module):
-    """
-    This class computes an assignment between the targets and the predictions of the network
-    """
-
-    def __init__(
-        self,
-        cost_class: float,
-        cost_bbox: float,
-        cost_giou: float,
-        use_giou: bool = True,
-        clamp_box_sizes: bool = False,
-    ) -> None:
-        super().__init__()
-        assert cost_class != 0 or cost_bbox != 0 or cost_giou != 0
-        self.cost_class = cost_class
-        self.cost_bbox = cost_bbox
-        self.cost_giou = cost_giou
-        self.use_giou = use_giou
-        self.clamp_box_sizes = clamp_box_sizes
-        self.linear_assignment = LinearAssignment()
-
-    @torch.jit.unused  # type: ignore[untyped-decorator]
-    def forward(
-        self, class_logits: torch.Tensor, box_regression: torch.Tensor, targets: list[dict[str, torch.Tensor]]
-    ) -> list[tuple[torch.Tensor, torch.Tensor]]:
-        with torch.no_grad():
-            B, num_queries = class_logits.shape[:2]
-
-            # We flatten to compute the cost matrices in a batch
-            flat_logits = class_logits.flatten(0, 1)  # [batch_size * num_queries, num_classes]
-            out_prob = flat_logits.sigmoid()
-            out_bbox = box_regression.flatten(0, 1)  # [batch_size * num_queries, 4]
-
-            # Also concat the target labels and boxes
-            tgt_ids = torch.concat([v["labels"] for v in targets], dim=0)
-            tgt_bbox = torch.concat([v["boxes"] for v in targets], dim=0)
-
-            # Compute the classification cost
-            alpha = 0.25
-            gamma = 2.0
-            neg_cost_class = (
-                (1 - alpha) * (out_prob**gamma) * (-F.logsigmoid(-flat_logits))  # pylint: disable=not-callable
-            )
-            pos_cost_class = (
-                alpha * ((1 - out_prob) ** gamma) * (-F.logsigmoid(flat_logits))  # pylint: disable=not-callable
-            )
-            cost_class = pos_cost_class[:, tgt_ids] - neg_cost_class[:, tgt_ids]
-
-            # Compute the L1 cost between boxes
-            cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1.0)
-
-            # Compute the GIoU or IoU cost between boxes
-            if self.clamp_box_sizes is True:
-                out_bbox = torch.concat((out_bbox[..., :2], out_bbox[..., 2:].clamp(min=0)), dim=-1)
-
-            out_bbox_xyxy = box_ops.box_convert(out_bbox, in_fmt="cxcywh", out_fmt="xyxy")
-            tgt_bbox_xyxy = box_ops.box_convert(tgt_bbox, in_fmt="cxcywh", out_fmt="xyxy")
-            if self.use_giou is True:
-                cost_giou = -box_ops.generalized_box_iou(out_bbox_xyxy, tgt_bbox_xyxy)
-            else:
-                cost_giou = -box_ops.box_iou(out_bbox_xyxy, tgt_bbox_xyxy)
-
-            # Final cost matrix
-            C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
-            C = C.view(B, num_queries, -1)
-            finite = torch.isfinite(C)
-            if not torch.all(finite):
-                penalty = C[finite].max().item() + 1.0 if finite.any().item() else 1.0
-                C.nan_to_num_(nan=penalty, posinf=penalty, neginf=penalty)
-
-            sizes = [len(v["boxes"]) for v in targets]
-            empty_indices = torch.empty(0, dtype=torch.int64, device=C.device)
-            indices: list[tuple[torch.Tensor, torch.Tensor]] = [(empty_indices, empty_indices) for _ in range(B)]
-            grouped_ranges: dict[int, list[tuple[int, int, int]]] = {}
-            start = 0
-            for batch_idx, size in enumerate(sizes):
-                end = start + size
-                if size > 0:
-                    grouped_ranges.setdefault(size, []).append((batch_idx, start, end))
-
-                start = end
-
-            for size, entries in grouped_ranges.items():
-                bucket_cost = torch.stack([C[batch_idx, :, start:end] for batch_idx, start, end in entries], dim=0)
-                col4row_batch, _row4col = self.linear_assignment(bucket_cost)
-                for row_idx, (batch_idx, _start, _end) in enumerate(entries):
-                    col4row = col4row_batch[row_idx]
-                    src_indices = torch.nonzero(col4row >= 0, as_tuple=False).flatten()
-                    tgt_indices = col4row[src_indices].to(torch.int64)
-                    indices[batch_idx] = (src_indices.to(torch.int64), tgt_indices)
-
-            return indices
 
 
 def inverse_sigmoid(x: torch.Tensor, eps: float = 1e-5) -> torch.Tensor:
@@ -337,6 +245,7 @@ class DeformableTransformerDecoderLayer(nn.Module):
         # FFN
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
         tgt = tgt + self.dropout(tgt2)
+        tgt = tgt.clamp(min=-65504, max=65504)
         tgt = self.norm3(tgt)
 
         return tgt
@@ -494,9 +403,8 @@ class DeformableTransformer(nn.Module):
             if isinstance(m, MultiScaleDeformableAttention):
                 m.reset_parameters()
 
-            nn.init.xavier_uniform_(self.reference_points.weight, gain=1.0)
-            nn.init.zeros_(self.reference_points.bias)
-
+        nn.init.xavier_uniform_(self.reference_points.weight, gain=1.0)
+        nn.init.zeros_(self.reference_points.bias)
         nn.init.normal_(self.level_embed)
 
     def get_valid_ratio(self, mask: torch.Tensor) -> torch.Tensor:
@@ -608,7 +516,6 @@ class Deformable_DETR(DetectionBaseNet):
         if soft_nms is True:
             self.soft_nms = SoftNMS()
 
-        self.nms_thresh = 0.5
         self.box_refine = box_refine
         self.hidden_dim = hidden_dim
         input_proj_list = []
@@ -639,7 +546,7 @@ class Deformable_DETR(DetectionBaseNet):
 
         self.query_embed = nn.Embedding(num_queries, hidden_dim * 2)
         self.pos_enc = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
-        self.matcher = HungarianMatcher(cost_class=2.0, cost_bbox=5.0, cost_giou=2.0)
+        self.matcher = HungarianMatcher(class_weight=2.0, bbox_weight=5.0, giou_weight=2.0)
 
         class_embed = nn.Linear(hidden_dim, self.num_classes)
         bbox_embed = MLP(hidden_dim, [hidden_dim, hidden_dim, 4], activation_layer=nn.ReLU)
@@ -764,11 +671,15 @@ class Deformable_DETR(DetectionBaseNet):
 
         num_boxes = torch.clamp(num_boxes / training_utils.get_world_size(), min=1)
 
+        # Decoder layers are independent assignment problems with the same
+        # targets. Batch them so the assignment backend can process all layers
+        # in one invocation while keeping layer-local loss reductions intact.
+        indices_per_layer = self.matcher.match_grouped(cls_logits.movedim(0, 1), box_output.movedim(0, 1), targets)
+
         loss_ce_list = []
         loss_bbox_list = []
         loss_giou_list = []
-        for idx in range(cls_logits.size(0)):
-            indices = self.matcher(cls_logits[idx], box_output[idx], targets)
+        for idx, indices in enumerate(indices_per_layer):
             loss_ce_i = self._class_loss(cls_logits[idx], targets, indices, num_boxes)
             loss_bbox_i, loss_giou_i = self._box_loss(box_output[idx], targets, indices, num_boxes)
             loss_ce_list.append(loss_ce_i)
@@ -841,7 +752,7 @@ class Deformable_DETR(DetectionBaseNet):
 
             feature_list[idx] = proj(feature_list[idx])
             mask_list.append(m)
-            pos_list.append(self.pos_enc(feature_list[idx], m))
+            pos_list.append(self.pos_enc(feature_list[idx], m).to(feature_list[idx].dtype))
 
         hs, init_reference, inter_references = self.transformer(
             feature_list, pos_list, self.query_embed.weight, mask_list

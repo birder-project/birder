@@ -7,7 +7,7 @@ https://arxiv.org/abs/2103.14899
 
 Changes from original:
 * Removed resize per patch (224/240)
-* Added dynamic size support (must be a multiply of all patches, 48 by default)
+* Added input size adjustment support (size must be a multiple of all patch sizes, 48 by default)
 """
 
 # Reference license: Apache-2.0
@@ -307,13 +307,18 @@ class CrossViT(BaseNet):
             self.blocks.append(block)
 
         self.norm = nn.ModuleList([nn.LayerNorm(embed_dim[i], eps=1e-6) for i in range(self.num_branches)])
-        self.feature_dim = sum(self.embed_dim)
         self.embedding_size = sum(self.embed_dim)
         self.classifier = nn.ModuleList()
         for i in range(self.num_branches):
             self.classifier.append(self.create_classifier(self.embed_dim[i]))
 
+        self.feature_dim = sum(self.embed_dim)
+
         # Weights initialization
+        for pos_embed, cls_token in zip(self.pos_embed, self.cls_token):
+            nn.init.trunc_normal_(pos_embed, std=0.02)
+            nn.init.trunc_normal_(cls_token, std=0.02)
+
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
@@ -323,6 +328,18 @@ class CrossViT(BaseNet):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
+
+    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
+        for param in self.parameters():
+            param.requires_grad_(False)
+
+        if freeze_classifier is False:
+            for param in self.classifier.parameters():
+                param.requires_grad_(True)
+
+        if unfreeze_features is True:
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
 
     def reset_classifier(self, num_classes: int) -> None:
         self.num_classes = num_classes

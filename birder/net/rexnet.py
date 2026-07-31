@@ -231,12 +231,13 @@ class ReXNet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             nn.Dropout(p=dropout_rate, inplace=True),
         )
         self.return_channels = return_channels[1:5]
-        self.feature_dim = prev_channels
         self.embedding_size = penultimate_channels
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 2
         self.stem_width = stem_channels
+        self.feature_dim = prev_channels
         self.decoder_block = lambda x: LinearBottleneck(
             x,
             x,

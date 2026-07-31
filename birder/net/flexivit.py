@@ -7,6 +7,7 @@ Paper "FlexiViT: One Model for All Patch Sizes", https://arxiv.org/abs/2212.0801
 import logging
 import math
 import random
+from functools import lru_cache
 from functools import partial
 from typing import Any
 from typing import Literal
@@ -51,13 +52,34 @@ def get_patch_sizes(min_size: int, max_size: int, input_size: tuple[int, int]) -
     return sorted(valid_sizes)
 
 
-# No compile support for antialias
 @torch.compiler.disable()  # type: ignore[untyped-decorator]
+@lru_cache(maxsize=128)
+@torch.no_grad()  # type: ignore[untyped-decorator]
+def _get_resize_matrix_pinv(
+    old_size: tuple[int, int],
+    new_size: tuple[int, int],
+    device: torch.device,
+) -> torch.Tensor:
+    old_h, old_w = old_size
+    old_numel = old_h * old_w
+
+    # Resize the identity basis to construct the bilinear interpolation matrix
+    basis_vectors = torch.eye(old_numel, dtype=torch.float32, device=device).reshape(old_numel, 1, old_h, old_w)
+    resized_basis_vectors = F.interpolate(basis_vectors, size=new_size, mode="bilinear", align_corners=False)
+    resize_matrix = resized_basis_vectors.squeeze(1).permute(1, 2, 0).reshape(new_size[0] * new_size[1], old_numel)
+
+    # Its pseudoinverse (Moore-Penrose inverse) maps flattened kernels from old_size to new_size
+    return torch.linalg.pinv(resize_matrix)  # pylint: disable=not-callable
+
+
 def interpolate_proj(proj_weight: torch.Tensor, patch_size: int) -> torch.Tensor:
     orig_dtype = proj_weight.dtype
-    proj_weight = proj_weight.float()  # Interpolate needs float32
-    weight_resampled = F.interpolate(proj_weight, size=(patch_size, patch_size), mode="bicubic", antialias=True)
-    weight_resampled = weight_resampled.to(orig_dtype)
+    old_size = (proj_weight.shape[-2], proj_weight.shape[-1])
+    new_size = (patch_size, patch_size)
+    resize_matrix_pinv = _get_resize_matrix_pinv(old_size, new_size, proj_weight.device)
+
+    weight_resampled = proj_weight.float().flatten(2) @ resize_matrix_pinv
+    weight_resampled = weight_resampled.reshape(proj_weight.shape[0], proj_weight.shape[1], *new_size).to(orig_dtype)
 
     return weight_resampled
 
@@ -156,7 +178,9 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         self.num_reg_tokens = num_reg_tokens
         self.attn_pool_special_tokens = attn_pool_special_tokens
         self.out_indices = normalize_out_indices(out_indices, num_layers)
-        self.patch_size_list = get_patch_sizes(min_patch_size, max_patch_size, self.size)
+        self.min_patch_size = min_patch_size
+        self.max_patch_size = max_patch_size
+        self.patch_size_list = get_patch_sizes(self.min_patch_size, self.max_patch_size, self.size)
         dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
 
         self.conv_proj = nn.Conv2d(
@@ -311,6 +335,10 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
                 param.requires_grad_(True)
 
         if unfreeze_features is True:
+            for param in self.norm.parameters():
+                param.requires_grad_(True)
+            for param in self.embedding_norm.parameters():
+                param.requires_grad_(True)
             if self.attn_pool is not None:
                 for param in self.attn_pool.parameters():
                     param.requires_grad_(True)
@@ -396,11 +424,20 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         if self.pos_embedding is not None:
             self.pos_embedding.requires_grad_(False)
 
-        for idx, module in enumerate(self.encoder.children()):
-            if idx >= up_to_stage:
-                break
+        if up_to_stage <= 0:
+            return
 
-            for param in module.parameters():
+        for param in self.encoder.pre_block.parameters():
+            param.requires_grad_(False)
+
+        if self.out_indices is None:
+            stage_boundaries = [self.num_layers - 1]
+        else:
+            stage_boundaries = sorted(set(self.out_indices))
+
+        last_block = stage_boundaries[min(up_to_stage, len(stage_boundaries)) - 1]
+        for block in self.encoder.block[: last_block + 1]:
+            for param in block.parameters():
                 param.requires_grad_(False)
 
     def masked_encoding_omission(
@@ -585,7 +622,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         super().set_dynamic_size(dynamic_size)
-        assert self.dynamic_size is True, "FlexiViT only support dynamic mode"
+        assert self.dynamic_size is True, "FlexiViT only supports dynamic mode"
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
@@ -596,6 +633,7 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         old_size = self.size
         super().adjust_size(new_size)
+        self.patch_size_list = get_patch_sizes(self.min_patch_size, self.max_patch_size, self.size)
         if self.pos_embedding is None:
             return
 
@@ -621,26 +659,27 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         logger.debug(f"Setting patch size to: {patch_size}")
         self.conv_proj.weight = nn.Parameter(interpolate_proj(self.conv_proj.weight, patch_size))
-        if self.pos_embedding is None:
-            self.patch_size = patch_size
-            return
+        self.conv_proj.kernel_size = (patch_size, patch_size)
+        self.conv_proj.stride = (patch_size, patch_size)
+        if self.pos_embedding is not None:
+            # Adjust pos_embedding accordingly
+            if self.pos_embed_special_tokens is True:
+                num_prefix_tokens = self.num_special_tokens
+            else:
+                num_prefix_tokens = 0
 
-        # Adjust pos_embedding accordingly
-        if self.pos_embed_special_tokens is True:
-            num_prefix_tokens = self.num_special_tokens
-        else:
-            num_prefix_tokens = 0
-
-        self.pos_embedding = nn.Parameter(
-            adjust_position_embedding(
-                self.pos_embedding,
-                (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
-                (self.size[0] // patch_size, self.size[1] // patch_size),
-                num_prefix_tokens,
+            self.pos_embedding = nn.Parameter(
+                adjust_position_embedding(
+                    self.pos_embedding,
+                    (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
+                    (self.size[0] // patch_size, self.size[1] // patch_size),
+                    num_prefix_tokens,
+                )
             )
-        )
 
         self.patch_size = patch_size
+        self.max_stride = patch_size
+        self.stem_stride = patch_size
 
     def load_vit_weights(self, state_dict: dict[str, Any]) -> None:
         if self.pos_embedding is None:
@@ -660,6 +699,10 @@ class FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
 
         # Adjust pos_embedding
         if self.pos_embed_special_tokens is False and vit_pos_embed_special_tokens is True:
+            logger.warning(
+                "Loading ViT weights with positional embeddings for special tokens into FlexiViT, "
+                "the special-token positional embeddings will be discarded"
+            )
             if state_dict["pos_embedding"].ndim == 2:
                 state_dict["pos_embedding"] = state_dict["pos_embedding"][num_special_tokens:, :]
             else:

@@ -47,7 +47,7 @@ from birder.inference.classification import infer_image
 from birder.net.ssl.sscd import SSCD
 
 (backbone, model_info) = birder.load_pretrained_model("resnet_v1_50_c1_sscd", inference=True)
-net = SSCD(backbone)
+net = SSCD(backbone, config={})
 
 # Get the image size the model was trained on
 size = birder.get_size_from_signature(model_info.signature)

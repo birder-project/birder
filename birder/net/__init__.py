@@ -66,6 +66,7 @@ from birder.net.mobileone import MobileOne
 from birder.net.mobilevit_v1 import MobileViT_v1
 from birder.net.mobilevit_v2 import MobileViT_v2
 from birder.net.moganet import MogaNet
+from birder.net.mvit_v1 import MViT_v1
 from birder.net.mvit_v2 import MViT_v2
 from birder.net.nextvit import NextViT
 from birder.net.nfnet import NFNet
@@ -78,6 +79,7 @@ from birder.net.regionvit import RegionViT
 from birder.net.regnet import RegNet
 from birder.net.regnet_z import RegNet_Z
 from birder.net.repghost import RepGhost
+from birder.net.replknet import RepLKNet
 from birder.net.repvgg import RepVgg
 from birder.net.repvit import RepViT
 from birder.net.resmlp import ResMLP
@@ -190,6 +192,7 @@ __all__ = [
     "MobileViT_v1",
     "MobileViT_v2",
     "MogaNet",
+    "MViT_v1",
     "MViT_v2",
     "NextViT",
     "NFNet",
@@ -202,6 +205,7 @@ __all__ = [
     "RegNet",
     "RegNet_Z",
     "RepGhost",
+    "RepLKNet",
     "RepVgg",
     "RepViT",
     "ResMLP",

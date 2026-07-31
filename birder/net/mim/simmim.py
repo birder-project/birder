@@ -106,7 +106,7 @@ class SimMIM(MIMBaseNet):
 
     def unpatchify(self, x: torch.Tensor) -> torch.Tensor:
         """
-        x: (N, conv_out**2, L*C) or (N, L*C, conv_out, conv_out)
+        x: (N, grid_h * grid_w, L*C) or (N, L*C, grid_h, grid_w)
         imgs: (N, C, H, W)
         """
 
@@ -116,8 +116,8 @@ class SimMIM(MIMBaseNet):
             x = torch.einsum("ncl->nlc", x)
 
         p = self.patch_size
-        h = int(x.shape[1] ** 0.5)
-        w = int(x.shape[1] ** 0.5)
+        h = self.size[0] // p
+        w = self.size[1] // p
         assert h * w == x.shape[1]
 
         x = x.reshape(shape=(x.shape[0], h, w, p, p, self.input_channels))
@@ -143,7 +143,7 @@ class SimMIM(MIMBaseNet):
 
         loss = F.l1_loss(pred, target, reduction="none")
         loss = loss.mean(dim=-1)
-        loss = (loss * mask).sum() / mask.sum()  # Mean loss on removed patches
+        loss = (loss * mask).sum() / (mask.sum() + 1.0e-5)  # Mean loss on removed patches
 
         return loss
 

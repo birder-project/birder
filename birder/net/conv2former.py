@@ -205,6 +205,7 @@ class Conv2Former(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.embedding_size = 1280
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = dims[0]
         self.feature_dim = dims[-1]

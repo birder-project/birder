@@ -3,6 +3,9 @@ Dual Path Networks, adapted from
 https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/dpn.py
 
 Paper "Dual Path Networks", https://arxiv.org/abs/1707.01629
+
+Changes from original:
+* Using nn.BatchNorm2d with eps 1e-5 instead of 1e-3
 """
 
 # Reference license: Apache-2.0
@@ -184,9 +187,13 @@ class DPN(BaseNet):
             nn.AdaptiveAvgPool2d(output_size=(1, 1)),
             nn.Flatten(1),
         )
-        self.feature_dim = num_features
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = num_init_features
+        self.feature_dim = num_features
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

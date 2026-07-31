@@ -203,12 +203,13 @@ class ResNeXt(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = filter_list[-1] * expansion
         self.embedding_size = filter_list[-1] * expansion
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = 4
         self.stem_width = filter_list[0]
+        self.feature_dim = filter_list[-1] * expansion
 
         # Weight initialization
         for m in self.modules():

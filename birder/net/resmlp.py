@@ -91,9 +91,13 @@ class ResMLP(BaseNet):
             nn.AdaptiveAvgPool1d(output_size=1),
             nn.Flatten(1),
         )
-        self.feature_dim = embed_dim
         self.embedding_size = embed_dim
         self.classifier = self.create_classifier()
+
+        self.max_stride = patch_size[0]
+        self.stem_stride = patch_size[0]
+        self.stem_width = embed_dim
+        self.feature_dim = embed_dim
 
         # Weight initialization
         for m in self.modules():

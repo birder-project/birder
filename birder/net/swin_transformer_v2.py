@@ -161,6 +161,7 @@ class SwinTransformerBlock(nn.Module):
         super().__init__()
 
         self.input_resolution = input_resolution
+        self.use_shift = shift_size != (0, 0)
         window_size_h = window_size[0]
         window_size_w = window_size[1]
         shift_size_h = shift_size[0]
@@ -276,7 +277,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
             # Add patch merging layer
             if i_stage < (len(depths) - 1):
                 layers.append(PatchMerging(dim))
-                resolution = (resolution[0] // 2, resolution[1] // 2)
+                resolution = ((resolution[0] + 1) // 2, (resolution[1] + 1) // 2)
 
         num_features = embed_dim * 2 ** (len(depths) - 1)
         self.body = nn.Sequential(stages)
@@ -290,6 +291,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
         self.embedding_size = num_features
         self.classifier = self.create_classifier()
 
+        self.max_stride = 32
         self.stem_stride = patch_size
         self.stem_width = embed_dim
         self.feature_dim = num_features
@@ -411,46 +413,42 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
         if new_size == self.size:
             return
 
-        old_size = self.size
         super().adjust_size(new_size)
 
         with torch.no_grad():
-            for m in self.body.modules():
-                if isinstance(m, SwinTransformerBlock):
-                    new_window_size_h = int(new_size[0] / (2**5)) * self.window_scale_factor
-                    new_window_size_w = int(new_size[1] / (2**5)) * self.window_scale_factor
-                    new_window_size = (new_window_size_h, new_window_size_w)
+            new_window_size = (
+                new_size[0] // (2**5) * self.window_scale_factor,
+                new_size[1] // (2**5) * self.window_scale_factor,
+            )
+            resolution = (new_size[0] // self.stem_stride, new_size[1] // self.stem_stride)
+            for i_stage, stage in enumerate(self.body.children()):
+                if i_stage > 0:
+                    resolution = ((resolution[0] + 1) // 2, (resolution[1] + 1) // 2)
 
-                    shift_size_h = m.attn.shift_size[0]
-                    shift_size_w = m.attn.shift_size[1]
-                    window_size_h = new_window_size[0]
-                    window_size_w = new_window_size[1]
+                for m in stage.modules():
+                    if isinstance(m, SwinTransformerBlock):
+                        m.input_resolution = resolution
+                        window_size_h = new_window_size[0]
+                        window_size_w = new_window_size[1]
+                        if m.use_shift is True:
+                            shift_size_h = window_size_h // 2
+                            shift_size_w = window_size_w // 2
+                        else:
+                            shift_size_h = 0
+                            shift_size_w = 0
 
-                    # Adjust resolution
-                    scale_h = old_size[0] // m.input_resolution[0]
-                    scale_w = old_size[1] // m.input_resolution[1]
-                    m.input_resolution = (new_size[0] // scale_h, new_size[1] // scale_w)
+                        if resolution[0] <= window_size_h:
+                            shift_size_h = 0
+                            window_size_h = resolution[0]
 
-                    if m.input_resolution[0] <= window_size_h:
-                        shift_size_h = 0
-                        window_size_h = m.input_resolution[0]
+                        if resolution[1] <= window_size_w:
+                            shift_size_w = 0
+                            window_size_w = resolution[1]
 
-                    if m.input_resolution[1] <= window_size_w:
-                        shift_size_w = 0
-                        window_size_w = m.input_resolution[1]
-
-                    m.attn.window_size = (window_size_h, window_size_w)
-
-                    if m.attn.shift_size[0] != 0:
-                        shift_size_h = m.attn.window_size[0] // 2
-
-                    if m.attn.shift_size[1] != 0:
-                        shift_size_w = m.attn.window_size[1] // 2
-
-                    m.attn.shift_size = (shift_size_h, shift_size_w)
-
-                    m.attn.define_relative_position_bias_table()
-                    m.attn.define_relative_position_index()
+                        m.attn.window_size = (window_size_h, window_size_w)
+                        m.attn.shift_size = (shift_size_h, shift_size_w)
+                        m.attn.define_relative_position_bias_table()
+                        m.attn.define_relative_position_index()
 
 
 # Window factor = 1

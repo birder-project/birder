@@ -326,9 +326,13 @@ class EdgeViT(DetectorBackbone):
             nn.Flatten(1),
         )
         self.return_channels = return_channels
-        self.feature_dim = embed_dim[-1]
         self.embedding_size = embed_dim[-1]
         self.classifier = self.create_classifier()
+
+        self.max_stride = 32
+        self.stem_stride = 4
+        self.stem_width = embed_dim[0]
+        self.feature_dim = embed_dim[-1]
 
         # Weights initialization
         for m in self.modules():
@@ -351,6 +355,9 @@ class EdgeViT(DetectorBackbone):
         return out
 
     def freeze_stages(self, up_to_stage: int) -> None:
+        for param in self.body.stage1.patch_embed.parameters():
+            param.requires_grad_(False)
+
         for idx, module in enumerate(self.body.children()):
             if idx >= up_to_stage:
                 break

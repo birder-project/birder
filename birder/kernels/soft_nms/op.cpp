@@ -4,21 +4,33 @@
 * Taken from:
 * https://github.com/MrParosk/soft_nms
 * Licensed under the MIT License
+*
+* Class-aware CUDA implementation added by:
+* Ofer Hasson - 2026-07-22
 **************************************************************************************************
 */
 
 #include "soft_nms.h"
-#include <torch/extension.h>
 
-// Wrapper function to match Python expectations
-std::vector<torch::Tensor> soft_nms_wrapper(const torch::Tensor &boxes, const torch::Tensor &scores, double sigma,
-                                            double score_threshold) {
+#include <c10/core/DeviceType.h>
+#include <c10/core/DispatchKey.h>
+#include <torch/csrc/autograd/autograd_not_implemented_fallback.h>
+#include <torch/library.h>
 
-    auto [updated_scores, keep] = soft_nms(boxes, scores, sigma, score_threshold);
-    return {updated_scores, keep};
+#ifndef TORCH_LIBRARY_EXPAND
+#define TORCH_LIBRARY_EXPAND(NAME, MODULE) TORCH_LIBRARY(NAME, MODULE)
+#endif
+
+#ifndef TORCH_LIBRARY_IMPL_EXPAND
+#define TORCH_LIBRARY_IMPL_EXPAND(NAME, KEY, MODULE) TORCH_LIBRARY_IMPL(NAME, KEY, MODULE)
+#endif
+
+TORCH_LIBRARY_EXPAND(TORCH_EXTENSION_NAME, ops) {
+    ops.def("soft_nms(Tensor boxes, Tensor scores, Tensor class_ids, float sigma, float score_threshold) -> (Tensor, "
+            "Tensor)");
+    ops.impl("soft_nms", c10::kCUDA, &soft_nms_cuda);
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("soft_nms", &soft_nms_wrapper, "soft_nms", py::arg("boxes"), py::arg("scores"), py::arg("sigma"),
-          py::arg("score_threshold"));
+TORCH_LIBRARY_IMPL_EXPAND(TORCH_EXTENSION_NAME, Autograd, ops) {
+    ops.impl("soft_nms", torch::autograd::autogradNotImplementedFallback());
 }

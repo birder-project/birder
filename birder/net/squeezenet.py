@@ -70,9 +70,13 @@ class SqueezeNet(BaseNet):
             Fire(384, 64, 256),
             Fire(512, 64, 256),
         )
-        self.feature_dim = 512
         self.embedding_size = 512
         self.classifier = self.create_classifier()
+
+        self.max_stride = 16
+        self.stem_stride = 4
+        self.stem_width = 64
+        self.feature_dim = 512
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
