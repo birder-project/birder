@@ -499,7 +499,7 @@ def print_datasets_stats(_ctx):
 
 
 @task
-def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None, max_batch_size=512):
+def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None, max_batch_size=512, cooldown=0.0):
     """
     Append models to benchmark
     """
@@ -515,11 +515,12 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None, max_ba
         size_arg = f" --size {size}"
 
     max_batch_size_arg = f"--max-batch-size {max_batch_size}"
+    cooldown_arg = f" --cooldown {cooldown}"
 
     # CPU
     ctx.run(
         f"python -m birder.scripts.benchmark {model_selector} --repeats 2 --bench-iter 300 "
-        f"--warmup 10{size_arg} --suffix {suffix} --append",
+        f"--warmup 10{size_arg}{cooldown_arg} --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -528,7 +529,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None, max_ba
     # CPU single thread
     ctx.run(
         f"python -m birder.scripts.benchmark {model_selector} --repeats 2 --bench-iter 50 "
-        f"--warmup 10 --single-thread{size_arg} --suffix {suffix} --append",
+        f"--warmup 10 --single-thread{size_arg}{cooldown_arg} --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -537,7 +538,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None, max_ba
     # Compiled CPU
     ctx.run(
         f"python -m birder.scripts.benchmark {model_selector} --repeats 2 --bench-iter 300 "
-        f"--warmup 10{size_arg} --compile --suffix {suffix} --append",
+        f"--warmup 10{size_arg}{cooldown_arg} --compile --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -546,7 +547,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None, max_ba
     # Compiled CPU with AMP
     ctx.run(
         f"python -m birder.scripts.benchmark {model_selector} --repeats 2 --bench-iter 300 "
-        f"--warmup 10{size_arg} --compile --amp --suffix {suffix} --append",
+        f"--warmup 10{size_arg}{cooldown_arg} --compile --amp --suffix {suffix} --append",
         echo=True,
         pty=True,
         warn=True,
@@ -555,7 +556,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None, max_ba
     # CUDA
     ctx.run(
         f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 "
-        f"--warmup 10 {max_batch_size_arg}{size_arg} --gpu --gpu-id {gpu_id} --fast-matmul "
+        f"--warmup 10 {max_batch_size_arg}{size_arg}{cooldown_arg} --gpu --gpu-id {gpu_id} --fast-matmul "
         f"--suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -565,7 +566,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None, max_ba
     # Compiled CUDA
     ctx.run(
         f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 "
-        f"--warmup 10 {max_batch_size_arg}{size_arg} --compile --gpu --gpu-id {gpu_id} --fast-matmul "
+        f"--warmup 10 {max_batch_size_arg}{size_arg}{cooldown_arg} --compile --gpu --gpu-id {gpu_id} --fast-matmul "
         f"--suffix {suffix} --append",
         echo=True,
         pty=True,
@@ -575,7 +576,7 @@ def benchmark_append(ctx, fn, suffix, gpu_id=0, weights=False, size=None, max_ba
     # Compiled CUDA with AMP
     ctx.run(
         f"python -m birder.scripts.benchmark {model_selector} --bench-iter 50 "
-        f"--warmup 10 {max_batch_size_arg}{size_arg} --compile --gpu --gpu-id {gpu_id} --amp "
+        f"--warmup 10 {max_batch_size_arg}{size_arg}{cooldown_arg} --compile --gpu --gpu-id {gpu_id} --amp "
         f"--suffix {suffix} --append",
         echo=True,
         pty=True,

@@ -960,7 +960,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
 
 
 registry.register_model_config(
-    "rope_vit_moe_vs32_8e_2k_last2",
+    "rope_vit_vmoe_vs32_8e_2k_last2",
     RoPE_ViT_MoE,
     config={
         "patch_size": 32,
@@ -972,13 +972,13 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "rope_vit_moe_s16_8e_2k_last3",
+    "rope_vit_vmoe_s16_8e_2k_last3",
     RoPE_ViT_MoE,
     config={"patch_size": 16, **SMALL, "moe_num_experts": 8, "moe_top_k": 2, "moe_last_n_layers": 3},
 )
 
 registry.register_model_config(
-    "rope_vit_moe_b16_8e_2k_every2",
+    "rope_vit_vmoe_b16_8e_2k_every2",
     RoPE_ViT_MoE,
     config={"patch_size": 16, **BASE, "moe_num_experts": 8, "moe_top_k": 2, "moe_every_n_layers": 2},
 )
@@ -988,7 +988,7 @@ registry.register_model_config(
 ################
 
 registry.register_model_config(
-    "rope_vit_moe_reg1_vs32_8e_2k_last2",
+    "rope_vit_vmoe_reg1_vs32_8e_2k_last2",
     RoPE_ViT_MoE,
     config={
         "patch_size": 32,

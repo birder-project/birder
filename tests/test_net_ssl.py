@@ -138,7 +138,13 @@ class TestNetSSL(unittest.TestCase):
 
         backbone_state = copy.deepcopy(backbone.state_dict())
         student = capi.CAPIStudent(
-            backbone, config={"decoder_layers": 4, "decoder_dim": 256, "num_clusters": num_clusters}
+            backbone,
+            config={
+                "decoder_layers": 4,
+                "decoder_dim": 256,
+                "decoder_drop_path_rate": 0.2,
+                "num_clusters": num_clusters,
+            },
         )
 
         # SSL construction must not replace the backbone or modify its state
@@ -208,7 +214,13 @@ class TestNetSSL(unittest.TestCase):
             },
         )
         student = capi.CAPIStudent(
-            backbone, config={"decoder_layers": 4, "decoder_dim": 256, "num_clusters": num_clusters}
+            backbone,
+            config={
+                "decoder_layers": 4,
+                "decoder_dim": 256,
+                "decoder_drop_path_rate": 0.2,
+                "num_clusters": num_clusters,
+            },
         )
         mask_generator = masking.InverseRollBlockMasking(input_size, n_masked)
 
@@ -250,7 +262,13 @@ class TestNetSSL(unittest.TestCase):
             },
         )
         student = capi.CAPIStudent(
-            backbone, config={"decoder_layers": 4, "decoder_dim": 256, "num_clusters": num_clusters}
+            backbone,
+            config={
+                "decoder_layers": 4,
+                "decoder_dim": 256,
+                "decoder_drop_path_rate": 0.2,
+                "num_clusters": num_clusters,
+            },
         )
         mask_generator = masking.InverseRollBlockMasking(input_size, n_masked)
 
@@ -274,7 +292,7 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(pred).any())
 
     def test_capi_decoder(self) -> None:
-        decoder = capi.Decoder(input_size=(2, 4), embed_dim=32, decoder_dim=32, depth=0)
+        decoder = capi.Decoder(input_size=(2, 4), embed_dim=32, decoder_dim=32, depth=0, drop_path_rate=0.2)
         ids_predict = torch.tensor([[7, 2, 5], [6, 1, 4]])
 
         out = decoder.mask_tokens_grid(ids_predict)
@@ -282,7 +300,7 @@ class TestNetSSL(unittest.TestCase):
         expected = expected.to(decoder.mask_token.dtype) + decoder.mask_token
         torch.testing.assert_close(out, expected)
 
-        block = capi.CrossAttentionBlock(encoder_dim=32, decoder_dim=32, num_heads=4, mlp_ratio=4.0)
+        block = capi.CrossAttentionBlock(encoder_dim=32, decoder_dim=32, num_heads=4, mlp_ratio=4.0, drop_path_rate=0.2)
         for module in block.modules():
             if isinstance(module, torch.nn.Linear):
                 self.assertIsNone(module.bias)
@@ -310,7 +328,13 @@ class TestNetSSL(unittest.TestCase):
             },
         )
         student = capi.CAPIStudent(
-            backbone, config={"decoder_layers": 4, "decoder_dim": 256, "num_clusters": num_clusters}
+            backbone,
+            config={
+                "decoder_layers": 4,
+                "decoder_dim": 256,
+                "decoder_drop_path_rate": 0.2,
+                "num_clusters": num_clusters,
+            },
         )
         mask_generator = masking.InverseRollBlockMasking(input_size, n_masked)
 
@@ -386,7 +410,13 @@ class TestNetSSL(unittest.TestCase):
             },
         )
         student = capi.CAPIStudent(
-            backbone, config={"decoder_layers": 4, "decoder_dim": 256, "num_clusters": num_clusters}
+            backbone,
+            config={
+                "decoder_layers": 4,
+                "decoder_dim": 256,
+                "decoder_drop_path_rate": 0.2,
+                "num_clusters": num_clusters,
+            },
         )
         mask_generator = masking.InverseRollBlockMasking(input_size, n_masked)
 
@@ -444,6 +474,7 @@ class TestNetSSL(unittest.TestCase):
             config={
                 "decoder_layers": 1,
                 "decoder_dim": 64,
+                "decoder_drop_path_rate": 0.2,
                 "num_clusters": num_clusters,
             },
         )
@@ -534,6 +565,7 @@ class TestNetSSL(unittest.TestCase):
         config = {
             "decoder_layers": 4,
             "decoder_dim": 256,
+            "decoder_drop_path_rate": 0.2,
             "num_clusters": num_clusters,
             "bias": True,
             "n_sk_iter": 3,
@@ -637,6 +669,7 @@ class TestNetSSL(unittest.TestCase):
             config={
                 "decoder_layers": 1,
                 "decoder_dim": 64,
+                "decoder_drop_path_rate": 0.2,
                 "num_clusters": num_clusters,
                 "dino_out_dim": dino_out_dim,
                 "use_bn": False,
@@ -1051,7 +1084,7 @@ class TestNetSSL(unittest.TestCase):
     def test_dino_v2_moe_aux_loss(self) -> None:
         batch_size = 4
         size = (64, 64)
-        backbone = registry.net_factory("vit_moe_vs32_8e_2k_last2", 0, size=size)
+        backbone = registry.net_factory("vit_vmoe_vs32_8e_2k_last2", 0, size=size)
         student = dino_v2.DINOv2Student(
             backbone,
             config={
@@ -1597,7 +1630,7 @@ class TestNetSSL(unittest.TestCase):
         size = (64, 64)
         dino_out_dim = 128
         num_nesting_levels = 2
-        backbone = registry.net_factory("vit_moe_vs32_8e_2k_last2", 0, size=size)
+        backbone = registry.net_factory("vit_vmoe_vs32_8e_2k_last2", 0, size=size)
         student = franca.FrancaStudent(
             backbone,
             config={
@@ -2351,7 +2384,7 @@ class TestNetSSL(unittest.TestCase):
     def test_nepa_moe_aux_loss(self) -> None:
         batch_size = 8
         size = (128, 128)
-        backbone = registry.net_factory("vit_moe_vs32_8e_2k_last2", 0, size=size)
+        backbone = registry.net_factory("vit_vmoe_vs32_8e_2k_last2", 0, size=size)
         backbone.set_moe_loss_output(True)
         net = nepa.NEPA(backbone, config={"shift": True})
         net.train()

@@ -245,6 +245,16 @@ class BaseNet(nn.Module):
         logger.debug(f"Setting dynamic size to: {dynamic_size}")
         self.dynamic_size = dynamic_size
 
+    def strip_for_forward_features(self) -> None:
+        """
+        Remove parameters and buffers that are not used by forward_features
+        """
+
+        if hasattr(self, "features") is True:
+            self.features = nn.Identity()  # pylint: disable=attribute-defined-outside-init
+
+        self.classifier = nn.Identity()
+
     def set_grad_checkpointing(
         self,
         enable: bool = True,
@@ -367,11 +377,12 @@ class DetectorBackbone(BaseNet):
         self.return_stages = ["stage1", "stage2", "stage3", "stage4"]
         self.return_channels: list[int]
 
-    def transform_to_backbone(self) -> None:
-        if hasattr(self, "features") is True:
-            self.features = nn.Identity()  # pylint: disable=attribute-defined-outside-init
+    def strip_for_detection_features(self) -> None:
+        """
+        Remove parameters and buffers that are not used by detection_features
+        """
 
-        self.classifier = nn.Identity()
+        super().strip_for_forward_features()
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         raise NotImplementedError

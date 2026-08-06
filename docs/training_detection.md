@@ -17,6 +17,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 - [RF-DETR](#rf-detr)
 - [RT-DETR v1](#rt-detr-v1)
 - [RT-DETR v2](#rt-detr-v2)
+- [RTMDet](#rtmdet)
 - [SSD](#ssd)
 - [SSDLite](#ssdlite)
 - [ViTDet](#vitdet)
@@ -349,6 +350,16 @@ IL-Common family - Warmup
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_detection --network rt_detr_v2 --tag il-common-family --backbone hieradet_small --backbone-tag sam2_1 --backbone-pretrained --freeze-backbone --batch-size 64 --opt adamw --opt-fused --clip-grad-norm 0.1 --lr 0.0001 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --epochs 100 --size 640 --batch-multiscale --multiscale-min-size 384 --aug-level 6 --rgb-mode imagenet --mosaic-prob 0.5 --amp --amp-dtype bfloat16 --compile --coco-json-path data/detection_data/training_annotations_il-common_classes_coco.json --coco-val-json-path data/detection_data/validation_annotations_il-common_classes_coco.json --label-mapping data/il-common_family-mapping.json
+```
+
+### RTMDet
+
+#### RTMDet Tiny: CSPNeXt Tiny
+
+Intermediate training (COCO)
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_detection --network rtmdet_t --tag coco --backbone cspnext_t --batch-size 32 --opt adamw --opt-fused --lr 0.004 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0.0002 --epochs 300 --warmup-steps 1000 --model-ema --model-ema-decay 0.9998 --size 640 --aug-type lsj --rgb-mode imagenet --mosaic-prob 1.0 --mosaic-stop-epoch 280 --sync-bn --amp --amp-dtype bfloat16 --data-path ~/Datasets/cocodataset/train2017 --val-path ~/Datasets/cocodataset/val2017 --coco-json-path ~/Datasets/cocodataset/annotations/instances_train2017.json --coco-val-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json
 ```
 
 ### SSD

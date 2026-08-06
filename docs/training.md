@@ -18,6 +18,7 @@ Most networks train more effectively with growing resolution and augmentation as
 
 ## Network Specific Training Procedures
 
+- [ACNet](#acnet)
 - [AlexNet](#alexnet)
 - [BiFormer](#biformer)
 - [CaiT](#cait)
@@ -31,6 +32,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [CrossFormer](#crossformer)
 - [CrossViT](#crossvit)
 - [CSPNet](#cspnet)
+- [CSPNeXt](#cspnext)
 - [CSWin Transformer](#cswin-transformer)
 - [Darknet](#darknet)
 - [DaViT](#davit)
@@ -72,6 +74,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [LeViT](#levit)
 - [LIT v1](#lit-v1)
 - [LIT v2](#lit-v2)
+- [MambaOut](#mambaout)
 - [MaxViT](#maxvit)
 - [MetaFormer](#metaformer)
 - [MicroViT v1](#microvit-v1)
@@ -144,6 +147,26 @@ Most networks train more effectively with growing resolution and augmentation as
 - [Wide ResNet](#wide-resnet)
 - [Xception](#xception)
 - [XCiT](#xcit)
+
+### ACNet
+
+#### ACNet: ACB ResNet v1 50
+
+```sh
+torchrun --nproc_per_node=2 train.py --network acb_resnet_v1_50 --batch-size 256 --lr 0.1 --wd 0.0001 --lr-scheduler cosine --epochs 100 --aug-level 6 --smoothing-alpha 0.1 --fast-matmul --compile
+```
+
+#### ACNet: DBB ResNet v1 50
+
+```sh
+torchrun --nproc_per_node=2 train.py --network dbb_resnet_v1_50 --batch-size 128 --lr 0.1 --wd 0.0001 --lr-scheduler cosine --epochs 120 --aug-level 6 --smoothing-alpha 0.1 --fast-matmul --compile
+```
+
+#### ACNet: DBB ResNet v1 50, ResNet strikes back procedure (A2)
+
+```sh
+torchrun --nproc_per_node=2 train.py --network dbb_resnet_v1_50 --bce-loss --bce-threshold 0.2 --batch-size 256 --opt lamb --grad-accum-steps 4 --lr 0.005 --wd 0.02 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 256 --aug-level 8 --mixup-alpha 0.1 --cutmix --ra-sampler --ra-reps 2 --amp --compile
+```
 
 ### AlexNet
 
@@ -344,7 +367,7 @@ torchrun --nproc_per_node=2 train.py --network convnext_v1_large --batch-size 16
 #### ConvNeXt v1 Isotropic: Small
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network convnext_v1_small --batch-size 32 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 50 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --rgb-mode centered --ra-sampler --ra-reps 2 --amp
+torchrun --nproc_per_node=2 train.py --network convnext_v1_iso_small --batch-size 32 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 50 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --rgb-mode centered --ra-sampler --ra-reps 2 --amp
 ```
 
 ### ConvNeXt v2
@@ -534,6 +557,14 @@ Same as non SE version
 #### CSPNet: CSP SE Darknet 53
 
 Same as non SE version
+
+### CSPNeXt
+
+#### CSPNeXt: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cspnext_t --batch-size 256 --opt adamw --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
+```
 
 ### CSWin Transformer
 
@@ -1437,6 +1468,26 @@ torchrun --nproc_per_node=2 train.py --network lit_v1_s --batch-size 128 --opt a
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network lit_v2_s --batch-size 128 --opt adamw --clip-grad-norm 5 --lr 0.0005 --wd 0.05 --custom-layer-wd offset_conv=0.0 --custom-layer-lr-scale offset_conv=0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile
+```
+
+### MambaOut
+
+#### MambaOut: Femto
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mambaout_femto --batch-size 256 --opt adamw --grad-accum-steps 4 --lr 0.004 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 20 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
+```
+
+#### MambaOut: Kobe
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mambaout_kobe --batch-size 192 --opt adamw --grad-accum-steps 4 --lr 0.004 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 20 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
+```
+
+#### MambaOut: Base
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mambaout_base --batch-size 96 --opt adamw --grad-accum-steps 8 --lr 0.004 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 20 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
 ```
 
 ### MaxViT
@@ -2712,19 +2763,19 @@ torchrun --nproc_per_node=2 train.py --network vit_s16_soft_moe_32e_4s_avg --bat
 #### ViT MoE: vs32 8e 2k last2
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_moe_vs32_8e_2k_last2 --model-config moe_dropout=0.2 --moe-aux-loss --batch-size 512 --opt adamw --opt-fused --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.003 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler polynomial --lr-power 1 --epochs 300 --warmup-epochs 10 --size 224 --aug-level 8 --mixup-alpha 0.2 --rgb-mode centered --drop-last --amp --amp-dtype bfloat16 --compile
+torchrun --nproc_per_node=2 train.py --network vit_vmoe_vs32_8e_2k_last2 --model-config moe_dropout=0.2 --moe-aux-loss --batch-size 512 --opt adamw --opt-fused --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.003 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler polynomial --lr-power 1 --epochs 300 --warmup-epochs 10 --size 224 --aug-level 8 --mixup-alpha 0.2 --rgb-mode centered --drop-last --amp --amp-dtype bfloat16 --compile
 ```
 
 #### ViT MoE: b16 8e 2k every2
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_moe_b16_8e_2k_every2 --model-config drop_path_rate=0.0 --moe-aux-loss --batch-size 256 --opt adamw --opt-fused --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.0008 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler polynomial --lr-power 1 --epochs 300 --warmup-epochs 10 --size 224 --aug-level 8 --mixup-alpha 0.5 --rgb-mode centered --drop-last --amp --amp-dtype bfloat16 --compile
+torchrun --nproc_per_node=2 train.py --network vit_vmoe_b16_8e_2k_every2 --model-config drop_path_rate=0.0 --moe-aux-loss --batch-size 256 --opt adamw --opt-fused --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.0008 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler polynomial --lr-power 1 --epochs 300 --warmup-epochs 10 --size 224 --aug-level 8 --mixup-alpha 0.5 --rgb-mode centered --drop-last --amp --amp-dtype bfloat16 --compile
 ```
 
 Fine-tuning, increase resolution
 
 ```sh
-torchrun --nproc_per_node=2 train.py --network vit_moe_b16_8e_2k_every2 --model-config drop_path_rate=0.0,moe_capacity_factor=1.5 --moe-aux-loss --batch-size 64 --opt-fused --clip-grad-norm 10 --grad-accum-steps 8 --lr 0.003 --wd 0 --lr-scheduler cosine --lr-cosine-min 1e-5 --epochs 10 --size 384 --aug-level 4 --rgb-mode centered --amp --amp-dtype bfloat16 --compile
+torchrun --nproc_per_node=2 train.py --network vit_vmoe_b16_8e_2k_every2 --model-config drop_path_rate=0.0,moe_capacity_factor=1.5 --moe-aux-loss --batch-size 64 --opt-fused --clip-grad-norm 10 --grad-accum-steps 8 --lr 0.003 --wd 0 --lr-scheduler cosine --lr-cosine-min 1e-5 --epochs 10 --size 384 --aug-level 4 --rgb-mode centered --amp --amp-dtype bfloat16 --compile
 ```
 
 ### ViT Parallel

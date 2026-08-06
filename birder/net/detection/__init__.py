@@ -10,6 +10,7 @@ from birder.net.detection.retinanet import RetinaNet
 from birder.net.detection.rf_detr import RF_DETR
 from birder.net.detection.rt_detr_v1 import RT_DETR_v1
 from birder.net.detection.rt_detr_v2 import RT_DETR_v2
+from birder.net.detection.rtmdet import RTMDet
 from birder.net.detection.ssd import SSD
 from birder.net.detection.ssdlite import SSDLite
 from birder.net.detection.vitdet import ViTDet
@@ -31,6 +32,7 @@ __all__ = [
     "RF_DETR",
     "RT_DETR_v1",
     "RT_DETR_v2",
+    "RTMDet",
     "SSD",
     "SSDLite",
     "ViTDet",

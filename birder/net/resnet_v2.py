@@ -337,3 +337,34 @@ registry.register_model_config(
         "squeeze_excitation": True,
     },
 )
+
+registry.register_weights(
+    "resnet_v2_50_inat21-256px",
+    {
+        "url": "https://huggingface.co/birder-project/resnet_v2_50_inat21/resolve/main",
+        "description": "ResNet v2 50 model trained on the iNaturalist 2021 dataset",
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 169.0,
+                "sha256": "2a34cdaa704f56cb231fb3726e35f90439fc6ab757f6578263e07f2c91b72e6a",
+            }
+        },
+        "net": {"network": "resnet_v2_50", "tag": "inat21-256px"},
+    },
+)
+registry.register_weights(
+    "resnet_v2_50_inat21",
+    {
+        "url": "https://huggingface.co/birder-project/resnet_v2_50_inat21/resolve/main",
+        "description": "ResNet v2 50 model trained on the iNaturalist 2021 dataset",
+        "resolution": (384, 384),
+        "formats": {
+            "pt": {
+                "file_size": 169.0,
+                "sha256": "72a7cfd93a2225461a9c43701c63e93e71f12c0f857e3d087e64ecede6bb1067",
+            }
+        },
+        "net": {"network": "resnet_v2_50", "tag": "inat21"},
+    },
+)

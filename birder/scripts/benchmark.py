@@ -1,7 +1,9 @@
 import argparse
 import logging
 import multiprocessing as mp
+import signal
 import time
+import traceback
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -21,13 +23,20 @@ from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 
-logger = logging.getLogger(__name__)
+# Spawned multiprocessing workers execute this module as __mp_main__
+# Use the canonical module name from the spec so worker logs remain under the configured birder logger hierarchy
+logger = logging.getLogger(__spec__.name if __spec__ is not None else __name__)
 
 
 class WeightsSpec(NamedTuple):
     model_name: str
     weights_path: Path
     cfg_path: Path
+
+
+class BenchmarkOutcome(NamedTuple):
+    result: Optional[dict[str, Any]]
+    error: Optional[str]
 
 
 def dummy(arg: Any) -> None:
@@ -156,6 +165,12 @@ def throughput_benchmark(
             for _ in range(args.warmup):
                 output = net(input_pool[_ % pool_size])
 
+    if args.cooldown > 0.0:
+        if device.type == "cuda":
+            torch.cuda.synchronize(device=device)
+
+        time.sleep(args.cooldown)
+
     # Benchmark
     logger.info(f"Throughput benchmark for {model_name}: repeats={args.repeats} bench_iter={args.bench_iter}")
     with torch.inference_mode():
@@ -163,25 +178,25 @@ def throughput_benchmark(
             if device.type == "cuda":
                 torch.cuda.synchronize(device=device)
 
-            t_start = time.perf_counter()
-            for _ in range(args.repeats):
+            t_elapsed = 0.0
+            for repeat_idx in range(args.repeats):
+                t_start = time.perf_counter()
                 for i in range(args.bench_iter):
                     output = net(input_pool[i % pool_size])
 
-            if device.type == "cuda":
-                torch.cuda.synchronize(device=device)
+                if device.type == "cuda":
+                    torch.cuda.synchronize(device=device)
 
-            t_end = time.perf_counter()
-            t_elapsed = t_end - t_start
+                t_elapsed += time.perf_counter() - t_start
+                if repeat_idx < args.repeats - 1 and args.cooldown > 0.0:
+                    time.sleep(args.cooldown)
 
     dummy(output)
 
     return (t_elapsed, batch_size)
 
 
-def memory_benchmark(
-    sync_peak_memory: Any, sample_shape: tuple[int, ...], model_spec: str | WeightsSpec, args: argparse.Namespace
-) -> None:
+def memory_benchmark(sample_shape: tuple[int, ...], model_spec: str | WeightsSpec, args: argparse.Namespace) -> float:
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     if args.gpu is True:
         device = torch.device("cuda")
@@ -231,15 +246,117 @@ def memory_benchmark(
             for _ in range(5):
                 net(sample)
 
-    peak_memory: float = torch.cuda.max_memory_allocated(device)
-    sync_peak_memory.value = peak_memory
+    return torch.cuda.max_memory_allocated(device)  # type: ignore[no-any-return]
+
+
+def run_model_benchmark(
+    model_spec: str | WeightsSpec, sample_shape: tuple[int, ...], args: argparse.Namespace
+) -> dict[str, Any]:
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
+    if args.gpu is True:
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+    if args.gpu_id is not None:
+        torch.cuda.set_device(args.gpu_id)
+
+    if args.fast_matmul is True or args.amp is True:
+        torch.set_float32_matmul_precision("high")
+
+    if args.single_thread is True:
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+
+    if isinstance(model_spec, WeightsSpec):
+        model_name = model_spec.model_name
+    else:
+        model_name = model_spec
+
+    if args.memory is True:
+        samples_per_sec = None
+        peak_memory = memory_benchmark(sample_shape, model_spec, args) / (1024 * 1024)
+        logger.info(f"{model_name} peak memory: {peak_memory:.2f} MB")
+    else:
+        if isinstance(model_spec, WeightsSpec):
+            net = init_weights_model(model_spec, device, args)
+        elif args.plain is True:
+            net = init_plain_model(model_name, sample_shape, device, args)
+        else:
+            net, _ = birder.load_pretrained_model(model_name, inference=True, device=device, dtype=model_dtype)
+            if args.size is not None:
+                net.adjust_size((sample_shape[2], sample_shape[3]))
+            if args.channels_last is True:
+                net = net.to(memory_format=torch.channels_last)
+                logger.debug("Using channels-last memory format")
+
+        if args.compile is True:
+            torch.compiler.reset()
+            net = torch.compile(net)
+
+        peak_memory = None
+        t_elapsed, batch_size = throughput_benchmark(net, device, sample_shape, model_name, args)
+        if t_elapsed < 0.0:
+            raise RuntimeError("sanity check failed for every attempted batch size")
+
+        num_samples = args.repeats * args.bench_iter * batch_size
+        samples_per_sec = num_samples / t_elapsed
+        ms_per_sample = 1000.0 * t_elapsed / num_samples
+        logger.info(
+            f"{model_name} throughput: {samples_per_sec:.2f} samples/s, {ms_per_sample:.2f} ms/sample "
+            f"(batch={batch_size})"
+        )
+
+    return {
+        "model_name": model_name,
+        "device": device.type,
+        "single_thread": args.single_thread,
+        "compile": args.compile,
+        "model_dtype": args.model_dtype,
+        "amp": args.amp,
+        "fast_matmul": args.fast_matmul,
+        "channels_last": args.channels_last,
+        "size": sample_shape[2],
+        "max_batch_size": args.max_batch_size,
+        "memory": args.memory,
+        "torch_version": torch.__version__,
+        "samples_per_sec": samples_per_sec,
+        "peak_memory": peak_memory,
+    }
+
+
+def model_benchmark_worker(
+    result_connection: Any,
+    model_spec: str | WeightsSpec,
+    sample_shape: tuple[int, ...],
+    args: argparse.Namespace,
+) -> None:
+    try:
+        result = run_model_benchmark(model_spec, sample_shape, args)
+        result_connection.send(BenchmarkOutcome(result=result, error=None))
+    except Exception:  # pylint: disable=broad-exception-caught
+        result_connection.send(BenchmarkOutcome(result=None, error=traceback.format_exc()))
+    finally:
+        result_connection.close()
+
+
+def process_exit_description(exit_code: Optional[int]) -> str:
+    if exit_code is None:
+        return "worker did not exit"
+    if exit_code < 0:
+        try:
+            signal_name = signal.Signals(-exit_code).name
+        except ValueError:
+            signal_name = f"signal {-exit_code}"
+
+        return f"worker terminated by {signal_name}"
+
+    return f"worker exited with code {exit_code}"
 
 
 def benchmark(args: argparse.Namespace) -> None:
-    mp.set_start_method("spawn")
+    mp_context = mp.get_context("spawn")
 
-    torch_version = torch.__version__
-    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     if args.plain is True:
         output_path = "benchmark_plain"
     else:
@@ -261,24 +378,18 @@ def benchmark(args: argparse.Namespace) -> None:
     else:
         existing_df = None
 
+    # Used just for bookkeeping, actual init happens on each worker
     if args.gpu is True:
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
 
-    if args.gpu_id is not None:
-        torch.cuda.set_device(args.gpu_id)
-
     logger.info(f"Using device {device}")
 
-    if args.fast_matmul is True or args.amp is True:
-        torch.set_float32_matmul_precision("high")
-
-    if args.single_thread is True:
-        torch.set_num_threads(1)
-        torch.set_num_interop_threads(1)
-
-    results = []
+    include_header = existing_df is None
+    attempted_benchmarks = 0
+    successful_benchmarks = 0
+    failures: list[tuple[str, str]] = []
     model_list: Sequence[str | WeightsSpec]
     if len(args.weights) > 0:
         model_list = args.weights
@@ -343,81 +454,67 @@ def benchmark(args: argparse.Namespace) -> None:
                 continue
 
         sample_shape = (args.max_batch_size, input_channels) + size
+        attempted_benchmarks += 1
 
-        if args.memory is True:
-            samples_per_sec = None
-            sync_peak_memory = mp.Value("d", 0.0)
-            p = mp.Process(target=memory_benchmark, args=(sync_peak_memory, sample_shape, model_spec, args))
-            p.start()
-            p.join()
-            peak_memory = sync_peak_memory.value / (1024 * 1024)
-            logger.info(f"{model_name} peak memory: {peak_memory:.2f} MB")
-        else:
-            # Initialize model
-            if isinstance(model_spec, WeightsSpec):
-                net = init_weights_model(model_spec, device, args)
-            elif args.plain is True:
-                net = init_plain_model(model_name, sample_shape, device, args)
-            else:
-                net, _ = birder.load_pretrained_model(model_name, inference=True, device=device, dtype=model_dtype)
-                if args.size is not None:
-                    net.adjust_size(size)
-                if args.channels_last is True:
-                    net = net.to(memory_format=torch.channels_last)
-                    logger.debug("Using channels-last memory format")
-
-            if args.compile is True:
-                torch.compiler.reset()
-                net = torch.compile(net)
-
-            peak_memory = None
-            t_elapsed, batch_size = throughput_benchmark(net, device, sample_shape, model_name, args)
-            if t_elapsed < 0.0:
-                continue
-
-            num_samples = args.repeats * args.bench_iter * batch_size
-            samples_per_sec = num_samples / t_elapsed
-            ms_per_sample = 1000.0 * t_elapsed / num_samples
-            logger.info(
-                f"{model_name} throughput: {samples_per_sec:.2f} samples/s, {ms_per_sample:.2f} ms/sample "
-                f"(batch={batch_size})"
-            )
-
-        results.append(
-            {
-                "model_name": model_name,
-                "device": device.type,
-                "single_thread": args.single_thread,
-                "compile": args.compile,
-                "model_dtype": args.model_dtype,
-                "amp": args.amp,
-                "fast_matmul": args.fast_matmul,
-                "channels_last": args.channels_last,
-                "size": size[0],
-                "max_batch_size": args.max_batch_size,
-                "memory": args.memory,
-                "torch_version": torch_version,
-                "samples_per_sec": samples_per_sec,
-                "peak_memory": peak_memory,
-            }
+        # Keep this process boundary even though Python exceptions are handled in the worker. torch.compile can
+        # terminate the interpreter with native failures such as SIGABRT or SIGSEGV, which try/except cannot catch.
+        result_connection, worker_connection = mp_context.Pipe(duplex=False)
+        worker = mp_context.Process(
+            target=model_benchmark_worker,
+            args=(worker_connection, model_spec, sample_shape, args),
+            name=f"benchmark-{model_name}",
         )
+        worker.start()
+        worker_connection.close()
+        try:
+            outcome = result_connection.recv()
+        except EOFError:
+            outcome = None
+        except BaseException:
+            if worker.is_alive() is True:
+                worker.terminate()
 
-    results_df = pl.DataFrame(results)
+            worker.join()
+            raise
+        finally:
+            result_connection.close()
+
+        worker.join()
+        if worker.exitcode != 0:
+            failures.append((model_name, process_exit_description(worker.exitcode)))
+            continue
+        if outcome is None:
+            failures.append((model_name, "worker exited without returning a result"))
+            continue
+        if outcome.error is not None:
+            failures.append((model_name, outcome.error))
+            continue
+
+        assert outcome.result is not None
+        successful_benchmarks += 1
+        if args.dry_run is False:
+            mode = "w" if include_header is True else "a"
+            logger.info(f"Saving successful result for {model_name} at {benchmark_path}")
+            with open(benchmark_path, mode=mode, encoding="utf-8") as handle:
+                pl.DataFrame([outcome.result]).write_csv(handle, include_header=include_header)
+
+            include_header = False
 
     if args.dry_run is True:
         logger.info("Dry run enabled, skipping saving outputs")
-        return
 
-    if args.append is True and existing_df is not None:
-        include_header = False
-        mode = "a"
-    else:
-        include_header = True
-        mode = "w"
+    if len(failures) > 0:
+        failure_count = len(failures)
+        failure_summary = (
+            f"{failure_count}/{attempted_benchmarks} attempted benchmarks failed; {successful_benchmarks} succeeded"
+        )
+        logger.error(failure_summary)
+        for model_name, error in failures:
+            logger.error(f"Benchmark failed for {model_name}:\n{error}")
 
-    logger.info(f"Saving results at {benchmark_path}")
-    with open(benchmark_path, mode=mode, encoding="utf-8") as handle:
-        results_df.write_csv(handle, include_header=include_header)
+        raise SystemExit(1)
+
+    logger.info(f"All {attempted_benchmarks} attempted benchmarks succeeded")
 
 
 def get_args_parser() -> argparse.ArgumentParser:
@@ -479,9 +576,16 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--single-thread", default=False, action="store_true", help="use CPU with a single thread")
     parser.add_argument("--gpu", default=False, action="store_true", help="use gpu")
     parser.add_argument("--gpu-id", type=int, metavar="ID", help="gpu id to use")
-    parser.add_argument("--warmup", type=int, default=20, metavar="N", help="number of warmup iterations")
+    parser.add_argument("--warmup", type=int, default=10, metavar="N", help="number of warmup iterations")
     parser.add_argument("--repeats", type=int, default=3, metavar="N", help="number of repetitions")
     parser.add_argument("--bench-iter", type=int, default=300, metavar="N", help="number of benchmark iterations")
+    parser.add_argument(
+        "--cooldown",
+        type=float,
+        default=0.0,
+        metavar="SECONDS",
+        help="cooldown after warmup and between benchmark repetitions",
+    )
     parser.add_argument("--pool-size", type=int, default=1, metavar="N", help="number of input tensors to rotate")
     parser.add_argument("--memory", default=False, action="store_true", help="benchmark memory instead of throughput")
     parser.add_argument("--append", default=False, action="store_true", help="append to existing output file")
@@ -541,5 +645,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logger = logging.getLogger(getattr(__spec__, "name", __name__))
     main()

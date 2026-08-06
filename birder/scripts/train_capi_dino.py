@@ -166,6 +166,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         config={
             "decoder_layers": args.decoder_layers,
             "decoder_dim": args.decoder_dim,
+            "decoder_drop_path_rate": args.decoder_drop_path_rate,
             "num_clusters": args.num_clusters,
             "dino_out_dim": args.dino_out_dim,
             "use_bn": False,
@@ -1002,8 +1003,11 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--decoder-layers", type=int, default=12, help="number of decoder layers")
     parser.add_argument("--decoder-dim", type=int, default=1024, help="decoder dimensionality")
+    parser.add_argument(
+        "--decoder-drop-path-rate", type=float, default=0.2, help="decoder stochastic depth probability"
+    )
     parser.add_argument("--num-clusters", type=int, default=16384, help="clustering head width")
-    parser.add_argument("--dino-loss-weight", type=float, default=1.0, help="weight for the DINO loss component")
+    parser.add_argument("--dino-loss-weight", type=float, default=0.5, help="weight for the DINO loss component")
     parser.add_argument("--dino-out-dim", type=int, default=32768, help="dimensionality of the DINO head output")
     parser.add_argument("--dino-head-layers", type=int, default=3, help="number of DINO head layers")
     parser.add_argument("--dino-head-hidden-dim", type=int, default=2048, help="DINO head hidden dimensionality")
@@ -1075,6 +1079,9 @@ def validate_args(args: argparse.Namespace) -> None:
     # Script specific checks
     if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION, net_type=MaskedTokenOmissionMixin) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
+
+    if args.decoder_drop_path_rate < 0.0 or args.decoder_drop_path_rate >= 1.0:
+        raise cli.ValidationError("--decoder-drop-path-rate must be in the range [0, 1)")
 
     if args.load_scheduler is True:
         raise cli.ValidationError("--load-scheduler not supported")

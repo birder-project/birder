@@ -69,7 +69,7 @@ class MAE_Hiera(MIMBaseNet):
             i // s ** (self.encoder.q_pool) for i, s in zip(self.encoder.tokens_spatial_shape, self.encoder.q_stride)
         ]
 
-        self.encoder_norm = nn.LayerNorm(encoder_dim)
+        self.encoder_norm = nn.LayerNorm(encoder_dim, eps=1e-6)
 
         curr_mu_size = list(self.encoder.mask_unit_size)
         self.multi_scale_fusion_heads = nn.ModuleList()
@@ -114,7 +114,7 @@ class MAE_Hiera(MIMBaseNet):
             )
 
         self.decoder_blocks = nn.Sequential(*layers)
-        self.decoder_norm = nn.LayerNorm(decoder_embed_dim)
+        self.decoder_norm = nn.LayerNorm(decoder_embed_dim, eps=1e-6)
 
         # Predictor
         self.pred_stride = self.encoder.patch_stride[-1] * (self.encoder.q_stride[-1] ** self.encoder.q_pool)

@@ -1,6 +1,5 @@
-"""Hungarian matching shared by DETR-family detectors."""
-
 import math
+from typing import Optional
 
 import torch
 import torch.nn.functional as F
@@ -55,7 +54,7 @@ class HungarianMatcher:
         class_logits: torch.Tensor,
         box_predictions: torch.Tensor,
         targets: list[dict[str, torch.Tensor]],
-        group_chunk_size: int | None = None,
+        group_chunk_size: Optional[int] = None,
     ) -> list[list[Assignment]]:
         """
         Match independent prediction groups against the same image targets

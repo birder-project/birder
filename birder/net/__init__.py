@@ -1,3 +1,4 @@
+from birder.net.acnet import ACNet
 from birder.net.alexnet import AlexNet
 from birder.net.biformer import BiFormer
 from birder.net.cait import CaiT
@@ -11,6 +12,7 @@ from birder.net.convnext_v2 import ConvNeXt_v2
 from birder.net.crossformer import CrossFormer
 from birder.net.crossvit import CrossViT
 from birder.net.cspnet import CSPNet
+from birder.net.cspnext import CSPNeXt
 from birder.net.cswin_transformer import CSWin_Transformer
 from birder.net.darknet import Darknet
 from birder.net.davit import DaViT
@@ -52,6 +54,7 @@ from birder.net.levit import LeViT
 from birder.net.lit_v1 import LIT_v1
 from birder.net.lit_v1_tiny import LIT_v1_Tiny
 from birder.net.lit_v2 import LIT_v2
+from birder.net.mambaout import MambaOut
 from birder.net.maxvit import MaxViT
 from birder.net.metaformer import MetaFormer
 from birder.net.microvit_v1 import MicroViT_v1
@@ -124,6 +127,7 @@ from birder.net.xception import Xception
 from birder.net.xcit import XCiT
 
 __all__ = [
+    "ACNet",
     "AlexNet",
     "BiFormer",
     "CaiT",
@@ -137,6 +141,7 @@ __all__ = [
     "CrossFormer",
     "CrossViT",
     "CSPNet",
+    "CSPNeXt",
     "CSWin_Transformer",
     "Darknet",
     "DaViT",
@@ -178,6 +183,7 @@ __all__ = [
     "LIT_v1",
     "LIT_v1_Tiny",
     "LIT_v2",
+    "MambaOut",
     "MaxViT",
     "MetaFormer",
     "MicroViT_v1",

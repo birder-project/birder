@@ -160,8 +160,12 @@ class DeiT(DetectorBackbone):
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)
 
-    def transform_to_backbone(self) -> None:
-        super().transform_to_backbone()
+    def strip_for_forward_features(self) -> None:
+        super().strip_for_forward_features()
+        self.dist_classifier = nn.Identity()
+
+    def strip_for_detection_features(self) -> None:
+        super().strip_for_detection_features()
         self.norm = nn.Identity()
         self.dist_classifier = nn.Identity()
 

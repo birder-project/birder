@@ -7,6 +7,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 - [Barlow Twins](#barlow-twins)
 - [BYOL](#byol)
 - [CAPI](#capi)
+- [CAPI-DINO](#capi-dino)
 - [Data2Vec](#data2vec)
 - [Data2Vec2](#data2vec2)
 - [DINO v1](#dino-v1)
@@ -75,7 +76,7 @@ torchrun --nproc_per_node=8 -m birder.scripts.train_capi --network hiera_abswin_
 #### CAPI: RoPE ViT reg4 m14 AVG
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg4_m14_avg --decoder-layers 6 --decoder-dim 512 --momentum-teacher 0.998 --sinkhorn-queue-size 256 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --grad-accum-steps 4 --lr 0.0015 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 600 --warmup-epochs 60 --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data
+torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit_reg4_m14_avg --decoder-layers 6 --decoder-dim 512 --momentum-teacher 0.998 --sinkhorn-queue-size 256 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --grad-accum-steps 4 --lr 0.0015 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 600 --warmup-epochs 60 --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path data/training data/raw_data
 ```
 
 #### CAPI: RoPE ViT reg8 b14 AP
@@ -166,6 +167,14 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_rotnet --network rope_vit_re
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_capi --network rope_vit5_reg4_s16 --decoder-layers 6 --decoder-dim 384 --momentum-teacher 0.998 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --grad-accum-steps 4 --lr 0.002 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --warmup-epochs 40 --size 256 --fast-matmul --compile --distributed-mode fsdp --fsdp-sharding-strategy shard-grad-op --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype float32 --no-broadcast-buffers --wds --wds-info data/ssl_packed/_info.json
+```
+
+### CAPI-DINO
+
+#### CAPI-DINO: RoPE ViT reg8 b14 nps AVG
+
+```sh
+torchrun --nproc_per_node=8 -m birder.scripts.train_capi_dino --network rope_vit_reg8_b14_nps_avg --tag bio --decoder-layers 8 --decoder-dim 768 --decoder-drop-path-rate 0.1 --batch-size 512 --opt adamw --opt-fused --opt-betas 0.9 0.95 --grad-accum-steps 2 --lr 0.001 --wd 0.1 --norm-wd 0.01 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 400 --steps-per-epoch 1500 --warmup-epochs 40 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
 ### Data2Vec
@@ -407,7 +416,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_s16_ls 
 #### Franca: ViT MoE m16 16e 2k every2 LS
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_moe_m16_16e_2k_every2_ls --model-config moe_top_k=1 --moe-aux-loss --dino-out-dim 65536 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 49152 --nesting-levels 4 --sinkhorn-queue-size 2048 --batch-size 64 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --epochs 500 --steps-per-epoch 2000 --warmup-epochs 32 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --wds --wds-info /mnt/data/imagenet-12k-wds/_info.json --wds-split train --wds-info /mnt/data/ssl_bio_packed/_info.json --wds-split training
+torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_vmoe_m16_16e_2k_every2_ls --model-config moe_top_k=1 --moe-aux-loss --dino-out-dim 65536 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 49152 --nesting-levels 4 --sinkhorn-queue-size 2048 --batch-size 64 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --epochs 500 --steps-per-epoch 2000 --warmup-epochs 32 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --wds --wds-info /mnt/data/imagenet-12k-wds/_info.json --wds-split train --wds-info /mnt/data/ssl_bio_packed/_info.json --wds-split training
 ```
 
 #### Franca: ViT b16 LS

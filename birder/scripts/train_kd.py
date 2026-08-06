@@ -518,7 +518,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     else:
         ema_warmup_steps = 0
 
-    logger.debug(f"EMA warmup steps = {ema_warmup_steps}")
+    if args.model_ema is True:
+        logger.debug(f"EMA warmup steps = {ema_warmup_steps}")
+
     train_student = student
     if distillation_type == "embedding":
         train_student = EmbeddingDistillWrapper(student, moe_aux_loss=args.moe_aux_loss)

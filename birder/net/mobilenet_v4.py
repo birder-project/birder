@@ -475,7 +475,7 @@ class MobileNet_v4(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin)
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.zeros_(m.bias)
 
-    def transform_to_backbone(self) -> None:
+    def strip_for_detection_features(self) -> None:
         self.body.stage5 = nn.Identity()
         self.features = nn.Identity()
         self.classifier = nn.Identity()

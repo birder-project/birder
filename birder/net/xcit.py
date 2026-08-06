@@ -358,7 +358,7 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             for param in self.block2.parameters():
                 param.requires_grad_(True)
 
-    def transform_to_backbone(self) -> None:
+    def strip_for_detection_features(self) -> None:
         self.block2 = nn.Identity()
         self.cls_token = None
         self.classifier = nn.Identity()

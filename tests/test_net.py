@@ -19,6 +19,8 @@ from birder.net.base import MaskedTokenRetentionMixin
 logging.disable(logging.CRITICAL)
 
 NET_TEST_CASES = [
+    ("acb_resnet_v1_18"),
+    ("dbb_resnet_v1_18"),
     ("alexnet"),
     ("biformer_t"),
     ("cait_xxs24"),
@@ -36,6 +38,7 @@ NET_TEST_CASES = [
     ("csp_resnext_50"),
     ("csp_darknet_53"),
     ("csp_se_resnet_50"),
+    ("cspnext_t"),
     ("cswin_transformer_t"),
     ("darknet_53"),
     ("davit_tiny"),
@@ -88,6 +91,7 @@ NET_TEST_CASES = [
     ("lit_v1_s"),
     ("lit_v1_t"),
     ("lit_v2_s"),
+    ("mambaout_femto"),
     ("maxvit_t"),
     ("poolformer_v1_s12"),
     ("poolformer_v2_s12"),
@@ -152,8 +156,8 @@ NET_TEST_CASES = [
     ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", False, False, 1, 14),
     ("rope_vit_s16_soft_moe_32e_4s_avg"),
     ("rope_vit5_reg4_s16"),
-    ("rope_vit_moe_vs32_8e_2k_last2"),
-    ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
+    ("rope_vit_vmoe_vs32_8e_2k_last2"),
+    ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
     ("sequencer2d_s"),
     ("shufflenet_v1_8"),
     ("shufflenet_v2_0_5"),
@@ -183,8 +187,8 @@ NET_TEST_CASES = [
     ("vit_so150m_p14_ap", False, False, 1, 14),
     ("vit_reg8_so150m_p14_swiglu_avg", False, False, 1, 14),
     ("vit_s16_soft_moe_32e_4s_avg"),
-    ("vit_moe_vs32_8e_2k_last2"),
-    ("vit_moe_reg1_vs32_8e_2k_last2"),
+    ("vit_vmoe_vs32_8e_2k_last2"),
+    ("vit_vmoe_reg1_vs32_8e_2k_last2"),
     ("vit_parallel_s16_18x2_ls"),
     ("vit_det_s16"),
     ("vit_sam_b16"),
@@ -198,6 +202,8 @@ NET_TEST_CASES = [
 ]
 
 DETECTION_BACKBONE_CASES = [
+    ("acb_resnet_v1_18"),
+    ("dbb_resnet_v1_18"),
     ("biformer_t"),
     ("cas_vit_xs"),
     ("coat_tiny"),
@@ -211,6 +217,7 @@ DETECTION_BACKBONE_CASES = [
     ("csp_resnext_50"),
     ("csp_darknet_53"),
     ("csp_se_resnet_50"),
+    ("cspnext_t"),
     ("cswin_transformer_t"),
     ("darknet_53"),
     ("davit_tiny"),
@@ -259,6 +266,7 @@ DETECTION_BACKBONE_CASES = [
     ("lit_v1_s"),
     ("lit_v1_t"),
     ("lit_v2_s"),
+    ("mambaout_femto"),
     ("maxvit_t"),
     ("poolformer_v1_s12"),
     ("poolformer_v2_s12"),
@@ -380,8 +388,8 @@ DYNAMIC_SIZE_CASES = [
     ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", 1, 14),
     ("rope_vit_s16_soft_moe_32e_4s_avg"),
     ("rope_vit5_reg4_s16"),
-    ("rope_vit_moe_vs32_8e_2k_last2"),
-    ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
+    ("rope_vit_vmoe_vs32_8e_2k_last2"),
+    ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
     ("simple_vit_b32"),
     ("swin_transformer_v1_t"),
     ("swin_transformer_v2_t"),
@@ -395,8 +403,8 @@ DYNAMIC_SIZE_CASES = [
     ("vit_so150m_p14_ap", 1, 14),
     ("vit_reg8_so150m_p14_swiglu_avg", 1, 14),
     ("vit_s16_soft_moe_32e_4s_avg"),
-    ("vit_moe_vs32_8e_2k_last2"),
-    ("vit_moe_reg1_vs32_8e_2k_last2"),
+    ("vit_vmoe_vs32_8e_2k_last2"),
+    ("vit_vmoe_reg1_vs32_8e_2k_last2"),
     ("vit_parallel_s16_18x2_ls"),
     ("vit_det_s16"),
     ("vit_sam_b16"),
@@ -472,6 +480,12 @@ class TestBase(unittest.TestCase):
         self.assertEqual(base_net.flatten_features(torch.rand((2, 3, 4, 5))).size(), (2, 20, 3))
         with self.assertRaises(RuntimeError):
             base_net.flatten_features(torch.rand((2, 10)))
+
+        # Strip everything outside the forward_features path
+        base_net.strip_for_forward_features()
+        self.assertIsInstance(base_net.features, torch.nn.Identity)
+        self.assertIsInstance(base_net.classifier, torch.nn.Identity)
+        self.assertIsInstance(base_net.body, torch.nn.Linear)
 
     def test_base_net_mlp_head(self) -> None:
         base_net = base.BaseNet(DEFAULT_NUM_CHANNELS, num_classes=2, config={"mlp_head": True}, size=(128, 128))
@@ -674,6 +688,51 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(NET_TEST_CASES)  # type: ignore[untyped-decorator]
     @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_strip_for_forward_features(
+        self,
+        network_name: str,
+        _skip_embedding: bool = False,
+        _non_standard_features: bool = False,
+        batch_size: int = 1,
+        _size_step: int = 2**5,
+    ) -> None:
+        def collect_tensors(value: object) -> list[torch.Tensor]:
+            if isinstance(value, torch.Tensor):
+                return [value]
+            if isinstance(value, dict):
+                return [tensor for item in value.values() for tensor in collect_tensors(item)]
+            if isinstance(value, (list, tuple)):
+                return [tensor for item in value for tensor in collect_tensors(item)]
+
+            return []
+
+        n = registry.net_factory(network_name, 100)
+        inputs = torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *n.default_size))
+        n.eval()
+        with torch.inference_mode():
+            expected = n.forward_features(inputs)
+
+        n.strip_for_forward_features()
+        with torch.inference_mode():
+            actual = n.forward_features(inputs)
+
+        torch.testing.assert_close(actual, expected)
+
+        n.train()
+        outputs = n.forward_features(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *n.default_size)))
+        tensors = collect_tensors(outputs)
+        self.assertGreater(len(tensors), 0)
+        loss = tensors[0].sum()
+        for tensor in tensors[1:]:
+            loss = loss + tensor.sum()
+
+        loss.backward()
+        for name, param in n.named_parameters():
+            self.assertIsNotNone(param.grad, msg=f"{network_name} missing grad for {name}")
+            self.assertTrue(torch.isfinite(param.grad).all().item(), msg=f"{network_name} non-finite grad for {name}")
+
+    @parameterized.expand(NET_TEST_CASES)  # type: ignore[untyped-decorator]
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
     def test_net_pt2(
         self,
         network_name: str,
@@ -719,6 +778,7 @@ class TestNet(unittest.TestCase):
     ) -> None:
         n = registry.net_factory(network_name, 100)
         size = n.default_size
+        n.strip_for_detection_features()
 
         self.assertIsInstance(n.max_stride, int)
         self.assertEqual(len(n.return_channels), len(n.return_stages))
@@ -757,7 +817,7 @@ class TestNet(unittest.TestCase):
         _allow_equal_stages: bool = False,
     ) -> None:
         n = registry.net_factory(network_name, 100)
-        n.transform_to_backbone()
+        n.strip_for_detection_features()
 
         out = n.detection_features(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *n.default_size)))
         loss = sum(feature.sum() for feature in out.values())
@@ -802,6 +862,8 @@ class TestNet(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
+            ("acb_resnet_v1_18"),
+            ("dbb_resnet_v1_18"),
             ("biformer_t"),
             ("cait_xxs24"),
             ("conv2former_n"),
@@ -828,6 +890,7 @@ class TestNet(unittest.TestCase):
             ("hieradet_d_tiny"),
             ("iformer_s"),
             ("inception_next_t"),
+            ("mambaout_femto"),
             ("maxvit_t"),
             ("poolformer_v1_s12"),
             ("poolformer_v2_s12"),
@@ -868,8 +931,8 @@ class TestNet(unittest.TestCase):
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
             ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
-            ("rope_vit_moe_vs32_8e_2k_last2"),
-            ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2"),
+            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
             ("smt_t"),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
@@ -885,8 +948,8 @@ class TestNet(unittest.TestCase):
             ("vit_so150m_p14_ap"),
             ("vit_reg8_so150m_p14_swiglu_avg"),
             ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_moe_vs32_8e_2k_last2"),
-            ("vit_moe_reg1_vs32_8e_2k_last2"),
+            ("vit_vmoe_vs32_8e_2k_last2"),
+            ("vit_vmoe_reg1_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
             ("wide_resnet_50"),
             ("xcit_nano12_p16"),
@@ -963,8 +1026,8 @@ class TestNet(unittest.TestCase):
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
             ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
-            ("rope_vit_moe_vs32_8e_2k_last2"),
-            ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2"),
+            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
             ("simple_vit_b32"),
             ("vit_s32"),
             ("vit_s16_pn"),
@@ -976,8 +1039,8 @@ class TestNet(unittest.TestCase):
             ("vit_so150m_p14_ap"),
             ("vit_reg8_so150m_p14_swiglu_avg"),
             ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_moe_vs32_8e_2k_last2"),
-            ("vit_moe_reg1_vs32_8e_2k_last2"),
+            ("vit_vmoe_vs32_8e_2k_last2"),
+            ("vit_vmoe_reg1_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
@@ -1058,13 +1121,13 @@ class TestNet(unittest.TestCase):
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit5_reg4_s16"),
-            ("rope_vit_moe_vs32_8e_2k_last2"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2"),
             ("simple_vit_s32"),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
             ("vit_s32"),
             ("vit_sam_b16"),
-            ("vit_moe_vs32_8e_2k_last2"),
+            ("vit_vmoe_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
             ("wide_resnet_50"),
         ]
@@ -1105,6 +1168,8 @@ class TestNet(unittest.TestCase):
 class TestNonSquareNet(unittest.TestCase):
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
+            ("acb_resnet_v1_18"),
+            ("dbb_resnet_v1_18"),
             ("alexnet"),
             ("biformer_t"),
             ("cait_xxs24"),
@@ -1122,6 +1187,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("csp_resnext_50"),
             ("csp_darknet_53"),
             ("csp_se_resnet_50"),
+            ("cspnext_t"),
             ("darknet_53"),
             ("davit_tiny"),
             ("davit_fl_tiny"),
@@ -1173,6 +1239,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("lit_v1_s"),
             ("lit_v1_t"),
             ("lit_v2_s"),
+            ("mambaout_femto"),
             ("maxvit_t"),
             ("poolformer_v1_s12"),
             ("poolformer_v2_s12"),
@@ -1235,8 +1302,8 @@ class TestNonSquareNet(unittest.TestCase):
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", 1, 14, 14),
             ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
-            ("rope_vit_moe_vs32_8e_2k_last2"),
-            ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2"),
+            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
             ("sequencer2d_s"),
             ("shufflenet_v1_8"),
             ("shufflenet_v2_0_5"),
@@ -1265,8 +1332,8 @@ class TestNonSquareNet(unittest.TestCase):
             ("vit_so150m_p14_ap", 1, 14, 14),
             ("vit_reg8_so150m_p14_swiglu_avg", 1, 14, 14),
             ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_moe_vs32_8e_2k_last2"),
-            ("vit_moe_reg1_vs32_8e_2k_last2"),
+            ("vit_vmoe_vs32_8e_2k_last2"),
+            ("vit_vmoe_reg1_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_det_b16"),
             ("vit_sam_b16"),
@@ -1408,15 +1475,15 @@ class TestSpecialFunctions(unittest.TestCase):
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit5_reg4_s16"),
-            ("rope_vit_moe_vs32_8e_2k_last2"),
-            ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2"),
+            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
             ("simple_vit_s32"),
             ("vit_s32"),
             ("vit_b16_qkn_ls"),
             ("vit_b16_nf_swiglu"),
             ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_moe_vs32_8e_2k_last2"),
-            ("vit_moe_reg1_vs32_8e_2k_last2"),
+            ("vit_vmoe_vs32_8e_2k_last2"),
+            ("vit_vmoe_reg1_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
@@ -1440,11 +1507,11 @@ class TestSpecialFunctions(unittest.TestCase):
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit5_reg4_s16"),
-            ("rope_vit_moe_vs32_8e_2k_last2"),
-            ("rope_vit_moe_reg1_vs32_8e_2k_last2"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2"),
+            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
             ("simple_vit_s32"),
             ("vit_s32"),
-            ("vit_moe_vs32_8e_2k_last2"),
+            ("vit_vmoe_vs32_8e_2k_last2"),
         ]
     )
     def test_vit_forward_features_attention_mask(self, network_name: str) -> None:
@@ -1493,8 +1560,8 @@ class TestSpecialFunctions(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
-            ("vit_moe_vs32_8e_2k_last2"),
-            ("rope_vit_moe_vs32_8e_2k_last2"),
+            ("vit_vmoe_vs32_8e_2k_last2"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2"),
         ]
     )
     def test_vit_moe_grad_checkpointing_with_aux_losses(self, network_name: str) -> None:
@@ -1688,7 +1755,7 @@ class TestSpecialFunctions(unittest.TestCase):
             ("vit_s32"),
             ("vit_b16_qkn_ls"),
             ("vit_b16_nf_swiglu"),
-            ("vit_moe_vs32_8e_2k_last2"),
+            ("vit_vmoe_vs32_8e_2k_last2"),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_sam_b16"),
         ]

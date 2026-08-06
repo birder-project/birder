@@ -44,7 +44,7 @@ Number of predictions shown in classification visualizations and used for top-k 
 COCO max detection thresholds for detection metrics.
 
 For settings that support both mechanisms, environment variables are applied after `birder.toml`.
-Currently this applies to `DATA_DIR` and `LOG_LEVEL`.
+Currently this applies to `DATA_DIR`, `MODELS_DIR`, `TRAINING_RUNS_PATH`, `RESULTS_DIR` and `LOG_LEVEL`.
 
 ## Environment Variables
 
@@ -65,6 +65,15 @@ VARIABLE_NAME=value python -m birder.scripts....
 
 **`DATA_DIR`**  
 Default root directory for data files and datasets.
+
+**`MODELS_DIR`**  
+Directory for model checkpoints.
+
+**`TRAINING_RUNS_PATH`**  
+Directory for training logs.
+
+**`RESULTS_DIR`**  
+Directory for inference and evaluation outputs.
 
 **`LOG_LEVEL`**  
 Minimum logging level.

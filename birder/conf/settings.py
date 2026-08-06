@@ -106,9 +106,10 @@ def _apply_config(config: dict[str, Any]) -> None:
 
 
 def _apply_env(explicit: set[str]) -> None:
-    if "DATA_DIR" in os.environ:
-        globals()["DATA_DIR"] = Path(os.environ["DATA_DIR"])
-        explicit.add("DATA_DIR")
+    for name in _DERIVED_PATHS["BASE_DIR"]:
+        if name in os.environ:
+            globals()[name] = Path(os.environ[name])
+            explicit.add(name)
 
     if "LOG_LEVEL" in os.environ:
         globals()["LOG_LEVEL"] = os.environ["LOG_LEVEL"]

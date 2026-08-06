@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.7.1 - 2026-08-06
+
+### Added
+
+- **ACNet and Diverse Branch Block**: Added [ACNet](https://arxiv.org/abs/1908.03930) and [Diverse Branch Block](https://arxiv.org/abs/2103.13425) ResNet v1 image classification model variants with structural reparameterization.
+- **CSPNeXt**: Added [CSPNeXt](https://arxiv.org/abs/2212.07784) image classification model variants.
+- **Directory Environment Overrides**: Added environment-variable overrides for the model checkpoint, training run and results directories.
+- **MambaOut**: Added [MambaOut](https://arxiv.org/abs/2405.07992) image classification model variants.
+- **RTMDet**: Added [RTMDet](https://arxiv.org/abs/2212.07784) object detection model variants.
+- **Pretrained Models**:
+    - `resnet_v2_50_inat21` and `resnet_v2_50_inat21-256px`: Added ResNet v2 50 pretrained weights on the iNaturalist 2021 dataset.
+
+### Changed
+
+- **CAPI Upstream Fidelity**: Restored constant stochastic depth across the decoder blocks and aligned the final decoder RMSNorm epsilon with upstream.
+- **Feature-Path Network Stripping (Breaking)**: Standardized destructive network preparation on `strip_for_forward_features()` and `strip_for_detection_features()`. These APIs remove parameters and buffers outside their corresponding feature paths across all supported classification networks and detector backbones. Consumers must use the new feature-path-specific APIs.
+- **V-MoE Model Names (Breaking)**: Renamed the registered `vit_moe_*` and `rope_vit_moe_*` model configurations to `vit_vmoe_*` and `rope_vit_vmoe_*`, respectively, to distinguish V-MoE from other mixture-of-experts implementations.
+
+### Fixed
+
+- **Benchmark Failure Isolation**: Isolated individual model benchmarks in spawned workers so native failures, including `torch.compile` crashes, no longer abort the remaining run. Successful results are written to CSV immediately.
+
 ## 0.7.0 - 2026-07-31
 
 ### Added

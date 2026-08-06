@@ -71,7 +71,7 @@ class DetectionBaseNet(nn.Module):
         self.input_channels = backbone.input_channels
         self.num_classes = num_classes + 1  # Background always at index 0
         self.backbone = backbone
-        self.backbone.transform_to_backbone()
+        self.backbone.strip_for_detection_features()
         if hasattr(self, "config") is False:  # Avoid overriding registered configs
             self.config = config
         else:

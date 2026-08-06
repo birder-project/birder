@@ -422,6 +422,10 @@ class LeViT(BaseNet):
             for param in self.features.parameters():
                 param.requires_grad_(True)
 
+    def strip_for_forward_features(self) -> None:
+        super().strip_for_forward_features()
+        self.dist_classifier = nn.Identity()
+
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
         return self.body(x)

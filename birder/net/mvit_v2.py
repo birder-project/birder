@@ -540,8 +540,8 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
             for param in self.norm.parameters():
                 param.requires_grad_(True)
 
-    def transform_to_backbone(self) -> None:
-        super().transform_to_backbone()
+    def strip_for_detection_features(self) -> None:
+        super().strip_for_detection_features()
         self.norm = nn.Identity()
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:

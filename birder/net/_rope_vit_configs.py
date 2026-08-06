@@ -467,6 +467,17 @@ def register_rope_vit_configs(rope_vit: type[BaseNet]) -> None:
         config={"patch_size": 14, **BASE, "num_reg_tokens": 4},
     )
     registry.register_model_config(
+        "rope_vit_reg8_b14_nps_avg",
+        rope_vit,
+        config={
+            "pos_embed_special_tokens": False,
+            "patch_size": 14,
+            **BASE,
+            "num_reg_tokens": 8,
+            "class_token": False,
+        },
+    )
+    registry.register_model_config(
         "rope_vit_reg8_b14_nps_ap",
         rope_vit,
         config={

@@ -42,6 +42,7 @@ NET_DETECTION_TEST_CASES = [
     ("rt_detr_v1", "resnet_v1_50"),
     ("rt_detr_v2", "se_resnet_d_50"),
     ("rt_detr_v2_s_dsp", "vovnet_v2_19"),
+    ("rtmdet_t", "cspnext_t"),
     ("ssd", "efficientnet_v2_s", (256, 256), 2),
     ("ssd", "vit_s16", (256, 256), 2),  # 1 stage network
     ("ssdlite", "mobilenet_v2_0_25", (512, 512), 2),
@@ -73,6 +74,7 @@ DETECTION_DYNAMIC_SIZE_CASES = [
     ("rt_detr_v1", "resnet_v1_50"),
     ("rt_detr_v2", "se_resnet_d_50"),
     ("rt_detr_v2_s_dsp", "vovnet_v2_19"),
+    ("rtmdet_t", "cspnext_t"),
     ("ssd", "efficientnet_v2_s", (256, 256), 2),
     ("ssdlite", "mobilenet_v2_0_25", (512, 512), 2),
     ("vitdet", "vit_b32"),

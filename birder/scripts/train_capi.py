@@ -173,6 +173,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         config={
             "decoder_layers": args.decoder_layers,
             "decoder_dim": args.decoder_dim,
+            "decoder_drop_path_rate": args.decoder_drop_path_rate,
             "num_clusters": args.num_clusters,
         },
     )
@@ -932,6 +933,9 @@ def get_args_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--decoder-layers", type=int, default=12, help="number of decoder layers")
     parser.add_argument("--decoder-dim", type=int, default=1024, help="decoder dimensionality")
+    parser.add_argument(
+        "--decoder-drop-path-rate", type=float, default=0.2, help="decoder stochastic depth probability"
+    )
     parser.add_argument("--num-clusters", type=int, default=16384, help="clustering head width")
     parser.add_argument("--mask-ratio", type=float, default=0.65, help="masking ratio")
     parser.add_argument("--kept-mask-ratio", type=float, default=0.05, help="subsampling ratio for decoding")
@@ -982,6 +986,9 @@ def validate_args(args: argparse.Namespace) -> None:
     # Script specific checks
     if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION, net_type=MaskedTokenOmissionMixin) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
+
+    if args.decoder_drop_path_rate < 0.0 or args.decoder_drop_path_rate >= 1.0:
+        raise cli.ValidationError("--decoder-drop-path-rate must be in the range [0, 1)")
 
     if args.load_scheduler is True:
         raise cli.ValidationError("--load-scheduler not supported")

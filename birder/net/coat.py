@@ -508,7 +508,8 @@ class CoaT(DetectorBackbone):
                 for param in self.aggregate.parameters():
                     param.requires_grad_(True)
 
-    def transform_to_backbone(self) -> None:
+    def strip_for_forward_features(self) -> None:
+        super().strip_for_forward_features()
         if self.norm2 is not None:
             self.norm2 = nn.Identity()
         if self.norm3 is not None:
@@ -517,7 +518,9 @@ class CoaT(DetectorBackbone):
             self.aggregate = nn.Identity()
 
         self.norm4 = nn.Identity()
-        self.classifier = nn.Identity()
+
+    def strip_for_detection_features(self) -> None:
+        self.strip_for_forward_features()
 
     def _features(self, x: torch.Tensor) -> dict[str, tuple[torch.Tensor, torch.Tensor]]:
         B = x.shape[0]

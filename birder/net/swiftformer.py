@@ -328,7 +328,11 @@ class SwiftFormer(DetectorBackbone):
             for param in self.features.parameters():
                 param.requires_grad_(True)
 
-    def transform_to_backbone(self) -> None:
+    def strip_for_forward_features(self) -> None:
+        super().strip_for_forward_features()
+        self.dist_classifier = nn.Identity()
+
+    def strip_for_detection_features(self) -> None:
         self.features = nn.Identity()
         self.classifier = nn.Identity()
         self.dist_classifier = nn.Identity()

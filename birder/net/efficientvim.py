@@ -406,7 +406,8 @@ class EfficientViM(DetectorBackbone):
             for param in self.norm.parameters():
                 param.requires_grad_(True)
 
-    def transform_to_backbone(self) -> None:
+    def strip_for_forward_features(self) -> None:
+        super().strip_for_forward_features()
         self.register_parameter("weights", None)
         self.state_norms = nn.ModuleList(
             [
@@ -423,7 +424,9 @@ class EfficientViM(DetectorBackbone):
                 nn.Identity(),
             ]
         )
-        self.classifier = nn.Identity()
+
+    def strip_for_detection_features(self) -> None:
+        self.strip_for_forward_features()
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)

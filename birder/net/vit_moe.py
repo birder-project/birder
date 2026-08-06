@@ -1175,10 +1175,10 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
 # =====================================================
 #
 # Model names follow a structured pattern to encode architectural choices:
-# vit_moe_[size][patch_size]_[components]
+# vit_vmoe_[size][patch_size]_[components]
 #
 # Core Components:
-# - vit_moe_    : Vision Transformer with sparse V-MoE FFN layers
+# - vit_vmoe_   : Vision Transformer with sparse V-MoE FFN layers
 # - size        : Model size (s=small, b=base)
 # - patch_size  : Patch size (e.g., 16, 32 for 16x16, 32x32 patches)
 #
@@ -1189,7 +1189,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
 # - last{N}   : Last N odd-indexed MoE FFN candidates, matching upstream "Last N"
 
 registry.register_model_config(
-    "vit_moe_vs32_8e_2k_last2",
+    "vit_vmoe_vs32_8e_2k_last2",
     ViT_MoE,
     config={
         "patch_size": 32,
@@ -1201,12 +1201,12 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "vit_moe_s16_8e_2k_last3",
+    "vit_vmoe_s16_8e_2k_last3",
     ViT_MoE,
     config={"patch_size": 16, **SMALL, "moe_num_experts": 8, "moe_top_k": 2, "moe_last_n_layers": 3},
 )
 registry.register_model_config(
-    "vit_moe_m16_16e_2k_every2_ls",
+    "vit_vmoe_m16_16e_2k_every2_ls",
     ViT_MoE,
     config={
         "patch_size": 16,
@@ -1218,17 +1218,17 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "vit_moe_b16_8e_2k_every2",
+    "vit_vmoe_b16_8e_2k_every2",
     ViT_MoE,
     config={"patch_size": 16, **BASE, "moe_num_experts": 8, "moe_top_k": 2, "moe_every_n_layers": 2},
 )
 registry.register_model_config(
-    "vit_moe_b16_16e_2k_every2",
+    "vit_vmoe_b16_16e_2k_every2",
     ViT_MoE,
     config={"patch_size": 16, **BASE, "moe_num_experts": 16, "moe_top_k": 2, "moe_every_n_layers": 2},
 )
 registry.register_model_config(
-    "vit_moe_so150m_p16_16e_2k_last4",
+    "vit_vmoe_so150m_p16_16e_2k_last4",
     ViT_MoE,
     config={"patch_size": 16, **SO150, "moe_num_experts": 16, "moe_top_k": 2, "moe_last_n_layers": 4},
 )
@@ -1237,7 +1237,7 @@ registry.register_model_config(
 ####################
 
 registry.register_model_config(
-    "vit_moe_reg1_vs32_8e_2k_last2",
+    "vit_vmoe_reg1_vs32_8e_2k_last2",
     ViT_MoE,
     config={
         "patch_size": 32,
@@ -1250,7 +1250,7 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "vit_moe_reg1_s16_8e_2k_last3",
+    "vit_vmoe_reg1_s16_8e_2k_last3",
     ViT_MoE,
     config={
         "patch_size": 16,
@@ -1262,7 +1262,7 @@ registry.register_model_config(
     },
 )
 registry.register_model_config(
-    "vit_moe_reg8_so150m_p16_16e_2k_last3",
+    "vit_vmoe_reg8_so150m_p16_16e_2k_last3",
     ViT_MoE,
     config={
         "patch_size": 16,

@@ -20,6 +20,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 from torchvision.ops import MLP
+from torchvision.ops import StochasticDepth
 
 from birder.common import training_utils
 from birder.net.base import MaskedTokenOmissionMixin
@@ -281,21 +282,26 @@ class CrossAttention(nn.Module):
 
 
 class CrossAttentionBlock(nn.Module):
-    def __init__(self, encoder_dim: int, decoder_dim: int, num_heads: int, mlp_ratio: float) -> None:
+    def __init__(
+        self, encoder_dim: int, decoder_dim: int, num_heads: int, mlp_ratio: float, drop_path_rate: float
+    ) -> None:
         super().__init__()
         self.norm1 = nn.RMSNorm(decoder_dim, eps=1e-5)
         self.cross_attn = CrossAttention(encoder_dim, decoder_dim, num_heads=num_heads)
         self.norm2 = nn.RMSNorm(decoder_dim, eps=1e-5)
         self.mlp = MLP(decoder_dim, [int(decoder_dim * mlp_ratio), decoder_dim], activation_layer=nn.GELU, bias=False)
+        self.drop_path = StochasticDepth(drop_path_rate, mode="row")
 
     def forward(self, tgt: torch.Tensor, memory: torch.Tensor) -> torch.Tensor:
-        x = tgt + self.cross_attn(self.norm1(tgt), memory)
-        x = x + self.mlp(self.norm2(x))
+        x = tgt + self.drop_path(self.cross_attn(self.norm1(tgt), memory))
+        x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 
 
 class Decoder(nn.Module):
-    def __init__(self, input_size: tuple[int, int], embed_dim: int, decoder_dim: int, depth: int) -> None:
+    def __init__(
+        self, input_size: tuple[int, int], embed_dim: int, decoder_dim: int, depth: int, drop_path_rate: float
+    ) -> None:
         super().__init__()
 
         encoder_dim = embed_dim
@@ -314,9 +320,13 @@ class Decoder(nn.Module):
 
         self.decoder_layers = nn.ModuleList()
         for _ in range(decoder_depth):
-            self.decoder_layers.append(CrossAttentionBlock(encoder_dim, decoder_embed_dim, num_heads=16, mlp_ratio=4.0))
+            self.decoder_layers.append(
+                CrossAttentionBlock(
+                    encoder_dim, decoder_embed_dim, num_heads=16, mlp_ratio=4.0, drop_path_rate=drop_path_rate
+                )
+            )
 
-        self.decoder_norm = nn.RMSNorm(decoder_embed_dim, elementwise_affine=False)
+        self.decoder_norm = nn.RMSNorm(decoder_embed_dim, eps=1e-5, elementwise_affine=False)
         self.grad_checkpointing = False
         self.grad_checkpointing_preserve_rng_state = True
         self.grad_checkpointing_use_reentrant = False
@@ -384,12 +394,15 @@ class CAPIStudent(SSLBaseNet):
 
         decoder_layers: int = self.config["decoder_layers"]
         decoder_dim: int = self.config["decoder_dim"]
+        decoder_drop_path_rate: float = self.config["decoder_drop_path_rate"]
         num_clusters: int = self.config["num_clusters"]
 
         input_size = (self.size[0] // self.backbone.max_stride, self.size[1] // self.backbone.max_stride)
         self.seq_len = input_size[0] * input_size[1]
 
-        self.decoder = Decoder(input_size, self.backbone.feature_dim, decoder_dim, decoder_layers)
+        self.decoder = Decoder(
+            input_size, self.backbone.feature_dim, decoder_dim, decoder_layers, drop_path_rate=decoder_drop_path_rate
+        )
         self.head = L2NormLinear(decoder_dim, num_clusters)
 
     def set_grad_checkpointing(

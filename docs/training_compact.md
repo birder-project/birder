@@ -35,6 +35,7 @@ Examples use repo-root script names (e.g., `train.py`). If you installed Birder 
 - [InceptionNeXt](#inceptionnext)
 - [LeViT](#levit)
 - [LIT v1](#lit-v1)
+- [MambaOut](#mambaout)
 - [MetaFormer](#metaformer)
 - [MicroViT v1](#microvit-v1)
 - [MicroViT v2](#microvit-v2)
@@ -410,6 +411,14 @@ torchrun --nproc_per_node=2 train.py --network levit_128 --tag il-common --batch
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network lit_v1_t --tag il-common --batch-size 128 --opt adamw --lr 0.0005 --wd 0.05 --custom-layer-wd offset_conv=0.0 --custom-layer-lr-scale offset_conv=0.01 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### MambaOut
+
+#### MambaOut: Femto
+
+```sh
+torchrun --nproc_per_node=2 train.py --network mambaout_femto --tag il-common --batch-size 256 --opt adamw --grad-accum-steps 4 --lr 0.004 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 20 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### MetaFormer

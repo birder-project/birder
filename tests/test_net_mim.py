@@ -116,11 +116,11 @@ class TestNetMIM(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
-            ("maskfeat", "vit_moe_vs32_8e_2k_last2"),
-            ("simmim", "rope_vit_moe_vs32_8e_2k_last2"),
-            ("simmim", "rope_vit_moe_reg1_vs32_8e_2k_last2"),
-            ("simmim", "vit_moe_vs32_8e_2k_last2"),
-            ("simmim", "vit_moe_reg1_vs32_8e_2k_last2"),
+            ("maskfeat", "vit_vmoe_vs32_8e_2k_last2"),
+            ("simmim", "rope_vit_vmoe_vs32_8e_2k_last2"),
+            ("simmim", "rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
+            ("simmim", "vit_vmoe_vs32_8e_2k_last2"),
+            ("simmim", "vit_vmoe_reg1_vs32_8e_2k_last2"),
         ]
     )
     def test_net_mim_retention_moe_aux_loss(self, network_name: str, encoder_name: str) -> None:
@@ -139,10 +139,10 @@ class TestNetMIM(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
-            ("crossmae", "rope_vit_moe_vs32_8e_2k_last2"),
-            ("mae_vit", "rope_vit_moe_vs32_8e_2k_last2"),
-            ("crossmae", "vit_moe_vs32_8e_2k_last2"),
-            ("mae_vit", "vit_moe_vs32_8e_2k_last2"),
+            ("crossmae", "rope_vit_vmoe_vs32_8e_2k_last2"),
+            ("mae_vit", "rope_vit_vmoe_vs32_8e_2k_last2"),
+            ("crossmae", "vit_vmoe_vs32_8e_2k_last2"),
+            ("mae_vit", "vit_vmoe_vs32_8e_2k_last2"),
         ]
     )
     def test_net_mim_omission_moe_aux_loss(self, network_name: str, encoder_name: str) -> None:
@@ -256,7 +256,7 @@ class TestNetMIM(unittest.TestCase):
 
     def test_net_eva_retention_moe_aux_loss(self) -> None:
         size = (64, 64)
-        student = registry.net_factory("vit_moe_vs32_8e_2k_last2", 0, size=size)
+        student = registry.net_factory("vit_vmoe_vs32_8e_2k_last2", 0, size=size)
         teacher = registry.net_factory("vit_t32", 0, size=size)
 
         inputs = torch.rand((8, DEFAULT_NUM_CHANNELS, *size))

@@ -236,7 +236,6 @@ class Inception_NeXt(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixi
         )
         self.return_channels = return_channels
         self.embedding_size = channels[-1]
-        self.last_mlp_ratio = mlp_ratios[-1]
         self.classifier = self.create_classifier()
 
         self.max_stride = 4 * 2 ** (num_stage - 1)

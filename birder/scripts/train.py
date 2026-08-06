@@ -446,7 +446,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     else:
         ema_warmup_steps = 0
 
-    logger.debug(f"EMA warmup steps = {ema_warmup_steps}")
+    if args.model_ema is True:
+        logger.debug(f"EMA warmup steps = {ema_warmup_steps}")
+
     net_without_ddp = net
     no_sync_cm = nullcontext
     if args.distributed is True:
