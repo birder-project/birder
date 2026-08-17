@@ -80,12 +80,18 @@ def identity(x: Any) -> Any:
     return x
 
 
+def get_wds_num_shards(dataset: wds.DataPipeline) -> int:
+    """Return the number of source shards in a WebDataset pipeline"""
+
+    return len(dataset.pipeline[0])
+
+
 def make_wds_dataset(
     wds_path: str | list[str],
     dataset_size: int,
     shuffle: bool,
     samples_names: bool,
-    transform: Callable[..., torch.Tensor],
+    transform: Optional[Callable[..., torch.Tensor]],
     image_decoder: WDSImageDecoderSpec = "tv",
     channels: int = settings.DEFAULT_NUM_CHANNELS,
     *,
@@ -129,9 +135,11 @@ def make_wds_dataset(
 
     if samples_names is True:
         dataset = dataset.map(decode_sample_name)
-        dataset = dataset.map_tuple(identity, transform, identity)
+        if transform is not None:
+            dataset = dataset.map_tuple(identity, transform, identity)
     else:
-        dataset = dataset.map_tuple(transform, identity)
+        if transform is not None:
+            dataset = dataset.map_tuple(transform, identity)
 
     return dataset
 

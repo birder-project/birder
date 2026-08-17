@@ -724,7 +724,7 @@ registry.register_model_config(
 registry.register_weights(
     "coat_tiny_il-common",
     {
-        "description": "CoaT tiny model trained on the il-common dataset",
+        "description": "CoaT Tiny model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -738,7 +738,7 @@ registry.register_weights(
 registry.register_weights(
     "coat_lite_tiny_il-common",
     {
-        "description": "CoaT lite tiny model trained on the il-common dataset",
+        "description": "CoaT Lite Tiny model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

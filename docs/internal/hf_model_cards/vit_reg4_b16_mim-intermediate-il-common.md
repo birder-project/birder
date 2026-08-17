@@ -11,7 +11,8 @@ base_model:
 
 # Model Card for vit_reg4_b16_mim-intermediate-il-common
 
-A ViT reg4 image classification model. The model follows a three-stage training process: first, masked image modeling, next intermediate training on a large-scale dataset containing diverse bird species from around the world, finally fine-tuned specifically on the `il-common` dataset.
+A ViT Reg4 B/16 image classification model.
+The model follows a three-stage training process: first, masked image modeling, next intermediate training on a large-scale dataset containing diverse bird species from around the world, finally fine-tuned specifically on the `il-common` dataset.
 
 The species list is derived from data available at <https://www.israbirding.com/checklist/>.
 

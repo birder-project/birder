@@ -11,7 +11,8 @@ base_model:
 
 # Model Card for rope_vit_reg8_so150m_p14_swiglu_rms_ap_rotnet-capi
 
-A RoPE SoViT 150m p14 image orientation estimation model. The model follows a two-stage training process: first, CAPI pretraining, then trained to estimate image orientation.
+A RoPE SoViT Reg8 150M/14 image orientation-estimation model.
+The model follows a two-stage training process: first, CAPI pretraining, then trained to estimate image orientation.
 
 Given an input image, the model predicts whether it is correctly oriented (0°), or rotated by 90°, 180°, or 270°.  
 It is primarily intended for use in image curation pipelines, enabling automatic correction of mis-rotated images.

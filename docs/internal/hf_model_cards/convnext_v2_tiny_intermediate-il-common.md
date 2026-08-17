@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for convnext_v2_tiny_intermediate-il-common
 
-A ConvNext v2 image classification model. The model follows a two-stage training process: first undergoing intermediate training on a large-scale dataset containing diverse bird species from around the world, then fine-tuned specifically on the `il-common` dataset containing common bird species found in Israel.
+A ConvNeXt v2 Tiny image classification model.
+The model follows a two-stage training process: first undergoing intermediate training on a large-scale dataset containing diverse bird species from around the world, then fine-tuned specifically on the `il-common` dataset containing common bird species found in Israel.
 
 The species list is derived from data available at <https://www.israbirding.com/checklist/>.
 

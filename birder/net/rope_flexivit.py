@@ -5,51 +5,29 @@ Paper "FlexiViT: One Model for All Patch Sizes", https://arxiv.org/abs/2212.0801
 # Reference license: Apache-2.0
 
 import logging
-import math
 import random
 from functools import partial
 from typing import Any
-from typing import Literal
 from typing import Optional
 
 import torch
 from torch import nn
 
-from birder.common.masking import mask_tensor
-from birder.layers import FFN
-from birder.layers import EfficientProbing
-from birder.layers import MultiHeadAttentionPool
-from birder.layers import SwiGLU_FFN
-from birder.layers.activations import get_activation_module
-from birder.layers.rope import RoPE
-from birder.layers.rope import RoPERotationType
-from birder.layers.rope import RoPEStyleType
-from birder.layers.rope import build_rotary_pos_embed
 from birder.model_registry import registry
 from birder.net._vit_configs import BASE
 from birder.net._vit_configs import SMALL
-from birder.net.base import DetectorBackbone
-from birder.net.base import MaskedTokenOmissionMixin
-from birder.net.base import MaskedTokenRetentionMixin
-from birder.net.base import PreTrainEncoder
-from birder.net.base import TokenOmissionResultType
-from birder.net.base import TokenRetentionResultType
-from birder.net.base import normalize_out_indices
-from birder.net.base import stochastic_depth_rates
 from birder.net.flexivit import flex_proj
 from birder.net.flexivit import get_patch_sizes
 from birder.net.flexivit import interpolate_proj
-from birder.net.rope_vit import Encoder
 from birder.net.rope_vit import MAEDecoderBlock
-from birder.net.vit import PatchEmbed
+from birder.net.rope_vit import RoPE_ViT
 from birder.net.vit import adjust_position_embedding
 
 logger = logging.getLogger(__name__)
 
 
-class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
+class RoPE_FlexiViT(RoPE_ViT):
     default_size = (240, 240)
-    block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
         self,
@@ -59,246 +37,28 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         config: Optional[dict[str, Any]] = None,
         size: Optional[tuple[int, int]] = None,
     ) -> None:
+        # Registered models are dynamically created subclasses, with their base config
+        # stored as a class attribute before this initializer runs.
+        # The config argument contains only per-call overrides, so check both sources
+        # before applying RoPE FlexiViT's default.
+        pos_embed_config_key = "pos_embed_special_tokens"
+        registered_config = getattr(type(self), "config", None)
+        has_registered_setting = registered_config is not None and pos_embed_config_key in registered_config
+        has_call_override = config is not None and pos_embed_config_key in config
+        if has_registered_setting is False and has_call_override is False:
+            config = dict(config or {})
+            config[pos_embed_config_key] = False
+
         super().__init__(input_channels, num_classes, config=config, size=size)
         assert self.config is not None, "must set config"
 
-        image_size = self.size
-        abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
-        pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", False)
-        patch_size: int = self.config["patch_size"]
-        num_layers: int = self.config["num_layers"]
-        num_heads: int = self.config["num_heads"]
-        hidden_dim: int = self.config["hidden_dim"]
-        mlp_dim: int = self.config["mlp_dim"]
-        layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
-        pre_norm: bool = self.config.get("pre_norm", False)
-        post_norm: bool = self.config.get("post_norm", True)
-        norm_after_pool: bool = self.config.get("norm_after_pool", False)
-        qkv_bias: bool = self.config.get("qkv_bias", True)
-        qk_norm: bool = self.config.get("qk_norm", False)
-        attn_norm: bool = self.config.get("attn_norm", False)
-        num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
-        class_token: bool = self.config.get("class_token", True)
-        attn_pool_head: bool = self.config.get("attn_pool_head", False)
-        attn_pool_type: str = self.config.get("attn_pool_type", "MultiHeadAttentionPool")
-        attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
-        attn_pool_special_tokens: bool = self.config.get("attn_pool_special_tokens", False)
-        attn_pool_norm_eps: float = self.config.get("attn_pool_norm_eps", 1e-5)
-        norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
-        norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
-        mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
-        act_layer_type: Optional[str] = self.config.get("act_layer_type", None)  # Default according to mlp type
-        out_indices: Optional[list[int]] = self.config.get("out_indices", None)
-        rope_style: RoPEStyleType = self.config.get("rope_style", "default")
-        rope_rot_type: RoPERotationType = self.config.get("rope_rot_type", "standard")
-        rope_grid_indexing: Literal["ij", "xy"] = self.config.get("rope_grid_indexing", "ij")
-        rope_grid_offset: int = self.config.get("rope_grid_offset", 0)
-        rope_temperature: float = self.config.get("rope_temperature", 100.0)
-        pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
-        min_patch_size: int = self.config.get("min_patch_size", 8)
-        max_patch_size: int = self.config.get("max_patch_size", 48)
-        dropout: float = self.config.get("dropout", 0.0)
-        attention_dropout: float = self.config.get("attention_dropout", 0.0)
-        projection_dropout: float = self.config.get("projection_dropout", 0.0)
-        drop_path_rate: float = self.config["drop_path_rate"]
+        if isinstance(self.conv_proj, nn.Conv2d) is False:
+            raise ValueError("RoPE FlexiViT only supports the standard patchify stem")
 
-        if norm_layer_type == "LayerNorm":
-            norm_layer = nn.LayerNorm
-        elif norm_layer_type == "RMSNorm":
-            norm_layer = nn.RMSNorm
-        else:
-            raise ValueError(f"Unknown norm_layer_type '{norm_layer_type}'")
-
-        if mlp_layer_type == "FFN":
-            mlp_layer = FFN
-            act_layer = nn.GELU
-        elif mlp_layer_type == "SwiGLU_FFN":
-            mlp_layer = SwiGLU_FFN
-            act_layer = nn.SiLU
-        elif mlp_layer_type == "Norm_SwiGLU_FFN":
-            mlp_layer = partial(SwiGLU_FFN, norm_layer=norm_layer, norm_eps=norm_layer_eps)  # type: ignore[assignment]
-            act_layer = nn.SiLU
-        else:
-            raise ValueError(f"Unknown mlp_layer_type '{mlp_layer_type}'")
-
-        if act_layer_type is not None:
-            act_layer = get_activation_module(act_layer_type)
-
-        torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
-        torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
-        torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
-        self.abs_pos_embed = abs_pos_embed
-        self.pos_embed_special_tokens = pos_embed_special_tokens
-        self.patch_size = patch_size
-        self.num_layers = num_layers
-        self.num_heads = num_heads
-        self.hidden_dim = hidden_dim
-        self.layer_scale_init_value = layer_scale_init_value
-        self.num_reg_tokens = num_reg_tokens
-        self.attn_pool_special_tokens = attn_pool_special_tokens
-        self.norm_layer = norm_layer
-        self.norm_layer_eps = norm_layer_eps
-        self.mlp_layer = mlp_layer
-        self.act_layer = act_layer
-        self.out_indices = normalize_out_indices(out_indices, num_layers)
-        self.rope_style = rope_style
-        self.rope_rot_type = rope_rot_type
-        self.rope_grid_indexing = rope_grid_indexing
-        self.rope_grid_offset = rope_grid_offset
-        self.rope_temperature = rope_temperature
-        self.min_patch_size = min_patch_size
-        self.max_patch_size = max_patch_size
+        self.min_patch_size: int = self.config.get("min_patch_size", 8)
+        self.max_patch_size: int = self.config.get("max_patch_size", 48)
         self.patch_size_list = get_patch_sizes(self.min_patch_size, self.max_patch_size, self.size)
-
-        # Cast in case config was loaded from a json (no tuples),
-        # TorchScript does not accept a list when tuple expected
-        if isinstance(pt_grid_size, list):
-            pt_grid_size = tuple(pt_grid_size)  # type: ignore[unreachable]
-
-        self.pt_grid_size = pt_grid_size
-        dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
-
-        self.conv_proj = nn.Conv2d(
-            self.input_channels,
-            hidden_dim,
-            kernel_size=(patch_size, patch_size),
-            stride=(patch_size, patch_size),
-            padding=(0, 0),
-            bias=not pre_norm,
-        )
-        self.patch_embed = PatchEmbed()
-
-        seq_length = (image_size[0] // patch_size) * (image_size[1] // patch_size)
-        self.num_special_tokens = 0
-
-        # Add a class token
-        if class_token is True:
-            self.class_token = nn.Parameter(torch.zeros(1, 1, hidden_dim))
-            self.num_special_tokens += 1
-            if pos_embed_special_tokens is True:
-                seq_length += 1
-        else:
-            self.class_token = None
-
-        # Add optional register tokens
-        if self.num_reg_tokens > 0:
-            self.reg_tokens = nn.Parameter(torch.zeros(1, self.num_reg_tokens, hidden_dim))
-            self.num_special_tokens += self.num_reg_tokens
-            if pos_embed_special_tokens is True:
-                seq_length += self.num_reg_tokens
-        else:
-            self.reg_tokens = None
-
-        # Add positional embedding
-        if self.abs_pos_embed is True:
-            self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))
-        else:
-            self.pos_embedding = None
-
-        # RoPE
-        self.rope = RoPE(
-            hidden_dim // num_heads,
-            temperature=self.rope_temperature,
-            grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
-            grid_indexing=rope_grid_indexing,
-            grid_offset=rope_grid_offset,
-            pt_grid_size=self.pt_grid_size,
-            rope_style=rope_style,
-            rope_rot_type=rope_rot_type,
-        )
-
-        # Encoder
-        self.encoder = Encoder(
-            num_layers,
-            num_heads,
-            hidden_dim,
-            mlp_dim,
-            self.num_special_tokens,
-            dropout,
-            attention_dropout,
-            projection_dropout,
-            dpr,
-            pre_norm=pre_norm,
-            qkv_bias=qkv_bias,
-            qk_norm=qk_norm,
-            attn_norm=attn_norm,
-            activation_layer=act_layer,
-            layer_scale_init_value=layer_scale_init_value,
-            norm_layer=norm_layer,
-            norm_layer_eps=norm_layer_eps,
-            mlp_layer=mlp_layer,
-            rope_rot_type=rope_rot_type,
-        )
-
-        if post_norm is True and norm_after_pool is False:
-            self.norm = norm_layer(hidden_dim, eps=norm_layer_eps)
-        else:
-            self.norm = nn.Identity()
-
-        if post_norm is True and norm_after_pool is True:
-            self.embedding_norm = norm_layer(hidden_dim, eps=norm_layer_eps)
-        else:
-            self.embedding_norm = nn.Identity()
-
-        if attn_pool_head is False:
-            self.attn_pool = None
-        else:
-            if attn_pool_type == "MultiHeadAttentionPool":
-                attn_pool = MultiHeadAttentionPool
-                if attn_pool_num_heads is None:
-                    attn_pool_num_heads = num_heads
-            elif attn_pool_type == "EfficientProbing":
-                attn_pool = EfficientProbing
-                if attn_pool_num_heads is None:
-                    attn_pool_num_heads = 1
-            else:
-                raise ValueError(f"Unknown attn_pool_type '{attn_pool_type}'")
-
-            self.attn_pool = attn_pool(
-                hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True, norm_eps=attn_pool_norm_eps
-            )
-
-        num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
-        self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
-        self.return_channels = [hidden_dim] * num_return_stages
-        self.embedding_size = hidden_dim
-        self.classifier = self.create_classifier()
-
-        self.max_stride = patch_size
-        self.stem_stride = patch_size
-        self.stem_width = hidden_dim
-        self.feature_dim = hidden_dim
-        self.decoder_block = partial(
-            MAEDecoderBlock,
-            16,
-            num_special_tokens=self.num_special_tokens,
-            activation_layer=act_layer,
-            grid_size=(image_size[0] // patch_size, image_size[1] // patch_size),
-            rope_grid_indexing=rope_grid_indexing,
-            rope_grid_offset=rope_grid_offset,
-            rope_temperature=rope_temperature,
-            layer_scale_init_value=layer_scale_init_value,
-            norm_layer=norm_layer,
-            norm_layer_eps=norm_layer_eps,
-            mlp_layer=mlp_layer,
-            rope_style=rope_style,
-            rope_rot_type=rope_rot_type,
-        )
-
         self.set_dynamic_size()
-
-        # Weight initialization
-        if isinstance(self.conv_proj, nn.Conv2d):
-            # Init the patchify stem
-            fan_in = self.conv_proj.in_channels * self.conv_proj.kernel_size[0] * self.conv_proj.kernel_size[1]
-            nn.init.trunc_normal_(self.conv_proj.weight, std=math.sqrt(1 / fan_in))
-            if self.conv_proj.bias is not None:
-                nn.init.zeros_(self.conv_proj.bias)
-
-        if isinstance(self.classifier, nn.Linear):
-            nn.init.zeros_(self.classifier.weight)
-            if self.classifier.bias is not None:
-                nn.init.zeros_(self.classifier.bias)
 
     def _get_pos_embed(self, H: int, W: int, patch_size: Optional[int] = None) -> Optional[torch.Tensor]:
         if self.pos_embedding is None:
@@ -315,6 +75,7 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // patch_size, W // patch_size),
             self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
+            interpolation_mode=self.pos_embed_interpolation_mode,
             antialias=False,
         )
 
@@ -322,266 +83,10 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         if patch_size is None:
             patch_size = self.patch_size
 
-        if H == self.size[0] and W == self.size[1] and patch_size == self.patch_size:
-            return self.rope.pos_embed
+        return self.rope.get_pos_embed((H // patch_size, W // patch_size))
 
-        return torch.concat(
-            build_rotary_pos_embed(
-                self.hidden_dim // self.num_heads,
-                self.rope_temperature,
-                grid_size=(H // patch_size, W // patch_size),
-                grid_indexing=self.rope_grid_indexing,
-                grid_offset=self.rope_grid_offset,
-                pt_grid_size=self.pt_grid_size,
-                rope_style=self.rope_style,
-            ),
-            dim=-1,
-        ).to(self.rope.pos_embed.device, dtype=self.rope.pos_embed.dtype)
-
-    def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
-        for param in self.parameters():
-            param.requires_grad_(False)
-
-        if freeze_classifier is False:
-            for param in self.classifier.parameters():
-                param.requires_grad_(True)
-
-        if unfreeze_features is True:
-            for param in self.norm.parameters():
-                param.requires_grad_(True)
-            for param in self.embedding_norm.parameters():
-                param.requires_grad_(True)
-            if self.attn_pool is not None:
-                for param in self.attn_pool.parameters():
-                    param.requires_grad_(True)
-
-    def set_grad_checkpointing(
-        self,
-        enable: bool = True,
-        *,
-        segments: Optional[int] = None,
-        preserve_rng_state: bool = True,
-        use_reentrant: bool = False,
-    ) -> None:
-        self.encoder.set_grad_checkpointing(
-            enable=enable,
-            segments=segments,
-            preserve_rng_state=preserve_rng_state,
-            use_reentrant=use_reentrant,
-        )
-
-    def set_causal_attention(self, is_causal: bool = True) -> None:
-        self.encoder.set_causal_attention(is_causal)
-
-    def strip_for_forward_features(self) -> None:
-        super().strip_for_forward_features()
-        self.embedding_norm = nn.Identity()
-        self.attn_pool = None
-
-    def strip_for_detection_features(self) -> None:
-        super().strip_for_detection_features()
-        self.norm = nn.Identity()
-        self.embedding_norm = nn.Identity()
-        self.attn_pool = None
-
-    def _pool(self, x: torch.Tensor) -> torch.Tensor:
-        if self.attn_pool is not None:
-            if self.attn_pool_special_tokens is False:
-                x = x[:, self.num_special_tokens :]
-
-            x = self.attn_pool(x)
-            return x[:, 0]
-
-        if self.class_token is None:
-            x = x[:, self.num_special_tokens :]
-            return x.mean(dim=1)
-
-        # Classifier "token" as used by standard language architectures
-        return x[:, self.num_reg_tokens]
-
-    def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        H, W = x.shape[-2:]
-        x = self.conv_proj(x)
-        x = self.patch_embed(x)
-        pos_embedding = self._get_pos_embed(H, W)
-
-        if pos_embedding is not None and self.pos_embed_special_tokens is False:
-            x = x + pos_embedding
-
-        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
-        special_tokens: list[torch.Tensor] = []
-        if self.reg_tokens is not None:
-            special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
-        if self.class_token is not None:
-            special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
-        if len(special_tokens) > 0:
-            x = torch.concat(special_tokens + [x], dim=1)
-
-        if pos_embedding is not None and self.pos_embed_special_tokens is True:
-            x = x + pos_embedding
-
-        rope = self._get_rope_embed(H, W)
-        if self.out_indices is None:
-            xs = [self.encoder(x, rope)]
-        else:
-            xs = self.encoder.forward_features(x, rope, out_indices=self.out_indices)
-
-        out: dict[str, torch.Tensor] = {}
-        for stage_name, stage_x in zip(self.return_stages, xs, strict=True):
-            stage_x = stage_x[:, self.num_special_tokens :]
-            stage_x = stage_x.permute(0, 2, 1)
-            B, C, _ = stage_x.size()
-            stage_x = stage_x.reshape(B, C, H // self.patch_size, W // self.patch_size)
-            out[stage_name] = stage_x
-
-        return out
-
-    def freeze_stages(self, up_to_stage: int) -> None:
-        for param in self.conv_proj.parameters():
-            param.requires_grad_(False)
-
-        if self.pos_embedding is not None:
-            self.pos_embedding.requires_grad_(False)
-
-        if up_to_stage <= 0:
-            return
-
-        for param in self.encoder.pre_block.parameters():
-            param.requires_grad_(False)
-
-        if self.out_indices is None:
-            stage_boundaries = [self.num_layers - 1]
-        else:
-            stage_boundaries = sorted(set(self.out_indices))
-
-        last_block = stage_boundaries[min(up_to_stage, len(stage_boundaries)) - 1]
-        for block in self.encoder.block[: last_block + 1]:
-            for param in block.parameters():
-                param.requires_grad_(False)
-
-    def masked_encoding_omission(
-        self,
-        x: torch.Tensor,
-        ids_keep: Optional[torch.Tensor] = None,
-        return_all_features: bool = False,
-        return_keys: Literal["all", "tokens", "embedding"] = "tokens",
-    ) -> TokenOmissionResultType:
-        H, W = x.shape[-2:]
-
-        # Reshape and permute the input tensor
-        x = self.conv_proj(x)
-        x = self.patch_embed(x)
-
-        # Add pos embedding without special tokens
-        pos_embedding = self._get_pos_embed(H, W)
-        if pos_embedding is not None:
-            if self.pos_embed_special_tokens is True:
-                x = x + pos_embedding[:, self.num_special_tokens :, :]
-            else:
-                x = x + pos_embedding
-
-        rope = self._get_rope_embed(H, W)
-
-        # Mask tokens
-        if ids_keep is not None:
-            x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
-
-            rope_dim = rope.size(1)
-            rope = rope.unsqueeze(0).expand(x.size(0), -1, -1)
-            rope_masked = torch.gather(rope, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, rope_dim))
-        else:
-            rope_masked = rope
-
-        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
-        special_tokens: list[torch.Tensor] = []
-        if self.reg_tokens is not None:
-            if pos_embedding is not None and self.pos_embed_special_tokens is True:
-                reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
-            else:
-                reg_tokens = self.reg_tokens
-
-            special_tokens.append(reg_tokens.expand(x.size(0), -1, -1))
-
-        if self.class_token is not None:
-            if pos_embedding is not None and self.pos_embed_special_tokens is True:
-                cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
-            else:
-                cls_token = self.class_token
-
-            special_tokens.append(cls_token.expand(x.size(0), -1, -1))
-
-        if len(special_tokens) > 0:
-            x = torch.concat(special_tokens + [x], dim=1)
-
-        # Apply transformer
-        if return_all_features is True:
-            xs = self.encoder.forward_features(x, rope_masked)
-            xs[-1] = self.norm(xs[-1])
-            x = torch.stack(xs, dim=-1)
-        else:
-            x = self.encoder(x, rope_masked)
-            x = self.norm(x)
-
-        result: TokenOmissionResultType = {}
-        if return_keys in ("all", "tokens"):
-            result["tokens"] = x
-
-        if return_keys in ("all", "embedding"):
-            if return_all_features is True:
-                x = x[..., -1]
-
-            result["embedding"] = self.embedding_norm(self._pool(x))
-
-        return result
-
-    def masked_encoding_retention(
-        self,
-        x: torch.Tensor,
-        mask: torch.Tensor,
-        mask_token: Optional[torch.Tensor] = None,
-        return_keys: Literal["all", "features", "embedding"] = "features",
-    ) -> TokenRetentionResultType:
-        H, W = x.shape[-2:]
-
-        x = self.conv_proj(x)
-        x = mask_tensor(x, mask, mask_token=mask_token, patch_factor=self.max_stride // self.stem_stride)
-
-        # Reshape and permute the input tensor
-        x = self.patch_embed(x)
-        pos_embedding = self._get_pos_embed(H, W)
-
-        if pos_embedding is not None and self.pos_embed_special_tokens is False:
-            x = x + pos_embedding
-
-        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
-        special_tokens: list[torch.Tensor] = []
-        if self.reg_tokens is not None:
-            special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
-        if self.class_token is not None:
-            special_tokens.append(self.class_token.expand(x.size(0), -1, -1))
-        if len(special_tokens) > 0:
-            x = torch.concat(special_tokens + [x], dim=1)
-
-        if pos_embedding is not None and self.pos_embed_special_tokens is True:
-            x = x + pos_embedding
-
-        x = self.encoder(x, self._get_rope_embed(H, W))
-        x = self.norm(x)
-
-        result: TokenRetentionResultType = {}
-        if return_keys in ("all", "features"):
-            features = x[:, self.num_special_tokens :]
-            features = features.permute(0, 2, 1)
-            B, C, _ = features.size()
-            features = features.reshape(B, C, H // self.patch_size, W // self.patch_size)
-            result["features"] = features
-
-        if return_keys in ("all", "embedding"):
-            result["embedding"] = self.embedding_norm(self._pool(x))
-
-        return result
-
-    def forward_features(
+    # pylint: disable-next=arguments-renamed
+    def forward_features(  # type: ignore[override]
         self,
         x: torch.Tensor,
         patch_size: Optional[int] = None,
@@ -631,15 +136,6 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
 
         return x
 
-    def flatten_features(self, features: torch.Tensor, include_special_tokens: bool = True) -> torch.Tensor:
-        if include_special_tokens is False:
-            return features[:, self.num_special_tokens :]
-
-        return features
-
-    def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
-        return self.embedding_norm(self._pool(features))
-
     def embedding(self, x: torch.Tensor, patch_size: Optional[int] = None) -> torch.Tensor:
         return self.embedding_from_features(self.forward_features(x, patch_size))
 
@@ -648,69 +144,17 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         return self.classify(x)
 
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
+        if dynamic_size is False:
+            raise ValueError("RoPE FlexiViT only supports dynamic mode")
+
         super().set_dynamic_size(dynamic_size)
-        assert dynamic_size is True, "FlexiViT only supports dynamic mode"
 
     def adjust_size(self, new_size: tuple[int, int]) -> None:
         if new_size == self.size:
             return
 
-        assert new_size[0] % self.patch_size == 0, "Input shape indivisible by patch size!"
-        assert new_size[1] % self.patch_size == 0, "Input shape indivisible by patch size!"
-
-        old_size = self.size
         super().adjust_size(new_size)
         self.patch_size_list = get_patch_sizes(self.min_patch_size, self.max_patch_size, self.size)
-
-        if self.pos_embedding is not None:
-            if self.pos_embed_special_tokens is True:
-                num_prefix_tokens = self.num_special_tokens
-            else:
-                num_prefix_tokens = 0
-
-            # Add back class tokens
-            with torch.no_grad():
-                pos_embedding = adjust_position_embedding(
-                    # On rounding error see: https://github.com/facebookresearch/dino/issues/8
-                    self.pos_embedding,
-                    (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
-                    (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
-                    num_prefix_tokens,
-                )
-
-            self.pos_embedding = nn.Parameter(pos_embedding)
-
-        # Adjust RoPE
-        old_dtype = self.rope.pos_embed.dtype
-        self.rope = RoPE(
-            self.hidden_dim // self.num_heads,
-            temperature=self.rope_temperature,
-            grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
-            grid_indexing=self.rope_grid_indexing,
-            grid_offset=self.rope_grid_offset,
-            pt_grid_size=self.pt_grid_size,
-            rope_style=self.rope_style,
-            rope_rot_type=self.rope_rot_type,
-            device=self.rope.pos_embed.device,
-        ).to(dtype=old_dtype)
-
-        # Define adjusted decoder block
-        self.decoder_block = partial(
-            MAEDecoderBlock,
-            16,
-            num_special_tokens=self.num_special_tokens,
-            activation_layer=self.act_layer,
-            grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
-            rope_grid_indexing=self.rope_grid_indexing,
-            rope_grid_offset=self.rope_grid_offset,
-            rope_temperature=self.rope_temperature,
-            layer_scale_init_value=self.layer_scale_init_value,
-            norm_layer=self.norm_layer,
-            norm_layer_eps=self.norm_layer_eps,
-            mlp_layer=self.mlp_layer,
-            rope_style=self.rope_style,
-            rope_rot_type=self.rope_rot_type,
-        )
 
     def adjust_patch_size(self, patch_size: int) -> None:
         if self.patch_size == patch_size:
@@ -733,22 +177,12 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
                     (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
                     (self.size[0] // patch_size, self.size[1] // patch_size),
                     num_prefix_tokens,
+                    interpolation_mode=self.pos_embed_interpolation_mode,
                 )
             )
 
-        # Adjust RoPE
-        old_dtype = self.rope.pos_embed.dtype
-        self.rope = RoPE(
-            self.hidden_dim // self.num_heads,
-            temperature=self.rope_temperature,
-            grid_size=(self.size[0] // patch_size, self.size[1] // patch_size),
-            grid_indexing=self.rope_grid_indexing,
-            grid_offset=self.rope_grid_offset,
-            pt_grid_size=self.pt_grid_size,
-            rope_style=self.rope_style,
-            rope_rot_type=self.rope_rot_type,
-            device=self.rope.pos_embed.device,
-        ).to(dtype=old_dtype)
+        grid_size = (self.size[0] // patch_size, self.size[1] // patch_size)
+        self.rope.set_grid_size(grid_size)
 
         # Define adjusted decoder block
         self.decoder_block = partial(
@@ -756,14 +190,14 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
             16,
             num_special_tokens=self.num_special_tokens,
             activation_layer=self.act_layer,
-            grid_size=(self.size[0] // patch_size, self.size[1] // patch_size),
+            grid_size=grid_size,
             rope_grid_indexing=self.rope_grid_indexing,
             rope_grid_offset=self.rope_grid_offset,
             rope_temperature=self.rope_temperature,
             layer_scale_init_value=self.layer_scale_init_value,
             norm_layer=self.norm_layer,
             norm_layer_eps=self.norm_layer_eps,
-            mlp_layer=self.mlp_layer,
+            mlp_layer=self.decoder_mlp_layer,
             rope_style=self.rope_style,
             rope_rot_type=self.rope_rot_type,
         )
@@ -785,19 +219,32 @@ class RoPE_FlexiViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin,
         if "reg_tokens" in state_dict:
             num_special_tokens += state_dict["reg_tokens"].size(1)
 
+        pos_embedding = state_dict["pos_embedding"]
         seq_length = (self.size[0] // self.patch_size) * (self.size[1] // self.patch_size)
-        vit_pos_embed_special_tokens = state_dict["pos_embedding"].size(1) != seq_length
+        vit_pos_embed_special_tokens = pos_embedding.size(1) != seq_length
 
         # Adjust pos_embedding
         if self.pos_embed_special_tokens is False and vit_pos_embed_special_tokens is True:
-            logger.warning(
-                "Loading RoPE ViT weights with positional embeddings for special tokens into RoPE FlexiViT, "
-                "the special-token positional embeddings will be discarded"
-            )
-            if state_dict["pos_embedding"].ndim == 2:
-                state_dict["pos_embedding"] = state_dict["pos_embedding"][num_special_tokens:, :]
-            else:
-                state_dict["pos_embedding"] = state_dict["pos_embedding"][:, num_special_tokens:, :]
+            logger.debug("Folding RoPE ViT special-token positional embeddings into the learned tokens")
+            special_pos_embedding = pos_embedding[:, :num_special_tokens, :]
+            special_token_offset = 0
+            if "reg_tokens" in state_dict:
+                num_reg_tokens = state_dict["reg_tokens"].size(1)
+                state_dict["reg_tokens"] = (
+                    state_dict["reg_tokens"]
+                    + special_pos_embedding[:, special_token_offset : special_token_offset + num_reg_tokens, :]
+                )
+                special_token_offset += num_reg_tokens
+
+            if "class_token" in state_dict:
+                state_dict["class_token"] = (
+                    state_dict["class_token"]
+                    + special_pos_embedding[:, special_token_offset : special_token_offset + 1, :]
+                )
+
+            pos_embedding = pos_embedding[:, num_special_tokens:, :]
+
+        state_dict["pos_embedding"] = pos_embedding
 
         self.load_state_dict(state_dict, strict=True)
 

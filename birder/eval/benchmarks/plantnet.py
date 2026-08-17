@@ -124,7 +124,7 @@ def _load_plantnet_metadata(dataset: PlantNet) -> pl.DataFrame:
 
     rows: list[dict[str, Any]] = []
     for split, split_dir in [("train", dataset.train_dir), ("val", dataset.val_dir), ("test", dataset.test_dir)]:
-        if not split_dir.exists():
+        if split_dir.exists() is False:
             continue
 
         image_dataset = ImageFolder(str(split_dir))

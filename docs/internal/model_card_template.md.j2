@@ -1,6 +1,6 @@
 ---
 tags:
-- image-classification
+- {% if num_outputs > 0 %}image-classification{% else %}image-feature-extraction{% endif %}
 - birder
 - pytorch
 library_name: birder
@@ -13,7 +13,7 @@ license: apache-2.0
 
 ## Model Details
 
-- **Model Type:** Image classification{% if detector_backbone %} and detection backbone{% endif %}
+- **Model Type:** {% if num_outputs > 0 %}Image classification{% else %}Image encoder{% endif %}{% if detector_backbone %} and detection backbone{% endif %}
 - **Model Stats:**
     - Params (M): {{ num_params }}
     - Input image size: {{ size[0] }} x {{ size[1] }}
@@ -95,4 +95,3 @@ print([(k, v.size()) for k, v in features.items()])
 ```bibtex
 <BibTeX>
 ```
-

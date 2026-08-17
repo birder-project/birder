@@ -536,7 +536,7 @@ registry.register_model_config(
 registry.register_weights(
     "smt_t_il-common",
     {
-        "description": "SMT tiny model trained on the il-common dataset",
+        "description": "SMT Tiny model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

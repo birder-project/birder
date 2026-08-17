@@ -11,7 +11,8 @@ base_model:
 
 # Model Card for hieradet_d_small_dino-v2-inat21
 
-HieraDet (dynamic window size) small image classification model. The model follows a two-stage training process: first, DINOv2 pretraining, then fine-tuned on the `iNaturalist 2021` dataset - <https://github.com/visipedia/inat_comp/tree/master/2021>.
+A HieraDet Small image classification model with dynamic window sizing.
+The model follows a two-stage training process: first, DINOv2 pretraining, then fine-tuned on the `iNaturalist 2021` dataset - <https://github.com/visipedia/inat_comp/tree/master/2021>.
 
 The model's class-to-index mapping uses original scientific names with full taxonomic rank,
 a partial mapping to common names can be found here: <https://gitlab.com/birder/birder/-/blob/main/public_datasets_metadata/inat21-mapping.json>

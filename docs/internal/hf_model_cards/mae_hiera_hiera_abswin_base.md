@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for mae_hiera_hiera_abswin_base
 
-This is a Masked Autoencoder (MAE) model based on the Hiera (Hierarchical Vision Transformer) architecture.
+This is an MAE Hiera model with a Hiera AbsWin Base image encoder, pretrained on 12M images.
 
 **Important:** This model is specifically designed for continued masked image modeling (MIM) pretraining only. If you're looking to fine-tune on downstream tasks, please use the pretrained encoder directly at <https://huggingface.co/birder-project/hiera_abswin_base_mim>
 

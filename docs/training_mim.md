@@ -15,7 +15,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 
 ### AIM v1
 
-#### AIM v1: Simple ViT b14
+#### AIM v1: Simple ViT B/14
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network aim_v1_dec512d8 --encoder simple_vit_b14 --encoder-model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 0 --epochs 800 --warmup-epochs 20 --resize-min-scale 0.4 --amp --amp-dtype bfloat16 --compile --data-path data/training
@@ -23,13 +23,13 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network aim_v1_dec512d
 
 ### CrossMAE
 
-#### CrossMAE: ViT reg4 b14
+#### CrossMAE: ViT Reg4 B/14
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network crossmae --encoder vit_reg4_b14 --encoder-model-config drop_path_rate=0.0 --batch-size 512 --opt adamw --opt-betas 0.9 0.95 --lr 0.00015 --wd 0.05 --lr-scheduler cosine --warmup-epochs 40 --amp --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
-#### CrossMAE: SoViT reg4 150m p14 AVG
+#### CrossMAE: SoViT Reg4 150M/14 AVG
 
 BIO
 
@@ -39,25 +39,25 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network crossmae_dec51
 
 ### EVA
 
-#### EVA: RoPE ViT s14 swiglu AVG with a ViT l14 pn Teacher
+#### EVA: RoPE ViT S/14 SwiGLU AVG with a ViT L/14 PN teacher
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_eva --network rope_vit_s14_swiglu_avg --tag bio --teacher vit_l14_pn --teacher-tag bioclip-v2 --batch-size 320 --opt adamw --opt-fused --opt-eps 1e-6 --opt-betas 0.9 0.98 --clip-grad-norm 3 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --warmup-epochs 5 --size 224 --rgb-mode clip --amp --amp-dtype bfloat16 --compile --wds --wds-info /mnt/data/ssl_bio_packed/_info.json
 ```
 
-#### EVA: RoPE ViT m14 swiglu AVG with a ViT h14 pn Teacher
+#### EVA: RoPE ViT M/14 SwiGLU AVG with a ViT H/14 PN teacher
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_eva --network rope_vit_m14_swiglu_avg --tag bio --teacher vit_h14_pn --teacher-tag bioclip-v25 --batch-size 512 --opt adamw --opt-fused --opt-betas 0.9 0.98 --clip-grad-norm 3 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --epochs 300 --warmup-epochs 5 --size 224 --steps-per-epoch 5000 --rgb-mode clip --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
-#### EVA: RoPE ViT m16 AVG with a RoPEcs ViT reg4 l16 nape LS c1 Teacher
+#### EVA: RoPE ViT M/16 AVG with a RoPEcs ViT Reg4 L/16 NAPE LS C1 teacher
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_eva --network rope_vit_m16_avg --teacher rope_cs_vit_reg4_l16_nape_ls_c1 --teacher-tag dino-v3-lvd1689m --batch-size 384 --opt adamw --opt-fused --opt-eps 1e-6 --opt-betas 0.9 0.98 --clip-grad-norm 3 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --warmup-epochs 5 --size 224 --rgb-mode imagenet --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
-#### EVA: RoPE ViT b14 swiglu AVG with a RoPEi ViT l14 pn APS c1 Teacher
+#### EVA: RoPE ViT B/14 SwiGLU AVG with a RoPEi ViT L/14 PN APS C1 teacher
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_eva --network rope_vit_b14_swiglu_avg --teacher rope_i_vit_l14_pn_aps_c1 --teacher-tag pe-core --batch-size 256 --opt adamw --opt-fused --opt-eps 1e-6 --opt-betas 0.9 0.98 --clip-grad-norm 3 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --warmup-epochs 5 --size 224 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
@@ -207,19 +207,19 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_hiera --en
 
 ### MAE ViT
 
-#### MAE ViT: Simple ViT b16
+#### MAE ViT: Simple ViT B/16
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit --encoder simple_vit_b16 --batch-size 256 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.00015 --wd 0.0001 --lr-scheduler cosine --warmup-epochs 40 --amp --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
-#### MAE ViT: ViT SAM b16
+#### MAE ViT: ViT SAM B/16
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit --encoder vit_sam_b16 --encoder-model-config drop_path_rate=0.0 --batch-size 128 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.00015 --wd 0.0001 --lr-scheduler cosine --warmup-epochs 40 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
-#### MAE ViT: ViT reg4 b16
+#### MAE ViT: ViT Reg4 B/16
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit --encoder vit_reg4_b16 --encoder-model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --lr 0.00015 --wd 0.05 --lr-scheduler cosine --warmup-epochs 40 --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
@@ -249,13 +249,13 @@ At epoch 80 increase resolution
 torchrun --nproc_per_node=2 train.py --network vit_reg4_b16 --tag mim --batch-size 64 --opt adamw --clip-grad-norm 1 --lr 0.00004 --wd 0.05 --norm-wd 0 --layer-decay 0.65 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 110 --model-ema --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile --compile-opt --resume-epoch 80
 ```
 
-#### MAE ViT: ViT l16
+#### MAE ViT: ViT L/16
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit --encoder vit_l16 --encoder-model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-betas 0.9 0.95 --lr 0.00015 --wd 0.05 --lr-scheduler cosine --warmup-epochs 40 --amp --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
-#### MAE ViT: ViT reg8 l16 AVG
+#### MAE ViT: ViT Reg8 L/16 AVG
 
 Pixio like training (should be fine-tuned later with APS type attention pooling)
 
@@ -263,7 +263,7 @@ Pixio like training (should be fine-tuned later with APS type attention pooling)
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit_dec512d24_npl --encoder vit_reg8_l16_avg --min-mask-size 4 --batch-size 64 --opt adamw --opt-betas 0.9 0.95 --lr 0.00025 --wd 0.05 --lr-scheduler cosine --epochs 400 --warmup-epochs 40 --size 256 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --compile-opt --wds --wds-info data/ssl_packed/_info.json
 ```
 
-#### MAE ViT: RoPE SoViT reg4 150m p14 AP
+#### MAE ViT: RoPE SoViT Reg4 150M/14 AP
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit --encoder rope_vit_reg4_so150m_p14_ap --encoder-model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-betas 0.9 0.95 --lr 0.00015 --wd 0.05 --lr-scheduler cosine --warmup-epochs 40 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
@@ -271,7 +271,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network mae_vit --enco
 
 ### MaskFeat
 
-#### MaskFeat: ViT b16
+#### MaskFeat: ViT B/16
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network maskfeat --encoder vit_b16 --encoder-model-config drop_path_rate=0.0 --batch-size 128 --opt adamw --opt-fused --clip-grad-norm 0.02 --lr 0.0002 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --lr-warmup-decay 0.005 --epochs 300 --warmup-epochs 30 --aug-level 1 --resize-min-scale 0.5 --amp --amp-dtype bfloat16 --compile --data-path data/training
@@ -285,13 +285,13 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network maskfeat --enc
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network simmim --encoder maxvit_t --encoder-model-config drop_path_rate=0.0 --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.0001 --wd 0.05 --lr-scheduler cosine --epochs 100 --warmup-epochs 10 --amp --compile --compile-opt --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
-#### SimMIM: NextViT Small
+#### SimMIM: Next-ViT Small
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network simmim --encoder nextvit_s --encoder-model-config drop_path_rate=0.0 --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.0001 --wd 0.05 --lr-scheduler cosine --epochs 100 --warmup-epochs 10 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
-#### SimMIM: NextViT Base
+#### SimMIM: Next-ViT Base
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_mim --network simmim --encoder nextvit_b --encoder-model-config drop_path_rate=0.0 --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.0001 --wd 0.05 --lr-scheduler cosine --warmup-epochs 10 --amp --compile --compile-opt --find-unused-parameters --data-path data/training data/raw_data data/detection_data/training ~/Datasets

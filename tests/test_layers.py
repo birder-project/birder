@@ -1,9 +1,12 @@
 import logging
 import unittest
+from typing import Optional
 
 import torch
 
 from birder import layers
+from birder.layers.rope import RoPE
+from birder.layers.rope import build_rotary_pos_embed
 
 logging.disable(logging.CRITICAL)
 
@@ -91,3 +94,68 @@ class TestLayers(unittest.TestCase):
         out = ls(torch.rand(2, 16, 64, 64))
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.size(), (2, 16, 64, 64))
+
+    def test_rope_coord_augmentations(self) -> None:
+        def build_augmented_embed(
+            shift_coords: Optional[float] = None,
+            jitter_coords: Optional[float] = None,
+            rescale_coords: Optional[float] = None,
+        ) -> torch.Tensor:
+            return torch.concat(
+                build_rotary_pos_embed(
+                    8,
+                    temperature=100.0,
+                    grid_size=(2, 3),
+                    grid_indexing="ij",
+                    grid_offset=0,
+                    pt_grid_size=None,
+                    rope_style="centered_separate",
+                    shift_coords=shift_coords,
+                    jitter_coords=jitter_coords,
+                    rescale_coords=rescale_coords,
+                ),
+                dim=-1,
+            )
+
+        augmentations = (
+            {"shift_coords": 0.25},
+            {"jitter_coords": 1.25},
+            {"rescale_coords": 2.0},
+        )
+        for augmentation in augmentations:
+            with self.subTest(augmentation=augmentation):
+                torch.manual_seed(0)
+                first = build_augmented_embed(**augmentation)
+                torch.manual_seed(0)
+                second = build_augmented_embed(**augmentation)
+                third = build_augmented_embed(**augmentation)
+
+                self.assertTrue(torch.equal(first, second))
+                self.assertFalse(torch.equal(second, third))
+                self.assertFalse(torch.isnan(first).any())
+                self.assertEqual(first.size(), (6, 16))
+
+        rope = RoPE(
+            8,
+            temperature=100.0,
+            grid_size=(2, 3),
+            grid_indexing="ij",
+            grid_offset=0,
+            rope_style="centered_separate",
+            shift_coords=0.25,
+            jitter_coords=1.25,
+            rescale_coords=2.0,
+        )
+        x = torch.rand(2, 4, 6, 8)
+        first_q, first_k = rope(x, x)
+        second_q, second_k = rope(x, x)
+        self.assertTrue(torch.equal(first_q, first_k))
+        self.assertTrue(torch.equal(second_q, second_k))
+        self.assertFalse(torch.equal(first_q, second_q))
+
+        rope.eval()
+        first_q, first_k = rope(x, x)
+        second_q, second_k = rope(x, x)
+        self.assertTrue(torch.equal(first_q, first_k))
+        self.assertTrue(torch.equal(first_q, second_q))
+        self.assertTrue(torch.equal(first_k, second_k))

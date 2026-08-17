@@ -270,7 +270,7 @@ registry.register_model_config("rexnet_lite_2_0", ReXNet_Lite, config={"width_mu
 registry.register_weights(
     "rexnet_lite_1_0_il-common",
     {
-        "description": "ReXNet Lite 1.0 model trained on the il-common dataset",
+        "description": "ReXNet Lite 1.0x model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

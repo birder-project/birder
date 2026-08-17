@@ -316,7 +316,7 @@ registry.register_model_config(
 registry.register_weights(
     "deit_t16_il-common",
     {
-        "description": "DeiT tiny model trained on the il-common dataset",
+        "description": "DeiT T/16 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -331,7 +331,7 @@ registry.register_weights(
     "deit_t16_dist-il-common",
     {
         "description": (
-            "DeiT tiny model trained using distillation from a ConvNeXt v2 tiny teacher on the il-common dataset"
+            "DeiT T/16 model trained using distillation from a ConvNeXt v2 Tiny teacher on the il-common dataset"
         ),
         "resolution": (256, 256),
         "formats": {

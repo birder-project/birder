@@ -589,7 +589,7 @@ registry.register_model_config(
 registry.register_weights(
     "regionvit_t_il-common",
     {
-        "description": "RegionViT tiny model trained on the il-common dataset",
+        "description": "RegionViT Tiny model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

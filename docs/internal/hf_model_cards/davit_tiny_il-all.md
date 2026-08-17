@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for davit_tiny_il-all
 
-A Dual Attention Vision Transformer (DaViT) image classification model. This model was trained on the `il-all` dataset, encompassing all relevant bird species found in Israel, including rarities.
+A DaViT Tiny image classification model.
+This model was trained on the `il-all` dataset, encompassing all relevant bird species found in Israel, including rarities.
 
 The species list is derived from data available at <https://www.israbirding.com/checklist/>.
 

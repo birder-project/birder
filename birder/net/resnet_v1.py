@@ -475,8 +475,8 @@ registry.register_weights(  # A Self-Supervised Descriptor for Image Copy Detect
     {
         "url": "https://huggingface.co/birder-project/resnet_v1_50_c1_sscd/resolve/main",
         "description": (
-            "ResNet v1 50 model trained DISC for image copy detection. "
-            "This model has not been fine-tuned for a specific classification task"
+            "ResNet v1 50 image encoder pretrained using SSCD on the DISC dataset for image copy detection. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (320, 320),
         "formats": {

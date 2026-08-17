@@ -542,7 +542,7 @@ registry.register_model_config(
 registry.register_weights(
     "mobilenet_v4_s_il-common",
     {
-        "description": "MobileNet v4 small model trained on the il-common dataset",
+        "description": "MobileNet v4 Small model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -556,7 +556,7 @@ registry.register_weights(
 registry.register_weights(
     "mobilenet_v4_m_il-common",
     {
-        "description": "MobileNet v4 medium model trained on the il-common dataset",
+        "description": "MobileNet v4 Medium model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -570,7 +570,7 @@ registry.register_weights(
 registry.register_weights(
     "mobilenet_v4_l_il-common",
     {
-        "description": "MobileNet v4 large model trained on the il-common dataset",
+        "description": "MobileNet v4 Large model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -585,7 +585,7 @@ registry.register_weights(
     "mobilenet_v4_l_eu-common",
     {
         "url": "https://huggingface.co/birder-project/mobilenet_v4_l_eu-common/resolve/main",
-        "description": "MobileNet v4 large model trained on the eu-common dataset",
+        "description": "MobileNet v4 Large model trained on the eu-common dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {

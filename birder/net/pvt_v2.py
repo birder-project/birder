@@ -492,7 +492,7 @@ registry.register_model_config(
 registry.register_weights(
     "pvt_v2_b0_li_il-common",
     {
-        "description": "PVT v2 B0 linear model trained on the il-common dataset",
+        "description": "PVT v2 B0 Linear model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -521,7 +521,7 @@ registry.register_weights(
     "pvt_v2_b2_mmcr-il-all256px",
     {
         "url": "https://huggingface.co/birder-project/pvt_v2_b2_mmcr-il-all/resolve/main",
-        "description": "PVT v2 B2 model pretrained using MMCR and fine-tuned on the il-all dataset",
+        "description": "PVT v2 B2 model pretrained using MMCR, then fine-tuned on the il-all dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -536,7 +536,7 @@ registry.register_weights(
     "pvt_v2_b2_mmcr-il-all",
     {
         "url": "https://huggingface.co/birder-project/pvt_v2_b2_mmcr-il-all/resolve/main",
-        "description": "PVT v2 B2 model pretrained using MMCR and fine-tuned on the il-all dataset",
+        "description": "PVT v2 B2 model pretrained using MMCR, then fine-tuned on the il-all dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {

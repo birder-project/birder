@@ -11,7 +11,7 @@ base_model:
 
 # Model Card for vit_so400m_p14_ap_c1_siglip-v2-webli
 
-A ViT so400m image encoder from the SigLIP-v2 model by Tschannen et al., converted to the Birder format for image feature extraction.
+A SoViT 400M/14 image encoder from the SigLIP v2 model by Tschannen et al., converted to the Birder format for image feature extraction.
 This version preserves the original model weights and architecture for downstream tasks.
 
 See: <https://huggingface.co/google/siglip2-so400m-patch14-224> for further details.

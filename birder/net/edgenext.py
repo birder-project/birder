@@ -383,7 +383,7 @@ registry.register_model_config(
 registry.register_weights(
     "edgenext_xxs_il-common",
     {
-        "description": "EdgeNeXt extra extra small model trained on the il-common dataset",
+        "description": "EdgeNeXt XX-Small model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -397,7 +397,7 @@ registry.register_weights(
 registry.register_weights(
     "edgenext_xs_il-common",
     {
-        "description": "EdgeNeXt extra small model trained on the il-common dataset",
+        "description": "EdgeNeXt X-Small model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -411,7 +411,7 @@ registry.register_weights(
 registry.register_weights(
     "edgenext_s_il-common",
     {
-        "description": "EdgeNeXt small model trained on the il-common dataset",
+        "description": "EdgeNeXt Small model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

@@ -11,6 +11,7 @@ from torchvision.transforms import v2
 from birder.data.transforms import classification
 from birder.data.transforms import detection
 from birder.data.transforms import mosaic
+from birder.data.transforms import naflex
 
 logging.disable(logging.CRITICAL)
 
@@ -63,11 +64,21 @@ class TestTransforms(unittest.TestCase):
 
     def test_detection(self) -> None:
         # Presets
-        detection.training_preset((256, 256), "birder", 0, classification.get_rgb_stats("centered"), False, False)
-        detection.training_preset((256, 256), "birder", 5, classification.get_rgb_stats("birder"), False, True)
-        detection.training_preset((256, 256), "ssd", 0, classification.get_rgb_stats("centered"), True, False)
-        detection.training_preset((256, 256), "multiscale", 0, classification.get_rgb_stats("centered"), False, False)
-        detection.training_preset((256, 256), "deim", 0, classification.get_rgb_stats("centered"), False, False)
+        detection.training_preset(
+            (256, 256), "birder", 0, classification.get_rgb_stats("centered"), dynamic_size=False, multiscale=False
+        )
+        detection.training_preset(
+            (256, 256), "birder", 5, classification.get_rgb_stats("birder"), dynamic_size=False, multiscale=True
+        )
+        detection.training_preset(
+            (256, 256), "ssd", 0, classification.get_rgb_stats("centered"), dynamic_size=True, multiscale=False
+        )
+        detection.training_preset(
+            (256, 256), "multiscale", 0, classification.get_rgb_stats("centered"), dynamic_size=False, multiscale=False
+        )
+        detection.training_preset(
+            (256, 256), "deim", 0, classification.get_rgb_stats("centered"), dynamic_size=False, multiscale=False
+        )
         detection.InferenceTransform((256, 256), classification.get_rgb_stats("birder"), False)
 
         # Multiscale
@@ -121,6 +132,144 @@ class TestTransforms(unittest.TestCase):
         expected_image = torch.zeros((3, 4, 4), dtype=torch.uint8)
         expected_image[:, top:bottom, left:right] = 1
         torch.testing.assert_close(output_image, expected_image)
+
+
+class TestNaFlex(unittest.TestCase):
+    def test_get_sequence_lengths(self) -> None:
+        self.assertEqual(naflex.get_sequence_lengths((256, 256), 16), (256,))
+        self.assertEqual(naflex.get_sequence_lengths((224, 320), 16), (280,))
+        self.assertEqual(naflex.get_sequence_lengths((256, 256), 16, (192, 256)), (144, 256))
+
+        for image_size, patch_size, sizes in (
+            ((255, 256), 16, None),
+            ((256, 256), 0, None),
+            ((256, 256), 16, ()),
+            ((256, 256), 16, (192, 192)),
+            ((256, 256), 16, (191,)),
+        ):
+            with self.subTest(image_size=image_size, patch_size=patch_size, sizes=sizes):
+                with self.assertRaises(ValueError):
+                    naflex.get_sequence_lengths(image_size, patch_size, sizes)
+
+    def test_resolve_patch_grid(self) -> None:
+        self.assertEqual(naflex.resolve_patch_grid((256, 256), 256), (16, 16))
+        self.assertEqual(naflex.resolve_patch_grid((100, 1000), 256), (5, 50))
+        self.assertEqual(naflex.resolve_patch_grid((1000, 100), 256), (50, 5))
+        self.assertEqual(naflex.resolve_patch_grid((256, 256), 257), (16, 16))
+        self.assertEqual(naflex.resolve_patch_grid((256, 256), 1), (1, 1))
+
+        for image_size in ((123, 321), (321, 123), (17, 19), (1, 1000)):
+            grid_h, grid_w = naflex.resolve_patch_grid(image_size, 256)
+            self.assertGreaterEqual(grid_h, 1)
+            self.assertGreaterEqual(grid_w, 1)
+            self.assertLessEqual(grid_h * grid_w, 256)
+
+        with self.assertRaises(ValueError):
+            naflex.resolve_patch_grid((0, 256), 256)
+        with self.assertRaises(ValueError):
+            naflex.resolve_patch_grid((256, -1), 256)
+        with self.assertRaises(ValueError):
+            naflex.resolve_patch_grid((256, 256), 0)
+
+    def test_native_aspect_ratio_resize(self) -> None:
+        image = torch.arange(3 * 100 * 1000, dtype=torch.float32).reshape(3, 100, 1000)
+        transform = naflex.NativeAspectRatioResize(16, 256)
+        output = transform(image)
+
+        self.assertEqual(output.shape, (3, 80, 800))
+        self.assertEqual(output.shape[-2] % 16, 0)
+        self.assertEqual(output.shape[-1] % 16, 0)
+        self.assertLessEqual((output.shape[-2] // 16) * (output.shape[-1] // 16), 256)
+
+        with self.assertRaises(ValueError):
+            naflex.NativeAspectRatioResize(0, 256)
+        with self.assertRaises(ValueError):
+            naflex.NativeAspectRatioResize(16, 0)
+
+    def test_random_crop_with_scale_and_relative_ratio(self) -> None:
+        image = torch.rand((3, 80, 40))
+        transform = naflex.RandomCropWithScaleAndRelativeRatio((0.25, 0.25), relative_ratio=(1.0, 1.0))
+        output = transform(image)
+        self.assertEqual(output.shape, (3, 40, 20))
+
+        image = torch.rand((3, 40, 80))
+        output = transform(image)
+        self.assertEqual(output.shape, (3, 20, 40))
+
+        image = torch.rand((3, 80, 40))
+        transform = naflex.RandomCropWithScaleAndRelativeRatio((0.25, 0.25), relative_ratio=(2.0, 2.0))
+        output = transform(image)
+        self.assertEqual(output.shape, (3, 28, 28))
+
+        with self.assertRaises(ValueError):
+            naflex.RandomCropWithScaleAndRelativeRatio((0.0, 1.0))
+        with self.assertRaises(ValueError):
+            naflex.RandomCropWithScaleAndRelativeRatio((0.8, 0.5))
+        with self.assertRaises(ValueError):
+            naflex.RandomCropWithScaleAndRelativeRatio((0.5, 1.1))
+        with self.assertRaises(ValueError):
+            naflex.RandomCropWithScaleAndRelativeRatio((0.5, 1.0), relative_ratio=(0.0, 1.0))
+        with self.assertRaises(ValueError):
+            naflex.RandomCropWithScaleAndRelativeRatio((0.5, 1.0), relative_ratio=(2.0, 1.0))
+
+    def test_presets(self) -> None:
+        image = Image.new("RGB", (1000, 100), color=(255, 128, 0))
+        rgb_stats = classification.get_rgb_stats("neutral")
+
+        transform = naflex.training_preset(16, 256, "birder", 0, rgb_stats)
+        output = transform(image)
+        self.assertEqual(output.shape, (3, 80, 800))
+        self.assertEqual(output.dtype, torch.float32)
+        self.assertTrue(torch.isfinite(output).all())
+
+        transform = naflex.training_preset(
+            16,
+            256,
+            "birder",
+            4,
+            rgb_stats,
+            resize_min_scale=0.25,
+            resize_max_scale=0.25,
+            relative_resize_ratio=(1.0, 1.0),
+            re_prob=0.0,
+        )
+        self.assertEqual(transform.transforms[1].relative_ratio, (1.0, 1.0))  # type: ignore[attr-defined]
+        output = transform(image)
+        self.assertEqual(output.shape[0], 3)
+        self.assertEqual(output.shape[-2] % 16, 0)
+        self.assertEqual(output.shape[-1] % 16, 0)
+        self.assertLessEqual((output.shape[-2] // 16) * (output.shape[-1] // 16), 256)
+        self.assertTrue(torch.isfinite(output).all())
+
+        with self.assertRaises(ValueError):
+            naflex.training_preset(16, 256, "birder", 11, rgb_stats)
+
+        image = Image.new("RGB", (321, 123), color=(20, 40, 60))
+        for aug_type in typing.get_args(classification.AugType):
+            transform = naflex.training_preset(
+                16,
+                256,
+                aug_type,
+                4,
+                rgb_stats,
+                resize_min_scale=0.25,
+                resize_max_scale=0.25,
+                re_prob=0.0,
+            )
+            output = transform(image)
+            self.assertEqual(output.shape[0], 3)
+            self.assertEqual(output.shape[-2] % 16, 0)
+            self.assertEqual(output.shape[-1] % 16, 0)
+            self.assertLessEqual((output.shape[-2] // 16) * (output.shape[-1] // 16), 256)
+            self.assertTrue(torch.isfinite(output).all())
+
+        transform = naflex.inference_preset(16, 256, classification.get_rgb_stats("centered"))
+        output_1 = transform(image)
+        output_2 = transform(image)
+        grid_h, grid_w = naflex.resolve_patch_grid((123, 321), 256)
+        self.assertEqual(output_1.shape, (3, grid_h * 16, grid_w * 16))
+        self.assertLessEqual(grid_h * grid_w, 256)
+        torch.testing.assert_close(output_1, output_2)
 
 
 class TestMosaic(unittest.TestCase):

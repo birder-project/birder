@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for rope_deit3_reg4_m14_arabian-peninsula
 
-A RoPE DeiT3 reg4 image classification model. This model was trained on the `arabian-peninsula` dataset (all the relevant bird species found in the Arabian peninsula inc. rarities).
+A RoPE DeiT3 Reg4 M/14 image classification model.
+This model was trained on the `arabian-peninsula` dataset (all the relevant bird species found in the Arabian peninsula inc. rarities).
 
 The species list is derived from data available at <https://avibase.bsc-eoc.org/checklist.jsp?region=ARA>.
 

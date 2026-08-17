@@ -281,6 +281,7 @@ def training_preset(
     aug_type: AugType,
     level: int,
     rgv_values: RGBType,
+    *,
     dynamic_size: bool = False,
     multiscale: bool = False,
     max_size: Optional[int] = None,

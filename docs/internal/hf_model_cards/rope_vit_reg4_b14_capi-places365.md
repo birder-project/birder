@@ -11,7 +11,8 @@ base_model:
 
 # Model Card for rope_vit_reg4_b14_capi-places365
 
-A RoPE ViT image classification model. The model follows a two-stage training process: first, CAPI pretraining, then fine-tuned on the `Places365` dataset - <http://places2.csail.mit.edu/>.
+A RoPE ViT Reg4 B/14 image classification model.
+The model follows a two-stage training process: first, CAPI pretraining, then fine-tuned on the `Places365` dataset - <http://places2.csail.mit.edu/>.
 
 ## Model Details
 

@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for focalnet_b_lrf_intermediate-arabian-peninsula
 
-A FocalNet image classification model. The model follows a two-stage training process: first undergoing intermediate training on a large-scale dataset containing diverse bird species from around the world, then fine-tuned specifically on the `arabian-peninsula` dataset (all the relevant bird species found in the Arabian peninsula inc. rarities).
+A FocalNet Base LRF image classification model.
+The model follows a two-stage training process: first undergoing intermediate training on a large-scale dataset containing diverse bird species from around the world, then fine-tuned specifically on the `arabian-peninsula` dataset (all the relevant bird species found in the Arabian peninsula inc. rarities).
 
 The species list is derived from data available at <https://avibase.bsc-eoc.org/checklist.jsp?region=ARA>.
 

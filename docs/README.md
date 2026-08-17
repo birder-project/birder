@@ -9,11 +9,11 @@ Whether you're a researcher in ornithology, a conservation scientist, or a wildl
 
 ### Key Features
 
-- **Specialized Models**: Pretrained models specifically optimized for bird species classification
-- **Practical Focus**: Built for real-world applications in ornithology and conservation
-- **Comprehensive Tools**: Suite of utilities for training, inference, and error analysis
-- **Extensive Documentation**: Detailed guides and tutorials for all skill levels
-- **Open Source**: Apache 2.0 licensed code base
+- **Specialized models**: Pretrained models specifically optimized for bird species classification
+- **Practical focus**: Built for real-world applications in ornithology and conservation
+- **Comprehensive tools**: Suite of utilities for training, inference, and error analysis
+- **Extensive documentation**: Detailed guides and tutorials for all skill levels
+- **Open source**: Apache 2.0 licensed code base
 
 ## Table of Contents
 

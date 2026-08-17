@@ -798,7 +798,7 @@ registry.register_weights(
     "mvit_v2_t_il-all",
     {
         "url": "https://huggingface.co/birder-project/mvit_v2_t_il-all/resolve/main",
-        "description": "MViT v2 tiny model trained on the il-all dataset",
+        "description": "MViT v2 Tiny model trained on the il-all dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {
@@ -813,7 +813,7 @@ registry.register_weights(
     "mvit_v2_s_yellowstone256px",
     {
         "url": "https://huggingface.co/birder-project/mvit_v2_s_yellowstone/resolve/main",
-        "description": "MViT v2 small model trained on the yellowstone dataset",
+        "description": "MViT v2 Small model trained on the yellowstone dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -828,7 +828,7 @@ registry.register_weights(
     "mvit_v2_s_yellowstone",
     {
         "url": "https://huggingface.co/birder-project/mvit_v2_s_yellowstone/resolve/main",
-        "description": "MViT v2 small model trained on the yellowstone dataset",
+        "description": "MViT v2 Small model trained on the yellowstone dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {

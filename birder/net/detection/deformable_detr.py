@@ -828,8 +828,8 @@ registry.register_weights(
             "deformable_detr_boxref_coco_convnext_v2_tiny_imagenet21k/resolve/main"
         ),
         "description": (
-            "Deformable DETR box refinement with a ConvNeXt v2 tiny backbone pretrained on ImageNet 21K, "
-            "detection model trained on the COCO dataset"
+            "Deformable DETR detection model with box refinement and a ConvNeXt v2 Tiny backbone pretrained on "
+            "ImageNet 21K, trained on the COCO dataset"
         ),
         "resolution": (640, 640),
         "formats": {

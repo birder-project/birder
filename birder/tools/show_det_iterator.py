@@ -69,12 +69,12 @@ def show_det_iterator(args: argparse.Namespace) -> None:
             args.aug_type,
             args.aug_level,
             get_rgb_stats("birder"),
-            args.dynamic_size,
-            args.multiscale,
-            args.max_size,
-            args.multiscale_min_size,
-            args.multiscale_max_size,
-            args.multiscale_step,
+            dynamic_size=args.dynamic_size,
+            multiscale=args.multiscale,
+            max_size=args.max_size,
+            multiscale_min_size=args.multiscale_min_size,
+            multiscale_max_size=args.multiscale_max_size,
+            multiscale_step=args.multiscale_step,
         )
     elif args.mode == "inference":
         offset = 1
@@ -108,12 +108,12 @@ def show_det_iterator(args: argparse.Namespace) -> None:
                 args.aug_type,
                 args.aug_level,
                 get_rgb_stats("birder"),
-                args.dynamic_size,
-                args.multiscale,
-                args.max_size,
-                args.multiscale_min_size,
-                args.multiscale_max_size,
-                args.multiscale_step,
+                dynamic_size=args.dynamic_size,
+                multiscale=args.multiscale,
+                max_size=args.max_size,
+                multiscale_min_size=args.multiscale_min_size,
+                multiscale_max_size=args.multiscale_max_size,
+                multiscale_step=args.multiscale_step,
                 post_mosaic=True,
             )
             if transform_dynamic_size is True:
@@ -147,12 +147,12 @@ def show_det_iterator(args: argparse.Namespace) -> None:
                 args.aug_type,
                 args.aug_level,
                 get_rgb_stats("birder"),
-                args.dynamic_size,
-                args.multiscale,
-                args.max_size,
-                args.multiscale_min_size,
-                args.multiscale_max_size,
-                args.multiscale_step,
+                dynamic_size=args.dynamic_size,
+                multiscale=args.multiscale,
+                max_size=args.max_size,
+                multiscale_min_size=args.multiscale_min_size,
+                multiscale_max_size=args.multiscale_max_size,
+                multiscale_step=args.multiscale_step,
                 post_mosaic=True,
             )
             if args.mosaic_prob > 0.0:
@@ -348,10 +348,10 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools show-det-iterator --aug-type ssd --dynamic-size --coco-json-path "
             "~/Datasets/cocodataset/annotations/instances_val2017.json --data-path "
             "~/Datasets/cocodataset/val2017 --class-file public_datasets_metadata/coco-classes.txt\n"
-            "python tool.py show-det-iterator --mode training --aug-level 4 --multiscale "
+            "python -m birder.tools show-det-iterator --mode training --aug-level 4 --multiscale "
             "--coco-json-path ~/Datasets/cocodataset/annotations/instances_val2017.json "
             "--data-path ~/Datasets/cocodataset/val2017 --class-file public_datasets_metadata/coco-classes.txt\n"
-            "python tool.py show-det-iterator --mode inference --size 640 --aug-level 5 --batch "
+            "python -m birder.tools show-det-iterator --mode inference --size 640 --aug-level 5 --batch "
             "--wds --wds-info ~/Datasets/cocodataset/val2017_packed/_info.json "
             "--wds-split validation --wds-class-file ~/Datasets/cocodataset/val2017_packed/classes.txt\n"
         ),

@@ -10,7 +10,7 @@ license: apache-2.0
 
 # Model Card for dino_v2_vit_reg4_so150m_p14_ls_bio
 
-This repository contains the full Bio-DINO DINOv2 training weights for a SoViT-150M/14 Vision Transformer trained on natural photographs of living organisms.
+This repository contains the full Bio-DINO DINOv2 training weights for a SoViT Reg4 150M/14 image encoder trained on natural photographs of living organisms.
 It is the companion release to the Birder backbone checkpoints at <https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio>.
 
 **Important:** this repository is intended for continued DINOv2 self-supervised training, research and inspection of the training state.
@@ -20,7 +20,7 @@ These checkpoints include the DINO/iBOT training heads and related training stat
 ## Model Details
 
 - **Model Type:** DINOv2 self-supervised training checkpoint
-- **Backbone:** SoViT-150M/14 Vision Transformer with 4 register tokens
+- **Backbone:** SoViT Reg4 150M/14 Vision Transformer
 - **Backbone Params (M):** 133.6
 - **Dataset:** Trained on a diverse dataset of approximately 31M images, including:
     - TreeOfLife-10M-EOL-NaturalImages

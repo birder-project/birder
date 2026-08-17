@@ -306,7 +306,7 @@ registry.register_model_config("mobilenet_v3_large_2_0", MobileNet_v3, config={"
 registry.register_weights(
     "mobilenet_v3_small_1_0_il-common",
     {
-        "description": "MobileNet v3 small (1.0 multiplier) model trained on the il-common dataset",
+        "description": "MobileNet v3 Small 1.0x model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -320,7 +320,7 @@ registry.register_weights(
 registry.register_weights(
     "mobilenet_v3_large_1_0_il-common",
     {
-        "description": "MobileNet v3 large (1.0 multiplier) model trained on the il-common dataset",
+        "description": "MobileNet v3 Large 1.0x model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

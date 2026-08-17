@@ -11,7 +11,7 @@ base_model:
 
 # Model Card for davit_fl_base_florence-v2
 
-A DaViT base image encoder from Microsoft's Florence-2 model, converted to the Birder format for image feature extraction.
+A DaViT FL Base image encoder from Microsoft's Florence-2 model, converted to the Birder format for image feature extraction.
 This version preserves the original vision backbone weights and architecture for downstream tasks.
 
 See <https://huggingface.co/microsoft/Florence-2-base> for further details.

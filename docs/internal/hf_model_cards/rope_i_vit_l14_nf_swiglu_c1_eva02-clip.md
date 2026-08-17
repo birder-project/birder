@@ -11,7 +11,7 @@ base_model:
 
 # Model Card for rope_i_vit_l14_nf_swiglu_c1_eva02-clip
 
-A RoPE ViT-L14 image encoder from the EVA02 CLIP model by Sun et al., converted to the Birder format for image feature extraction.
+A RoPEi ViT L/14 image encoder from the EVA02 CLIP model by Sun et al., converted to the Birder format for image feature extraction.
 This version retains the original model weights and architecture.
 It is a general-purpose visual backbone.
 

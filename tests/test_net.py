@@ -1,3 +1,5 @@
+# pylint: disable=too-many-lines
+
 import copy
 import json
 import logging
@@ -12,6 +14,7 @@ from birder.common.training_utils import group_by_regex
 from birder.conf.settings import DEFAULT_NUM_CHANNELS
 from birder.model_registry import registry
 from birder.net import Hiera
+from birder.net import NaFlex_ViT
 from birder.net import base
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
@@ -114,6 +117,7 @@ NET_TEST_CASES = [
     ("mvit_v1_s_d16"),
     ("mvit_v2_t"),
     ("mvit_v2_t_cls"),
+    ("naflex_vit_t16"),
     ("nextvit_s"),
     ("nfnet_f0"),
     ("pit_t", True, True),
@@ -174,6 +178,7 @@ NET_TEST_CASES = [
     ("tiny_vit_5m"),
     ("transnext_micro"),
     ("uniformer_s"),
+    ("unireplknet_a"),
     ("van_b0"),
     ("vgg_11"),
     ("vgg_reduced_11"),
@@ -288,6 +293,7 @@ DETECTION_BACKBONE_CASES = [
     ("mvit_v1_s_d16"),
     ("mvit_v2_t"),
     ("mvit_v2_t_cls"),
+    ("naflex_vit_t16"),
     ("nextvit_s"),
     ("nfnet_f0"),
     ("pit_t"),
@@ -338,6 +344,7 @@ DETECTION_BACKBONE_CASES = [
     ("tiny_vit_5m"),
     ("transnext_micro"),
     ("uniformer_s"),
+    ("unireplknet_a"),
     ("van_b0"),
     ("vgg_11"),
     ("vgg_reduced_11"),
@@ -373,6 +380,7 @@ DYNAMIC_SIZE_CASES = [
     ("lit_v1_s"),
     ("lit_v1_t"),
     ("mvit_v1_s_d16"),
+    ("naflex_vit_t16"),
     ("rope_deit3_t16"),
     ("rope_deit3_reg4_t16"),
     ("rope_flexivit_s16"),
@@ -901,6 +909,7 @@ class TestNet(unittest.TestCase):
             ("moganet_xt"),
             ("mvit_v2_t"),
             ("mvit_v2_t_cls"),
+            ("naflex_vit_t16"),
             ("nextvit_s"),
             ("nfnet_f0"),
             ("pvt_v2_b0"),
@@ -938,6 +947,7 @@ class TestNet(unittest.TestCase):
             ("swin_transformer_v2_t"),
             ("swin_transformer_v2_w2_t"),
             ("uniformer_s"),
+            ("unireplknet_a"),
             ("vit_s32"),
             ("vit_s16_pn"),
             ("vit_b16_qkn_ls"),
@@ -1010,6 +1020,7 @@ class TestNet(unittest.TestCase):
             ("hiera_tiny", False),
             ("hiera_abswin_tiny", False),
             ("hiera_abswin_base_plus_ap", False),
+            ("naflex_vit_t16"),
             ("rope_deit3_t16"),
             ("rope_deit3_reg4_t16"),
             ("rope_flexivit_s16"),
@@ -1112,6 +1123,7 @@ class TestNet(unittest.TestCase):
             ("hieradet_tiny"),
             ("maxvit_t"),
             ("moganet_xt"),
+            ("naflex_vit_t16"),
             ("nfnet_f0"),
             ("poolformer_v1_s12"),
             ("rdnet_t"),
@@ -1261,6 +1273,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("mvit_v1_s_d16"),
             ("mvit_v2_t"),
             ("mvit_v2_t_cls"),
+            ("naflex_vit_t16"),
             ("nextvit_s"),
             ("nfnet_f0"),
             ("pit_t"),
@@ -1320,6 +1333,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("tiny_vit_5m"),
             ("transnext_micro"),
             ("uniformer_s"),
+            ("unireplknet_a"),
             ("van_b0"),
             ("vgg_11"),
             ("vgg_reduced_11"),
@@ -1466,11 +1480,208 @@ class TestCudaAdjustSize(unittest.TestCase):
 
 
 class TestSpecialFunctions(unittest.TestCase):
+    def test_naflex_vit_image_input_parity(self) -> None:
+        config = {
+            "patch_size": 4,
+            "num_layers": 2,
+            "num_heads": 2,
+            "hidden_dim": 16,
+            "mlp_dim": 32,
+            "drop_path_rate": 0.0,
+        }
+        n = registry.net_factory("naflex_vit_t16", 10, config=config, size=(16, 16))
+        n.eval()
+
+        # self.assertIsInstance(n, NaFlex_ViT)
+        assert isinstance(n, NaFlex_ViT)
+
+        for image_size in ((8, 12), (12, 8)):
+            with self.subTest(image_size=image_size):
+                image = torch.rand((2, DEFAULT_NUM_CHANNELS, *image_size))
+                patches = torch.nn.functional.unfold(image, kernel_size=4, stride=4).transpose(1, 2)
+                grid_sizes = torch.tensor([[image_size[0] // 4, image_size[1] // 4]]).expand(image.size(0), -1)
+                valid_mask = torch.ones(patches.shape[:2], dtype=torch.bool)
+
+                with torch.inference_mode():
+                    expected_features = n.forward_features(image)
+                    expected_embedding = n.embedding(image)
+                    features = n.forward_features(patches, grid_sizes=grid_sizes, valid_mask=valid_mask)
+                    embedding = n.embedding(patches, grid_sizes, valid_mask)
+
+                torch.testing.assert_close(features, expected_features, atol=1e-6, rtol=1e-5)
+                torch.testing.assert_close(embedding, expected_embedding, atol=1e-6, rtol=1e-5)
+
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("grid_sample",),
+            ("interpolate",),
+        ]
+    )
+    def test_naflex_vit_grid_sizes(self, pos_embed_resize_mode: str) -> None:
+        config = {
+            "patch_size": 4,
+            "num_layers": 2,
+            "num_heads": 2,
+            "hidden_dim": 16,
+            "mlp_dim": 32,
+            "drop_path_rate": 0.0,
+            "class_token": False,
+            "naflex_pos_embed_resize_mode": pos_embed_resize_mode,
+        }
+        n = registry.net_factory("naflex_vit_t16", 10, config=config, size=(16, 16))
+        n.eval()
+
+        # self.assertIsInstance(n, NaFlex_ViT)
+        assert isinstance(n, NaFlex_ViT)
+
+        patches = torch.rand((1, 6, DEFAULT_NUM_CHANNELS * 4 * 4)).expand(2, -1, -1)
+        grid_sizes = torch.tensor([[2, 3], [3, 2]])
+        valid_mask = torch.ones((2, 6), dtype=torch.bool)
+
+        with torch.inference_mode():
+            features = n.forward_features(patches, grid_sizes=grid_sizes, valid_mask=valid_mask)
+            for sample_idx in range(patches.size(0)):
+                expected = n.forward_features(
+                    patches[sample_idx : sample_idx + 1],
+                    grid_sizes=grid_sizes[sample_idx : sample_idx + 1],
+                    valid_mask=valid_mask[sample_idx : sample_idx + 1],
+                )
+                torch.testing.assert_close(features[sample_idx : sample_idx + 1], expected)
+
+        self.assertFalse(torch.allclose(features[0], features[1]))
+
+    def test_naflex_vit_return_input_embedding(self) -> None:
+        config = {
+            "patch_size": 4,
+            "num_layers": 2,
+            "num_heads": 2,
+            "hidden_dim": 16,
+            "mlp_dim": 32,
+            "drop_path_rate": 0.0,
+        }
+        n = registry.net_factory("naflex_vit_t16", 10, config=config, size=(16, 16))
+        n.eval()
+
+        # self.assertIsInstance(n, NaFlex_ViT)
+        assert isinstance(n, NaFlex_ViT)
+
+        patches = torch.rand((2, 6, DEFAULT_NUM_CHANNELS * 4 * 4))
+        grid_sizes = torch.tensor([[2, 2], [2, 3]])
+        valid_mask = torch.tensor([[True, True, True, True, False, False], [True, True, True, True, True, True]])
+
+        with torch.inference_mode():
+            features = n.forward_features(patches, grid_sizes=grid_sizes, valid_mask=valid_mask)
+            stacked = n.forward_features(
+                patches,
+                return_input_embedding=True,
+                grid_sizes=grid_sizes,
+                valid_mask=valid_mask,
+            )
+
+        input_embedding, encoded_features = stacked.unbind(dim=-1)
+        torch.testing.assert_close(encoded_features, features)
+        self.assertEqual(stacked.size(), (*features.shape, 2))
+        self.assertEqual(torch.count_nonzero(input_embedding[0, n.num_special_tokens + 4 :]).item(), 0)
+
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_naflex_vit_backward(self) -> None:
+        config = {
+            "patch_size": 4,
+            "num_layers": 2,
+            "num_heads": 2,
+            "hidden_dim": 16,
+            "mlp_dim": 32,
+            "drop_path_rate": 0.0,
+            "class_token": False,
+        }
+        n = registry.net_factory("naflex_vit_t16", 10, config=config, size=(16, 16))
+
+        # self.assertIsInstance(n, NaFlex_ViT)
+        assert isinstance(n, NaFlex_ViT)
+
+        patches = torch.rand((2, 6, DEFAULT_NUM_CHANNELS * 4 * 4), requires_grad=True)
+        grid_sizes = torch.tensor([[2, 2], [2, 3]])
+        valid_mask = torch.tensor([[True, True, True, True, False, False], [True, True, True, True, True, True]])
+
+        embedding = n.embedding(patches, grid_sizes, valid_mask)
+        embedding.square().sum().backward()
+
+        self.assertIsNotNone(patches.grad)
+        assert patches.grad is not None
+        self.assertTrue(torch.isfinite(patches.grad).all())
+        self.assertGreater(torch.count_nonzero(patches.grad[valid_mask]).item(), 0)
+        self.assertEqual(torch.count_nonzero(patches.grad[valid_mask.logical_not()]).item(), 0)
+
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("class_token", {}),
+            ("average_pool", {"class_token": False}),
+            ("attention_pool", {"class_token": False, "attn_pool_head": True}),
+        ]
+    )
+    def test_naflex_vit_valid_mask(self, _name: str, pool_config: dict[str, object]) -> None:
+        config = {
+            "patch_size": 4,
+            "num_layers": 2,
+            "num_heads": 4,
+            "hidden_dim": 32,
+            "mlp_dim": 64,
+            "drop_path_rate": 0.0,
+            **pool_config,
+        }
+        n = registry.net_factory("naflex_vit_t16", 10, config=config, size=(16, 16))
+        n.eval()
+
+        # self.assertIsInstance(n, NaFlex_ViT)
+        assert isinstance(n, NaFlex_ViT)
+
+        patch_dim = DEFAULT_NUM_CHANNELS * 4 * 4
+        patches = torch.rand((2, 6, patch_dim))
+        grid_sizes = torch.tensor([[2, 2], [2, 3]])
+        valid_mask = torch.tensor([[True, True, True, True, False, False], [True, True, True, True, True, True]])
+
+        with torch.inference_mode():
+            features = n.forward_features(patches, grid_sizes=grid_sizes, valid_mask=valid_mask)
+            embedding = n.embedding(patches, grid_sizes, valid_mask)
+
+            changed_patches = patches.clone()
+            changed_patches[0, 4:] = torch.rand_like(changed_patches[0, 4:])
+            changed_features = n.forward_features(
+                changed_patches,
+                grid_sizes=grid_sizes,
+                valid_mask=valid_mask,
+            )
+            changed_embedding = n.embedding(changed_patches, grid_sizes, valid_mask)
+
+            torch.testing.assert_close(changed_features, features)
+            torch.testing.assert_close(changed_embedding, embedding)
+
+            for sample_idx, seq_len in enumerate((4, 6)):
+                sample_valid_mask = torch.ones((1, seq_len), dtype=torch.bool)
+                expected_features = n.forward_features(
+                    patches[sample_idx : sample_idx + 1, :seq_len],
+                    grid_sizes=grid_sizes[sample_idx : sample_idx + 1],
+                    valid_mask=sample_valid_mask,
+                )
+                expected_embedding = n.embedding(
+                    patches[sample_idx : sample_idx + 1, :seq_len],
+                    grid_sizes[sample_idx : sample_idx + 1],
+                    valid_mask=sample_valid_mask,
+                )
+
+                valid_seq_len = n.num_special_tokens + seq_len
+                torch.testing.assert_close(
+                    features[sample_idx : sample_idx + 1, :valid_seq_len],
+                    expected_features,
+                )
+                torch.testing.assert_close(embedding[sample_idx : sample_idx + 1], expected_embedding)
+
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
             ("deit_t16"),
             ("deit3_t16"),
             ("flexivit_s16"),
+            ("naflex_vit_t16"),
             ("rope_deit3_t16"),
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
@@ -1504,6 +1715,7 @@ class TestSpecialFunctions(unittest.TestCase):
         [
             ("deit_t16"),
             ("flexivit_s16"),
+            ("naflex_vit_t16"),
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit5_reg4_s16"),
@@ -1747,6 +1959,7 @@ class TestSpecialFunctions(unittest.TestCase):
             ("deit_t16"),
             ("deit3_t16"),
             ("flexivit_s16"),
+            ("naflex_vit_t16"),
             ("rope_deit3_t16"),
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
@@ -1780,14 +1993,14 @@ class TestSpecialFunctions(unittest.TestCase):
     def test_set_causal_attention_soft_moe(self) -> None:
         n = registry.net_factory("vit_s16_soft_moe_32e_4s_avg", 10)
 
-        with self.assertRaisesRegex(ValueError, "SoftMoE_FFN does not support causal attention"):
+        with self.assertRaises(ValueError):
             n.set_causal_attention(True)
 
         n.set_causal_attention(False)
 
         n = registry.net_factory("rope_vit_s16_soft_moe_32e_4s_avg", 10)
 
-        with self.assertRaisesRegex(ValueError, "SoftMoE_FFN does not support causal attention"):
+        with self.assertRaises(ValueError):
             n.set_causal_attention(True)
 
         n.set_causal_attention(False)

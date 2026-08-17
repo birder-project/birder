@@ -88,6 +88,22 @@ class SinkhornQueue(nn.Module):
     def set_active(self, active: bool) -> None:
         self.active = active
 
+    def adjust_size(self, seq_len: int) -> None:
+        if self.position_wise is False:
+            return
+
+        self.queue = nn.Buffer(
+            torch.empty(
+                seq_len,
+                self.queue_size,
+                self.queue.size(-1),
+                dtype=self.queue.dtype,
+                device=self.queue.device,
+            )
+        )
+        self.queue_ptr.zero_()
+        self.queue_full.zero_()
+
     def get(self) -> Optional[torch.Tensor]:
         if self.active is False:
             return None
@@ -353,6 +369,16 @@ class Decoder(nn.Module):
 
         return x
 
+    def adjust_size(self, input_size: tuple[int, int]) -> None:
+        pos_embedding = pos_embedding_sin_cos_2d(
+            h=input_size[0],
+            w=input_size[1],
+            dim=self.mask_token.size(-1),
+            num_special_tokens=0,
+            device=self.decoder_pos_embed.device,
+        ).unsqueeze(0)
+        self.decoder_pos_embed = nn.Buffer(pos_embedding.to(dtype=self.decoder_pos_embed.dtype))
+
     def set_grad_checkpointing(
         self, enable: bool = True, *, preserve_rng_state: bool = True, use_reentrant: bool = False
     ) -> None:
@@ -404,6 +430,16 @@ class CAPIStudent(SSLBaseNet):
             input_size, self.backbone.feature_dim, decoder_dim, decoder_layers, drop_path_rate=decoder_drop_path_rate
         )
         self.head = L2NormLinear(decoder_dim, num_clusters)
+
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
+        if new_size == self.size:
+            return
+
+        self.backbone.adjust_size(new_size)
+        self.size = new_size
+        input_size = (self.size[0] // self.backbone.max_stride, self.size[1] // self.backbone.max_stride)
+        self.seq_len = input_size[0] * input_size[1]
+        self.decoder.adjust_size(input_size)
 
     def set_grad_checkpointing(
         self,
@@ -467,6 +503,16 @@ class CAPITeacher(SSLBaseNet):
             queue_size=queue_size,
             seq_len=queue_seq_len,
         )
+
+    def adjust_size(self, new_size: tuple[int, int]) -> None:
+        if new_size == self.size:
+            return
+
+        self.backbone.adjust_size(new_size)
+        self.size = new_size
+        if self.head.sinkhorn_queue is not None:
+            input_size = (self.size[0] // self.backbone.max_stride, self.size[1] // self.backbone.max_stride)
+            self.head.sinkhorn_queue.adjust_size(input_size[0] * input_size[1])
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
         self, x: torch.Tensor, ids_keep: Optional[torch.Tensor], ids_predict: torch.Tensor

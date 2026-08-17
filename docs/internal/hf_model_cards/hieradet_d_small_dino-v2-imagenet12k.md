@@ -13,7 +13,8 @@ datasets:
 
 # Model Card for hieradet_d_small_dino-v2-imagenet12k
 
-HieraDet (dynamic window size) small image classification model. The model follows a two-stage training process: first, DINOv2 pretraining, then fine-tuned on the `ImageNet-12K` dataset.
+A HieraDet Small image classification model with dynamic window sizing.
+The model follows a two-stage training process: first, DINOv2 pretraining, then fine-tuned on the `ImageNet-12K` dataset.
 
 ## Model Details
 

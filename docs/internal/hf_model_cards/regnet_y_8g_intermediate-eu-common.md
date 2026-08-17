@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for regnet_y_8g_intermediate-eu-common
 
-A RegNet Y image classification model. The model follows a two-stage training process: first undergoing intermediate training on a large-scale dataset containing diverse bird species from around the world, then fine-tuned specifically on the `eu-common` dataset containing common European bird species.
+A RegNet Y 8 GF image classification model.
+The model follows a two-stage training process: first undergoing intermediate training on a large-scale dataset containing diverse bird species from around the world, then fine-tuned specifically on the `eu-common` dataset containing common European bird species.
 
 The species list is derived from the Collins bird guide [^1].
 

@@ -35,9 +35,7 @@ from birder.layers.activations import get_activation_module
 from birder.layers.rope import RoPE
 from birder.layers.rope import RoPERotationType
 from birder.layers.rope import RoPEStyleType
-from birder.layers.rope import apply_interleaved_rotary_pos_embed
-from birder.layers.rope import apply_rotary_pos_embed
-from birder.layers.rope import build_rotary_pos_embed
+from birder.layers.rope import get_rope_apply_fn
 from birder.model_registry import registry
 from birder.net._rope_vit_configs import register_rope_vit_configs
 from birder.net.base import DetectorBackbone
@@ -86,12 +84,7 @@ class RoPEAttention(nn.Module):
         self.head_dim = dim // num_heads
         self.scale = self.head_dim**-0.5
         self.num_special_tokens = num_special_tokens
-        if rope_rot_type == "standard":
-            self.apply_rot_fn = apply_rotary_pos_embed
-        elif rope_rot_type == "interleaved":
-            self.apply_rot_fn = apply_interleaved_rotary_pos_embed
-        else:
-            raise ValueError(f"Unknown rope_rot_type, got '{rope_rot_type}'")
+        self.apply_rot_fn = get_rope_apply_fn(rope_rot_type)
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         if qk_norm is True:
@@ -124,8 +117,8 @@ class RoPEAttention(nn.Module):
         k = self.k_norm(k)
 
         n = self.num_special_tokens
-        q = torch.concat([q[:, :, :n, :], self.apply_rot_fn(q[:, :, n:, :], rope)], dim=2)
-        k = torch.concat([k[:, :, :n, :], self.apply_rot_fn(k[:, :, n:, :], rope)], dim=2)
+        q = torch.concat([q[:, :, :n, :], self.apply_rot_fn(q[:, :, n:, :], rope)], dim=2).type_as(v)
+        k = torch.concat([k[:, :, :n, :], self.apply_rot_fn(k[:, :, n:, :], rope)], dim=2).type_as(v)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q,
@@ -442,6 +435,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         image_size = self.size
         abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", True)
+        pos_embed_interpolation_mode: Literal["bilinear", "bicubic"] = self.config.get(
+            "pos_embed_interpolation_mode", "bicubic"
+        )
         patch_size: int = self.config["patch_size"]
         stem_type: Literal["patchify", "hmlp"] = self.config.get("stem_type", "patchify")
         stem_norm_layer_type: Optional[Literal["BatchNorm2d", "LayerNorm2d"]] = self.config.get(
@@ -465,6 +461,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
         attn_pool_special_tokens: bool = self.config.get("attn_pool_special_tokens", False)
         attn_pool_norm_eps: float = self.config.get("attn_pool_norm_eps", 1e-5)
+        attn_pool_act_layer_type: str = self.config.get("attn_pool_act_layer_type", "gelu")
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
@@ -477,11 +474,17 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         rope_grid_indexing: Literal["ij", "xy"] = self.config.get("rope_grid_indexing", "ij")
         rope_grid_offset: int = self.config.get("rope_grid_offset", 0)
         rope_temperature: float = self.config.get("rope_temperature", 100.0)
+        rope_shift_coords: Optional[float] = self.config.get("rope_shift_coords", None)
+        rope_jitter_coords: Optional[float] = self.config.get("rope_jitter_coords", None)
+        rope_rescale_coords: Optional[float] = self.config.get("rope_rescale_coords", None)
         pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
         dropout: float = self.config.get("dropout", 0.0)
         attention_dropout: float = self.config.get("attention_dropout", 0.0)
         projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
+
+        if pos_embed_interpolation_mode not in ("bilinear", "bicubic"):
+            raise ValueError(f"Unknown pos_embed_interpolation_mode '{pos_embed_interpolation_mode}'")
 
         if stem_type == "patchify":
             if stem_norm_layer_type is not None:
@@ -542,6 +545,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
         self.abs_pos_embed = abs_pos_embed
         self.pos_embed_special_tokens = pos_embed_special_tokens
+        self.pos_embed_interpolation_mode = pos_embed_interpolation_mode
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.num_heads = num_heads
@@ -608,6 +612,9 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             pt_grid_size=self.pt_grid_size,
             rope_style=rope_style,
             rope_rot_type=rope_rot_type,
+            shift_coords=rope_shift_coords,
+            jitter_coords=rope_jitter_coords,
+            rescale_coords=rope_rescale_coords,
         )
 
         # Encoder
@@ -660,7 +667,12 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
                 raise ValueError(f"Unknown attn_pool_type '{attn_pool_type}'")
 
             self.attn_pool = attn_pool(
-                hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True, norm_eps=attn_pool_norm_eps
+                hidden_dim,
+                attn_pool_num_heads,
+                mlp_dim,
+                qkv_bias=True,
+                norm_eps=attn_pool_norm_eps,
+                activation_layer=get_activation_module(attn_pool_act_layer_type),
             )
 
         num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
@@ -718,28 +730,15 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
             self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
+            interpolation_mode=self.pos_embed_interpolation_mode,
             antialias=False,
         )
 
     def _get_rope_embed(self, H: int, W: int) -> torch.Tensor:
         if self.dynamic_size is False:
-            return self.rope.pos_embed
+            return self.rope.get_pos_embed(self.rope.grid_size)
 
-        if H == self.size[0] and W == self.size[1]:
-            return self.rope.pos_embed
-
-        return torch.concat(
-            build_rotary_pos_embed(
-                self.hidden_dim // self.num_heads,
-                self.rope_temperature,
-                grid_size=(H // self.patch_size, W // self.patch_size),
-                grid_indexing=self.rope_grid_indexing,
-                grid_offset=self.rope_grid_offset,
-                pt_grid_size=self.pt_grid_size,
-                rope_style=self.rope_style,
-            ),
-            dim=-1,
-        ).to(self.rope.pos_embed.device, dtype=self.rope.pos_embed.dtype)
+        return self.rope.get_pos_embed((H // self.patch_size, W // self.patch_size))
 
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
         for param in self.parameters():
@@ -1059,23 +1058,13 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
                     (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
                     (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
                     num_prefix_tokens,
+                    interpolation_mode=self.pos_embed_interpolation_mode,
                 )
 
             self.pos_embedding = nn.Parameter(pos_embedding)
 
-        # Adjust RoPE
-        old_dtype = self.rope.pos_embed.dtype
-        self.rope = RoPE(
-            self.hidden_dim // self.num_heads,
-            temperature=self.rope_temperature,
-            grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
-            grid_indexing=self.rope_grid_indexing,
-            grid_offset=self.rope_grid_offset,
-            pt_grid_size=self.pt_grid_size,
-            rope_style=self.rope_style,
-            rope_rot_type=self.rope_rot_type,
-            device=self.rope.pos_embed.device,
-        ).to(dtype=old_dtype)
+        grid_size = (new_size[0] // self.patch_size, new_size[1] // self.patch_size)
+        self.rope.set_grid_size(grid_size)
 
         # Define adjusted decoder block
         self.decoder_block = partial(
@@ -1083,7 +1072,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             16,
             num_special_tokens=self.num_special_tokens,
             activation_layer=self.act_layer,
-            grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+            grid_size=grid_size,
             rope_grid_indexing=self.rope_grid_indexing,
             rope_grid_offset=self.rope_grid_offset,
             rope_temperature=self.rope_temperature,
@@ -1104,9 +1093,9 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_vit_s14_swiglu_avg_eva-bio/resolve/main",
         "description": (
-            "RoPE ViT s14 image encoder pretrained using EVA MIM distillation from a BioCLIP v2 teacher "
-            "on natural biological images. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPE ViT S/14 image encoder with average pooling, pretrained using EVA MIM distillation from a BioCLIP "
+            "v2 teacher on natural biological images. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
         "formats": {
@@ -1123,9 +1112,9 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_vit_m14_swiglu_avg_eva-bio/resolve/main",
         "description": (
-            "RoPE ViT m14 image encoder pretrained using EVA MIM distillation from a BioCLIP v2.5 teacher "
-            "on natural biological images. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPE ViT M/14 image encoder with average pooling, pretrained using EVA MIM distillation from a BioCLIP "
+            "v2.5 teacher on natural biological images. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
         "formats": {
@@ -1142,8 +1131,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi/resolve/main",
         "description": (
-            "RoPE ViT b14 image encoder pretrained using CAPI. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPE ViT Reg4 B/14 image encoder pretrained using CAPI. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
         "formats": {
@@ -1159,7 +1148,7 @@ registry.register_weights(
     "rope_vit_reg4_b14_capi-places365",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-places365/resolve/main",
-        "description": "RoPE ViT b14 model pretrained using CAPI, then fine-tuned on the Places365 dataset",
+        "description": "RoPE ViT Reg4 B/14 model pretrained using CAPI, then fine-tuned on the Places365 dataset",
         "resolution": (224, 224),
         "formats": {
             "pt": {
@@ -1174,7 +1163,9 @@ registry.register_weights(
     "rope_vit_reg4_b14_capi-inat21-224px",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-inat21/resolve/main",
-        "description": "RoPE ViT b14 model pretrained using CAPI, then fine-tuned on the iNaturalist 2021 dataset",
+        "description": (
+            "RoPE ViT Reg4 B/14 model pretrained using CAPI, then fine-tuned on the iNaturalist 2021 dataset"
+        ),
         "resolution": (224, 224),
         "formats": {
             "pt": {
@@ -1189,7 +1180,9 @@ registry.register_weights(
     "rope_vit_reg4_b14_capi-inat21",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-inat21/resolve/main",
-        "description": "RoPE ViT b14 model pretrained using CAPI, then fine-tuned on the iNaturalist 2021 dataset",
+        "description": (
+            "RoPE ViT Reg4 B/14 model pretrained using CAPI, then fine-tuned on the iNaturalist 2021 dataset"
+        ),
         "resolution": (336, 336),
         "formats": {
             "pt": {
@@ -1204,7 +1197,7 @@ registry.register_weights(
     "rope_vit_reg4_b14_capi-imagenet21k",
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-imagenet21k/resolve/main",
-        "description": "RoPE ViT b14 model pretrained using CAPI, then fine-tuned on the ImageNet-21K dataset",
+        "description": "RoPE ViT Reg4 B/14 model pretrained using CAPI, then fine-tuned on the ImageNet 21K dataset",
         "resolution": (224, 224),
         "formats": {
             "pt": {
@@ -1220,8 +1213,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg4_b14_capi-intermediate-eu-common/resolve/main",
         "description": (
-            "RoPE ViT b14 model pretrained using CAPI and intermediate training, "
-            "then fine-tuned on the eu-common dataset"
+            "RoPE ViT Reg4 B/14 model pretrained using CAPI and intermediate training, then fine-tuned on the "
+            "eu-common dataset"
         ),
         "resolution": (336, 336),
         "formats": {
@@ -1238,8 +1231,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg8_so150m_p14_swiglu_rms_avg_capi/resolve/main",
         "description": (
-            "RoPE SoViT 150m p14 image encoder pretrained using CAPI. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPE SoViT Reg8 150M/14 image encoder with average pooling, pretrained using CAPI. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
         "formats": {
@@ -1256,7 +1249,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_vit_reg8_so150m_p14_swiglu_rms_ap_rotnet-capi/resolve/main",
         "description": (
-            "RoPE SoViT 150m p14 image encoder pretrained using CAPI, then trained to estimate image orientation"
+            "RoPE SoViT Reg8 150M/14 model with attention pooling and CAPI pretraining, then trained to estimate "
+            "image orientation"
         ),
         "resolution": (252, 252),
         "formats": {
@@ -1276,8 +1270,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_l14_nf_swiglu_c1_eva02-clip/resolve/main",
         "description": (
-            "RoPEi ViT l14 image encoder pretrained by BAAI-Vision using CLIP. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPEi ViT L/14 image encoder pretrained by BAAI-Vision using CLIP. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (336, 336),
         "formats": {
@@ -1297,8 +1291,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_reg1_t16_pn_npn_avg_c1_pe-spatial/resolve/main",
         "description": (
-            "RoPEi ViT t16 image encoder pretrained by Meta FAIR using CLIP. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPEi ViT Reg1 T/16 image encoder with average pooling, pretrained by Meta FAIR using CLIP. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (512, 512),
         "formats": {
@@ -1315,8 +1309,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_s16_pn_aps_c1_pe-core/resolve/main",
         "description": (
-            "RoPEi ViT s16 image encoder pretrained by Meta FAIR using CLIP. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPEi ViT S/16 image encoder with attention pooling, pretrained by Meta FAIR using CLIP. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (384, 384),
         "formats": {
@@ -1333,8 +1327,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_reg1_s16_pn_npn_avg_c1_pe-spatial/resolve/main",
         "description": (
-            "RoPEi ViT s16 image encoder pretrained by Meta FAIR using CLIP. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPEi ViT Reg1 S/16 image encoder with average pooling, pretrained by Meta FAIR using CLIP. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (512, 512),
         "formats": {
@@ -1351,8 +1345,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_b16_pn_aps_c1_pe-core/resolve/main",
         "description": (
-            "RoPEi ViT b16 image encoder pretrained by Meta FAIR using CLIP. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPEi ViT B/16 image encoder with attention pooling, pretrained by Meta FAIR using CLIP. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
         "formats": {
@@ -1369,8 +1363,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_reg1_b16_pn_npn_avg_c1_pe-spatial/resolve/main",
         "description": (
-            "RoPEi ViT b16 image encoder pretrained by Meta FAIR using CLIP. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPEi ViT Reg1 B/16 image encoder with average pooling, pretrained by Meta FAIR using CLIP. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (512, 512),
         "formats": {
@@ -1387,8 +1381,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_i_vit_l14_pn_aps_c1_pe-core/resolve/main",
         "description": (
-            "RoPEi ViT l14 image encoder pretrained by Meta FAIR using CLIP. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPEi ViT L/14 image encoder with attention pooling, pretrained by Meta FAIR using CLIP. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (336, 336),
         "formats": {
@@ -1405,7 +1399,7 @@ registry.register_weights(
 registry.register_weights(
     "rope_deit3_reg4_t16_il-common",
     {
-        "description": "RoPE DeiT3 reg4 tiny p16 model trained on the il-common dataset",
+        "description": "RoPE DeiT3 Reg4 T/16 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -1420,7 +1414,7 @@ registry.register_weights(
     "rope_deit3_reg4_m14_arabian-peninsula",
     {
         "url": "https://huggingface.co/birder-project/rope_deit3_reg4_m14_arabian-peninsula/resolve/main",
-        "description": "RoPE DeiT3 reg4 medium p14 model trained on the arabian-peninsula dataset",
+        "description": "RoPE DeiT3 Reg4 M/14 model trained on the arabian-peninsula dataset",
         "resolution": (252, 252),
         "formats": {
             "pt": {
@@ -1438,8 +1432,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_deit3_m14_dino-v2-dist-bio/resolve/main",
         "description": (
-            "RoPE DeiT3 m14 image encoder pretrained using DINOv2 distillation on natural biological images. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPE DeiT3 M/14 image encoder pretrained using DINO v2 distillation on natural biological images. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (252, 252),
         "formats": {

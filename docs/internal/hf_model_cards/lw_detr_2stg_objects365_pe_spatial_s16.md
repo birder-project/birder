@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for lw_detr_2stg_objects365_pe_spatial_s16
 
-A two-stage LW-DETR object detector with a PE-Spatial s16 backbone, trained on Objects365-2020 as a fine-tuning-oriented checkpoint.
+A two-stage LW-DETR object detector with a PE-Spatial S/16 backbone, trained on Objects365-2020 as a fine-tuning-oriented checkpoint.
 The model was trained with a compact 40-epoch schedule, a constant learning rate, strong backbone layer decay to keep the PE-Spatial representation stable and heavy detection augmentations including mosaic.
 Training used multi-resolution inputs sampled from 512px to 672px.
 

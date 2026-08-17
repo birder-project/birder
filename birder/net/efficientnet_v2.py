@@ -416,7 +416,7 @@ registry.register_model_config(
 registry.register_weights(
     "efficientnet_v2_s_il-common",
     {
-        "description": "EfficientNet v2 small model trained on the il-common dataset",
+        "description": "EfficientNet v2 Small model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -431,7 +431,7 @@ registry.register_weights(
     "efficientnet_v2_s_arabian-peninsula",
     {
         "url": "https://huggingface.co/birder-project/efficientnet_v2_s_arabian-peninsula/resolve/main",
-        "description": "EfficientNet v2 small model trained on the arabian-peninsula dataset",
+        "description": "EfficientNet v2 Small model trained on the arabian-peninsula dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

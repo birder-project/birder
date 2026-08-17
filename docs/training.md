@@ -80,17 +80,18 @@ Most networks train more effectively with growing resolution and augmentation as
 - [MicroViT v1](#microvit-v1)
 - [MicroViT v2](#microvit-v2)
 - [MnasNet](#mnasnet)
-- [Mobilenet v1](#mobilenet-v1)
-- [Mobilenet v2](#mobilenet-v2)
-- [Mobilenet v3](#mobilenet-v3)
-- [Mobilenet v4](#mobilenet-v4)
-- [Mobilenet v4 Hybrid](#mobilenet-v4-hybrid)
+- [MobileNet v1](#mobilenet-v1)
+- [MobileNet v2](#mobilenet-v2)
+- [MobileNet v3](#mobilenet-v3)
+- [MobileNet v4](#mobilenet-v4)
+- [MobileNet v4 Hybrid](#mobilenet-v4-hybrid)
 - [MobileOne](#mobileone)
 - [MobileViT v1](#mobilevit-v1)
 - [MobileViT v2](#mobilevit-v2)
 - [MogaNet](#moganet)
 - [MViT v1](#mvit-v1)
 - [MViT v2](#mvit-v2)
+- [NaFlex ViT](#naflex-vit)
 - [Next-ViT](#next-vit)
 - [NFNet](#nfnet)
 - [PiT](#pit)
@@ -102,7 +103,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [RegNet](#regnet)
 - [RepGhost](#repghost)
 - [RepLKNet](#replknet)
-- [RepVgg](#repvgg)
+- [RepVGG](#repvgg)
 - [RepViT](#repvit)
 - [ResMLP](#resmlp)
 - [ResNeSt](#resnest)
@@ -132,6 +133,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [Tiny ViT](#tiny-vit)
 - [TransNeXt](#transnext)
 - [UniFormer](#uniformer)
+- [UniRepLKNet](#unireplknet)
 - [VAN](#van)
 - [VGG](#vgg)
 - [VGG Reduced](#vgg-reduced)
@@ -636,19 +638,19 @@ torchrun --nproc_per_node=2 train.py --network davit_small --tag intermediate --
 
 ### DeiT
 
-#### DeiT: t16
+#### DeiT: T/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit_t16 --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --fast-matmul --compile
 ```
 
-#### DeiT: s16
+#### DeiT: S/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit_s16 --batch-size 128 --opt adamw --clip-grad-norm 1 --grad-accum-steps 2 --lr 0.0005 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --amp --compile
 ```
 
-#### DeiT: b16
+#### DeiT: B/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit_b16 --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --stop-epoch 200 --warmup-epochs 20 --model-ema --size 288 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
@@ -668,13 +670,13 @@ torchrun --nproc_per_node=2 train.py --network deit_b16 --tag intermediate --bat
 
 ### DeiT3
 
-#### DeiT3: t16
+#### DeiT3: T/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit3_t16 --bce-loss --bce-threshold 0.05 --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.004 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 600 --warmup-epochs 5 --model-ema --size 256 --aug-level 2 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
-#### DeiT3: s16
+#### DeiT3: S/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit3_s16 --bce-loss --bce-threshold 0.05 --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.004 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 600 --warmup-epochs 5 --model-ema --size 256 --aug-level 2 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
@@ -686,7 +688,7 @@ Fine-tuning, increase resolution
 torchrun --nproc_per_node=2 train.py --network deit3_s16 --model-config drop_path_rate=0.0 --batch-size 64 --opt adamw --clip-grad-norm 1 --lr 0.00001 --wd 0.1 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 20 --warmup-epochs 5 --model-ema --size 384 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile --resume-epoch 0
 ```
 
-#### DeiT3: m16
+#### DeiT3: M/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit3_m16 --bce-loss --bce-threshold 0.05 --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 800 --warmup-epochs 5 --model-ema --size 256 --aug-level 2 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
@@ -716,7 +718,7 @@ Intermediate training: fine-tuning
 torchrun --nproc_per_node=2 train.py --network deit3_m16 --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.0001 --wd 0.02 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 50 --warmup-epochs 5 --model-ema --size 256 --aug-level 2 --smoothing-alpha 0.1 --cutmix --amp --compile --resume-epoch 0
 ```
 
-#### DeiT3: b16
+#### DeiT3: B/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit3_b16 --bce-loss --bce-threshold 0.05 --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 800 --warmup-epochs 5 --model-ema --size 224 --aug-level 2 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
@@ -752,7 +754,7 @@ Intermediate training: fine-tuning
 torchrun --nproc_per_node=2 train.py --network deit3_b16 --tag intermediate --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.0001 --wd 0.02 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 50 --warmup-epochs 5 --model-ema --size 256 --aug-level 2 --smoothing-alpha 0.1 --cutmix --amp --compile --resume-epoch 0
 ```
 
-#### DeiT3: l16
+#### DeiT3: L/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network deit3_l16 --bce-loss --bce-threshold 0.05 --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 800 --warmup-epochs 5 --model-ema --size 192 --aug-level 2 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
@@ -794,7 +796,7 @@ torchrun --nproc_per_node=2 train.py --network dpn_131 --batch-size 32 --lr 0.4 
 
 ### EdgeNeXt
 
-### EdgeNeXt: Extra Extra Small
+#### EdgeNeXt: Extra Extra Small
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network edgenext_xxs --batch-size 256 --opt adamw --lr 0.006 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --ra-sampler --ra-reps 2 --fast-matmul --compile
@@ -806,7 +808,7 @@ torchrun --nproc_per_node=2 train.py --network edgenext_xxs --batch-size 256 --o
 torchrun --nproc_per_node=2 train.py --network edgenext_xs --batch-size 256 --opt adamw --lr 0.006 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
-### EdgeNeXt: Small
+#### EdgeNeXt: Small
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network edgenext_s --batch-size 256 --opt adamw --lr 0.006 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --ra-sampler --ra-reps 2 --amp --compile
@@ -814,13 +816,13 @@ torchrun --nproc_per_node=2 train.py --network edgenext_s --batch-size 256 --opt
 
 ### EdgeViT
 
-#### EdgeViT: Extra Extra small
+#### EdgeViT: Extra Extra Small
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network edgevit_xxs --batch-size 256 --opt adamw --lr 5e-4 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-5 --epochs 200 --warmup-epochs 5 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --ra-sampler --ra-reps 2 --fast-matmul
 ```
 
-#### EdgeViT: Extra small
+#### EdgeViT: Extra Small
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network edgevit_xs --batch-size 256 --opt adamw --lr 5e-4 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-5 --epochs 200 --warmup-epochs 5 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.8 --ra-sampler --ra-reps 2 --fast-matmul
@@ -882,7 +884,7 @@ torchrun --nproc_per_node=2 train.py --network efficientformer_v2_l --batch-size
 
 ### EfficientMod
 
-### EfficientMod: XS
+#### EfficientMod: XS
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network efficientmod_xs --batch-size 256 --opt adamw --lr 0.004 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --fast-matmul --compile
@@ -1114,19 +1116,19 @@ torchrun --nproc_per_node=2 train.py --network fastvit_sa12 --batch-size 128 --o
 torchrun --nproc_per_node=2 train.py --network fastvit_sa24 --batch-size 128 --opt adamw --grad-accum-steps 8 --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-#### FastViT: MobileClip v1 i0
+#### FastViT: MobileCLIP v1 i0
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobileclip_v1_i0 --batch-size 256 --opt adamw --grad-accum-steps 8 --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-#### FastViT: MobileClip v1 i2
+#### FastViT: MobileCLIP v1 i2
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobileclip_v1_i2 --batch-size 128 --opt adamw --grad-accum-steps 8 --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-#### FastViT: MobileClip v2 i3
+#### FastViT: MobileCLIP v2 i3
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobileclip_v2_i3 --batch-size 64 --opt adamw --grad-accum-steps 8 --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
@@ -1590,35 +1592,35 @@ torchrun --nproc_per_node=2 train.py --network mnasnet_0_5 --batch-size 256 --lr
 torchrun --nproc_per_node=2 train.py --network mnasnet_1_0 --batch-size 256 --lr 0.5 --wd 0.00002 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 5e-6 --epochs 200 --warmup-epochs 5 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2
 ```
 
-### Mobilenet v1
+### MobileNet v1
 
-#### Mobilenet v1: Original
+#### MobileNet v1: Original
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v1_1_0 --batch-size 256 --opt rmsprop --lr 0.045 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.94 --aug-level 2
 ```
 
-#### Mobilenet v1: v4 procedure
+#### MobileNet v1: v4 procedure
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v1_1_0 --batch-size 256 --opt adamw --clip-grad-norm 5 --lr 0.002 --wd 0.01 --lr-scheduler cosine --lr-cosine-min 1e-8 --epochs 600 --warmup-epochs 5 --size 256 --aug-level 6 --smoothing-alpha 0.1 --ra-sampler --ra-reps 2
 ```
 
-### Mobilenet v2
+### MobileNet v2
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v2_2_0 --batch-size 128 --opt rmsprop --lr 0.045 --wd 0.00004 --lr-scheduler step --lr-step-size 1 --lr-step-gamma 0.98 --epochs 300 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --fast-matmul --compile
 ```
 
-### Mobilenet v3
+### MobileNet v3
 
-#### Mobilenet v3: Small 1
+#### MobileNet v3: Small 1
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v3_small_1_0 --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --stop-epoch 320 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --fast-matmul --compile
 ```
 
-#### Mobilenet v3: Large 1.5
+#### MobileNet v3: Large 1.5
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large_1_5 --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --stop-epoch 320 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --compile
@@ -1636,35 +1638,35 @@ Intermediate training
 torchrun --nproc_per_node=2 train.py --network mobilenet_v3_large_1_5 --tag intermediate --batch-size 256 --opt rmsprop --lr 0.064 --wd 0.00001 --lr-scheduler step --lr-step-size 2 --lr-step-gamma 0.973 --epochs 400 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --compile --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
-### Mobilenet v4
+### MobileNet v4
 
-#### Mobilenet v4: Small
+#### MobileNet v4: Small
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v4_s --batch-size 512 --opt adamw --clip-grad-norm 5 --lr 0.002 --wd 0.01 --lr-scheduler cosine --lr-cosine-min 1e-8 --epochs 800 --warmup-epochs 5 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --ra-sampler --ra-reps 2
 ```
 
-#### Mobilenet v4: Medium
+#### MobileNet v4: Medium
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v4_m --batch-size 256 --opt adamw --clip-grad-norm 5 --lr 0.003 --wd 0.1 --lr-scheduler cosine --lr-cosine-min 1e-8 --epochs 500 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --fast-matmul --compile
 ```
 
-#### Mobilenet v4: Large
+#### MobileNet v4: Large
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v4_l --batch-size 256 --opt adamw --clip-grad-norm 5 --lr 0.00225 --wd 0.2 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 500 --warmup-epochs 20 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
 ```
 
-### Mobilenet v4 Hybrid
+### MobileNet v4 Hybrid
 
-#### Mobilenet v4 Hybrid: Medium
+#### MobileNet v4 Hybrid: Medium
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_m --batch-size 256 --opt adamw --clip-grad-norm 5 --lr 0.002 --wd 0.15 --lr-scheduler cosine --lr-cosine-min 1e-8 --epochs 500 --warmup-epochs 20 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --amp --compile
 ```
 
-#### Mobilenet v4 Hybrid: Large
+#### MobileNet v4 Hybrid: Large
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_l --batch-size 256 --opt adamw --clip-grad-norm 5 --lr 0.0025 --wd 0.2 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 500 --warmup-epochs 20 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --amp-dtype bfloat16 --compile
@@ -1672,19 +1674,19 @@ torchrun --nproc_per_node=2 train.py --network mobilenet_v4_hybrid_l --batch-siz
 
 ### MobileOne
 
-#### MobileOne: s0
+#### MobileOne: S0
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobileone_s0 --batch-size 256 --lr 0.1 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 5e-6 --epochs 300 --warmup-epochs 10 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-#### MobileOne: s1
+#### MobileOne: S1
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobileone_s1 --batch-size 256 --lr 0.1 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 5e-6 --epochs 300 --warmup-epochs 10 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-#### MobileOne: s2
+#### MobileOne: S2
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mobileone_s2 --batch-size 128 --lr 0.1 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 5e-6 --epochs 300 --warmup-epochs 10 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
@@ -1850,10 +1852,27 @@ torchrun --nproc_per_node=2 train.py --network mvit_v2_b --batch-size 64 --opt a
 torchrun --nproc_per_node=2 train.py --network mvit_v2_l --batch-size 32 --opt adamw --clip-grad-norm 1 --lr 0.002 --wd 0.1 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 70 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile
 ```
 
-#### MViT v2: Base w/cls token
+#### MViT v2: Base w/CLS token
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network mvit_v2_b_cls --batch-size 32 --opt adamw --clip-grad-norm 1 --lr 0.002 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 70 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile
+```
+
+### NaFlex ViT
+
+PyTorch 2.13.0 can fail to compile dynamic NaFlex sequence lengths with an internal Inductor `CantSplit` error.
+Until the upstream issue is fixed, disable Inductor's post-fusion loop ordering and reindexing when using `--naflex`
+with `--compile`:
+
+```sh
+export TORCHINDUCTOR_LOOP_ORDERING_AFTER_FUSION=0
+export TORCHINDUCTOR_LOOP_REINDEXING_AFTER_FUSION=0
+```
+
+#### NaFlex ViT: B/16
+
+```sh
+torchrun --nproc_per_node=2 train.py --network naflex_vit_b16 --model-config drop_path_rate=0.2 --batch-size 64 --opt nadamw --clip-grad-norm 1 --grad-accum-steps 2 --lr 0.0003 --wd 0.1 --norm-wd 0 --lr-scheduler cosine --lr-scheduler-update step --epochs 300 --warmup-epochs 5 --size 288 --naflex --naflex-sizes 192 224 256 288 --aug-level 8 --use-grayscale --re-prob 0 --smoothing-alpha 0.1 --mixup-alpha 0.2 --amp --amp-dtype bfloat16 --compile
 ```
 
 ### Next-ViT
@@ -2214,9 +2233,9 @@ torchrun --nproc_per_node=2 train.py --network repghost_1_0 --batch-size 256 --l
 torchrun --nproc_per_node=2 train.py --network replknet_31b --batch-size 64 --opt adamw --grad-accum-steps 16 --lr 0.004 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 10 --model-ema --model-ema-steps 1 --model-ema-decay 0.9999 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
 ```
 
-### RepVgg
+### RepVGG
 
-#### RepVgg: B1
+#### RepVGG: B1
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network repvgg_b1 --batch-size 128 --lr 0.1 --wd 0.0001 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2
@@ -2328,7 +2347,7 @@ Same as [ViT](#vit)
 
 ### RoPE ViT-5
 
-#### RoPE ViT-5: reg4 b16
+#### RoPE ViT-5: Reg4 B/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network rope_vit5_reg4_b16 --bce-loss --bce-threshold 0.05 --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 800 --warmup-epochs 5 --model-ema --size 224 --aug-level 2 --resize-min-scale 0.4 --re-prob 0 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile
@@ -2418,25 +2437,25 @@ torchrun --nproc_per_node=2 train.py --network shvit_s4 --batch-size 128 --opt a
 
 ### Simple ViT
 
-#### Simple ViT: b32
+#### Simple ViT: B/32
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network simple_vit_b32 --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.0004 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --model-ema --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-#### Simple ViT: b16
+#### Simple ViT: B/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network simple_vit_b16 --batch-size 64 --opt adamw --clip-grad-norm 1 --lr 0.0004 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --model-ema --size 288 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-#### Simple ViT: l32
+#### Simple ViT: L/32
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network simple_vit_l32 --batch-size 64 --opt adamw --clip-grad-norm 1 --lr 0.00025 --wd 0.0001 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --warmup-epochs 20 --model-ema --size 320 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-#### Simple ViT: l16
+#### Simple ViT: L/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network simple_vit_l16 --batch-size 16 --clip-grad-norm 1 --lr 0.3 --wd 0.00002 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 400 --warmup-epochs 15 --model-ema --size 320 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
@@ -2444,13 +2463,13 @@ torchrun --nproc_per_node=2 train.py --network simple_vit_l16 --batch-size 16 --
 
 ### SMT
 
-### SMT: Tiny
+#### SMT: Tiny
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network smt_t --batch-size 256 --opt adamw --clip-grad-norm 5 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --compile
 ```
 
-### SMT: Small
+#### SMT: Small
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network smt_s --batch-size 128 --opt adamw --clip-grad-norm 5 --grad-accum-steps 2 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --compile
@@ -2474,7 +2493,7 @@ Intermediate training: fine-tuning
 torchrun --nproc_per_node=2 train.py --network smt_s --tag intermediate --model-config drop_path_rate=0.1 --batch-size 128 --opt adamw --clip-grad-norm 5 --grad-accum-steps 2 --lr 0.00002 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 40 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --amp --compile --resume-epoch 10
 ```
 
-### SMT: Base
+#### SMT: Base
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network smt_b --batch-size 64 --opt adamw --clip-grad-norm 5 --grad-accum-steps 4 --lr 0.001 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --warmup-epochs 5 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --compile
@@ -2680,6 +2699,44 @@ torchrun --nproc_per_node=2 train.py --network transnext_small --batch-size 32 -
 torchrun --nproc_per_node=2 train.py --network uniformer_s --batch-size 64 --opt adamw --grad-accum-steps 4 --lr 0.001 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --model-ema --size 320 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
+### UniRepLKNet
+
+#### UniRepLKNet: Atto
+
+```sh
+torchrun --nproc_per_node=2 train.py --network unireplknet_a --batch-size 512 --opt adamw --lr 0.004 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.3 --cutmix --amp --compile
+```
+
+#### UniRepLKNet: Femto
+
+```sh
+torchrun --nproc_per_node=2 train.py --network unireplknet_f --batch-size 256 --opt adamw --grad-accum-steps 2 --lr 0.004 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.3 --cutmix --amp --compile
+```
+
+#### UniRepLKNet: Pico
+
+```sh
+torchrun --nproc_per_node=2 train.py --network unireplknet_p --batch-size 256 --opt adamw --grad-accum-steps 2 --lr 0.004 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.3 --cutmix --amp --compile
+```
+
+#### UniRepLKNet: Nano
+
+```sh
+torchrun --nproc_per_node=2 train.py --network unireplknet_n --batch-size 128 --opt adamw --grad-accum-steps 4 --lr 0.004 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.5 --cutmix --amp --compile
+```
+
+#### UniRepLKNet: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network unireplknet_t --batch-size 128 --opt adamw --grad-accum-steps 4 --lr 0.004 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 224 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
+```
+
+#### UniRepLKNet: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network unireplknet_s --batch-size 64 --opt adamw --grad-accum-steps 8 --lr 0.004 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 5 --size 224 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
+```
+
 ### VAN
 
 #### VAN: B0
@@ -2714,37 +2771,37 @@ torchrun --nproc_per_node=2 train.py --network vgg_reduced_19 --batch-size 64 --
 
 ### ViT
 
-#### ViT: b32
+#### ViT: B/32
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_b32 --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.0007 --wd 0.3 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 30 --model-ema --size 224 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-#### ViT: b16
+#### ViT: B/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_b16 --batch-size 128 --opt adamw --clip-grad-norm 1 --lr 0.0007 --wd 0.3 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 30 --model-ema --size 288 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-#### ViT: l32
+#### ViT: L/32
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_l32 --batch-size 64 --opt adamw --clip-grad-norm 1 --lr 0.0007 --wd 0.3 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 30 --model-ema --size 320 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-#### ViT: l16
+#### ViT: L/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_l16 --batch-size 64 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0001 --wd 0.3 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
 ```
 
-#### ViT: h14
+#### ViT: H/14
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_h14 --batch-size 32 --opt adamw --opt-betas 0.9 0.95 --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.0001 --wd 0.3 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 20 --model-ema --size 224 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --amp --compile
 ```
 
-#### ViT: SoViT 150m p14 AP
+#### ViT: SoViT 150M/14 AP
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_so150m_p14_ap --batch-size 256 --opt adamw --clip-grad-norm 1 --lr 0.0005 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
@@ -2752,7 +2809,7 @@ torchrun --nproc_per_node=2 train.py --network vit_so150m_p14_ap --batch-size 25
 
 ### ViT Soft MoE
 
-#### ViT Soft MoE: s16 32e 4s AVG
+#### ViT Soft MoE: S/16 32E 4S AVG
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_s16_soft_moe_32e_4s_avg --batch-size 128 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0005 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --amp --amp-dtype bfloat16 --compile
@@ -2760,13 +2817,13 @@ torchrun --nproc_per_node=2 train.py --network vit_s16_soft_moe_32e_4s_avg --bat
 
 ### ViT MoE
 
-#### ViT MoE: vs32 8e 2k last2
+#### ViT MoE: vS/32 8E 2K Last2
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_vmoe_vs32_8e_2k_last2 --model-config moe_dropout=0.2 --moe-aux-loss --batch-size 512 --opt adamw --opt-fused --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.003 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler polynomial --lr-power 1 --epochs 300 --warmup-epochs 10 --size 224 --aug-level 8 --mixup-alpha 0.2 --rgb-mode centered --drop-last --amp --amp-dtype bfloat16 --compile
 ```
 
-#### ViT MoE: b16 8e 2k every2
+#### ViT MoE: B/16 8E 2K Every2
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_vmoe_b16_8e_2k_every2 --model-config drop_path_rate=0.0 --moe-aux-loss --batch-size 256 --opt adamw --opt-fused --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.0008 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler polynomial --lr-power 1 --epochs 300 --warmup-epochs 10 --size 224 --aug-level 8 --mixup-alpha 0.5 --rgb-mode centered --drop-last --amp --amp-dtype bfloat16 --compile
@@ -2780,7 +2837,7 @@ torchrun --nproc_per_node=2 train.py --network vit_vmoe_b16_8e_2k_every2 --model
 
 ### ViT Parallel
 
-#### ViT Parallel: s16 18x2 LS
+#### ViT Parallel: S/16 18x2 LS
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls --bce-loss --bce-threshold 0.05 --batch-size 192 --opt adamw --clip-grad-norm 1 --lr 0.003 --wd 0.05 --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 800 --warmup-epochs 5 --model-ema --size 256 --aug-level 2 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
@@ -2800,7 +2857,7 @@ torchrun --nproc_per_node=2 train.py --network vit_parallel_s16_18x2_ls --tag in
 
 ### ViT SAM
 
-#### ViT SAM: b16
+#### ViT SAM: B/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_sam_b16 --batch-size 64 --opt adamw --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0005 --wd 0.1 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
@@ -2808,7 +2865,7 @@ torchrun --nproc_per_node=2 train.py --network vit_sam_b16 --batch-size 64 --opt
 
 ### ViT Windowed
 
-#### ViT Windowed: s16
+#### ViT Windowed: S/16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network vit_windowed_s16 --batch-size 128 --opt adamw --opt-fused --clip-grad-norm 1 --grad-accum-steps 4 --lr 0.0005 --wd 0.1 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 300 --warmup-epochs 20 --model-ema --size 224 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --amp-dtype bfloat16 --compile
@@ -2860,19 +2917,19 @@ torchrun --nproc_per_node=2 train.py --network xception --batch-size 64 --lr-sch
 
 ### XCiT
 
-#### XCiT: nano-12 p16
+#### XCiT: Nano-12 p16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network xcit_nano12_p16 --batch-size 256 --opt adamw --clip-grad-norm 1 --grad-accum-steps 2 --lr 0.0005 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 30 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --fast-matmul --compile
 ```
 
-#### XCiT: small-12 p8
+#### XCiT: Small-12 p8
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network xcit_small12_p8 --batch-size 64 --opt adamw --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.0005 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 30 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile
 ```
 
-#### XCiT: medium-24 p16
+#### XCiT: Medium-24 p16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network xcit_medium24_p16 --batch-size 64 --opt adamw --clip-grad-norm 1 --grad-accum-steps 8 --lr 0.0005 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 400 --warmup-epochs 30 --model-ema --size 256 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --ra-sampler --ra-reps 2 --amp --compile

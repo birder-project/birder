@@ -708,7 +708,7 @@ registry.register_weights(
     "xcit_nano12_p16_il-common",
     {
         "url": "https://huggingface.co/birder-project/xcit_nano12_p16_il-common/resolve/main",
-        "description": "XCiT nano d12 patch16 model trained on the il-common dataset",
+        "description": "XCiT Nano-12 p16 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

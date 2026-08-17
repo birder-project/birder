@@ -33,6 +33,7 @@ from birder.common import fsdp_utils
 from birder.conf import settings
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import training_preset
+from birder.data.transforms.naflex import training_preset as naflex_training_preset
 from birder.optim import Lamb
 from birder.optim import Lars
 from birder.scheduler import CooldownLR
@@ -1045,15 +1046,35 @@ def get_training_transform(args: argparse.Namespace) -> Callable[..., torch.Tens
         args.aug_type,
         args.aug_level,
         get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std),
-        args.resize_min_scale,
-        args.re_prob,
-        args.use_grayscale,
-        args.ra_num_ops,
-        args.ra_magnitude,
-        args.augmix_severity,
-        args.clip_color_jitter_prob,
-        args.clip_gray_prob,
-        args.simple_crop,
+        resize_min_scale=args.resize_min_scale,
+        simple_crop=args.simple_crop,
+        re_prob=args.re_prob,
+        use_grayscale=args.use_grayscale,
+        ra_num_ops=args.ra_num_ops,
+        ra_magnitude=args.ra_magnitude,
+        augmix_severity=args.augmix_severity,
+        clip_color_jitter_prob=args.clip_color_jitter_prob,
+        clip_gray_prob=args.clip_gray_prob,
+    )
+
+
+def get_naflex_training_transform(
+    args: argparse.Namespace, patch_size: int, max_seq_len: int
+) -> Callable[..., torch.Tensor]:
+    return naflex_training_preset(
+        patch_size,
+        max_seq_len,
+        args.aug_type,
+        args.aug_level,
+        get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std),
+        resize_min_scale=args.resize_min_scale,
+        re_prob=args.re_prob,
+        use_grayscale=args.use_grayscale,
+        ra_num_ops=args.ra_num_ops,
+        ra_magnitude=args.ra_magnitude,
+        augmix_severity=args.augmix_severity,
+        clip_color_jitter_prob=args.clip_color_jitter_prob,
+        clip_gray_prob=args.clip_gray_prob,
     )
 
 
@@ -1403,6 +1424,8 @@ def init_training(
         set_random_seeds(args.seed)
 
     if args.non_interactive is True or is_global_primary(args) is False:
+        disable_tqdm = True
+    elif bool(os.environ.get("TQDM_DISABLE")) is True:
         disable_tqdm = True
     elif sys.stderr.isatty() is False:
         disable_tqdm = True

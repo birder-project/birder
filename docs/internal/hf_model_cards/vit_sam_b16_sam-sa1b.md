@@ -11,7 +11,7 @@ base_model:
 
 # Model Card for vit_sam_b16_sam-sa1b
 
-A ViT SAM b16 image encoder from the SAM project, converted to the Birder format for image feature extraction.
+A ViT SAM B/16 image encoder from the SAM project, converted to the Birder format for image feature extraction.
 This version preserves the original model weights and architecture for downstream tasks.
 
 See <https://huggingface.co/facebook/sam-vit-base> for further details.

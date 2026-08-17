@@ -13,7 +13,8 @@ datasets:
 
 # Model Card for vit_reg4_m16_rms_avg_i-jepa-imagenet21k
 
-A ViT image classification model. The model follows a two-stage training process: first, I-JEPA pretraining, then fine-tuned on the `ImageNet-21K` dataset.
+A ViT Reg4 M/16 image classification model.
+The model follows a two-stage training process: first, I-JEPA pretraining, then fine-tuned on the `ImageNet-21K` dataset.
 
 ## Model Details
 

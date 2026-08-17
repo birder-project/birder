@@ -353,7 +353,7 @@ registry.register_model_config(
 registry.register_weights(
     "conv2former_n_il-common",
     {
-        "description": "Conv2Former nano model trained on the il-common dataset",
+        "description": "Conv2Former Nano model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

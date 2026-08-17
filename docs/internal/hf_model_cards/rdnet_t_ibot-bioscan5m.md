@@ -11,7 +11,7 @@ datasets:
 
 # Model Card for rdnet_t_ibot-bioscan5m
 
-A RDNet tiny image encoder pretrained using iBOT.
+An RDNet Tiny image encoder pretrained using iBOT on the BIOSCAN-5M dataset.
 
 The model is primarily a feature extractor. Separately trained linear probing classification heads for various taxonomic levels (order, family, genus, species) are available for classification tasks.
 

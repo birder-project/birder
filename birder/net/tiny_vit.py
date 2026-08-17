@@ -518,7 +518,7 @@ registry.register_model_config(
 registry.register_weights(
     "tiny_vit_5m_il-common",
     {
-        "description": "TinyViT 5M model trained on the il-common dataset",
+        "description": "Tiny ViT 5M model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

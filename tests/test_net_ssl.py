@@ -657,6 +657,60 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(loss_capi.ndim, 0)
         self.assertEqual(loss_dino.ndim, 0)
 
+    def test_capi_dino_adjust_size(self) -> None:
+        size = (64, 64)
+        new_size = (96, 96)
+        num_clusters = 32
+        config = {
+            "decoder_layers": 1,
+            "decoder_dim": 64,
+            "decoder_drop_path_rate": 0.0,
+            "num_clusters": num_clusters,
+            "bias": True,
+            "n_sk_iter": 3,
+            "target_temp": 0.06,
+            "pred_temp": 0.12,
+            "sk_mode": "position-wise",
+            "queue_size": 2,
+            "dino_out_dim": 64,
+            "use_bn": False,
+            "num_layers": 2,
+            "hidden_dim": 64,
+            "head_bottleneck_dim": 32,
+        }
+        student = capi_dino.CAPI_DINOStudent(registry.net_factory("vit_s32", 0, size=size), config=config)
+        teacher = capi_dino.CAPI_DINOTeacher(registry.net_factory("vit_s32", 0, size=size), config=config)
+
+        queue = teacher.head.sinkhorn_queue
+        assert queue is not None
+        queue.queue_ptr.fill_(1)
+        queue.queue_full.fill_(True)
+
+        student.adjust_size(new_size)
+        teacher.adjust_size(new_size)
+
+        input_size = (new_size[0] // student.backbone.max_stride, new_size[1] // student.backbone.max_stride)
+        seq_len = input_size[0] * input_size[1]
+        self.assertEqual(student.size, new_size)
+        self.assertEqual(teacher.size, new_size)
+        self.assertEqual(student.decoder.decoder_pos_embed.size(1), seq_len)
+        self.assertEqual(queue.queue.size(), (seq_len, queue.queue_size, num_clusters))
+        self.assertEqual(queue.queue_ptr.item(), 0)
+        self.assertFalse(queue.queue_full.item())
+
+        masks = masking.InverseRollBlockMasking(input_size, num_masking_patches=seq_len // 2)(1)
+        ids_keep = masking.get_ids_keep(masks)
+        ids_predict = masking.get_random_masked_indices(masks, 1)
+        x = torch.rand(1, DEFAULT_NUM_CHANNELS, *new_size)
+
+        selected_assignments, clustering_loss, teacher_global_logits = teacher(x, None, ids_predict)
+        patch_logits, student_global_logits = student(x, ids_keep, ids_predict)
+        self.assertEqual(selected_assignments.size(), (1, num_clusters))
+        self.assertEqual(patch_logits.size(), (1, num_clusters))
+        self.assertTrue(torch.isfinite(clustering_loss))
+        self.assertTrue(torch.isfinite(teacher_global_logits).all())
+        self.assertTrue(torch.isfinite(student_global_logits).all())
+
     @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
     def test_capi_dino_grad_checkpointing(self) -> None:
         batch_size = 1
@@ -2380,6 +2434,41 @@ class TestNetSSL(unittest.TestCase):
         out_no_shift = net_no_shift(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
         self.assertFalse(torch.isnan(out_no_shift["loss"]).any())
         self.assertEqual(out_no_shift["loss"].ndim, 0)
+
+    def test_nepa_prediction_loss_valid_mask(self) -> None:
+        pred = torch.rand((2, 4, 8))
+        target = torch.rand((2, 4, 8))
+        valid_mask = torch.tensor([[True, True, False, False], [True, True, True, False]])
+
+        for shift in (False, True):
+            with self.subTest(shift=shift):
+                loss = nepa.prediction_loss(pred, target, shift=shift, valid_mask=valid_mask)
+                normalized_pred = F.normalize(pred.float(), dim=-1)
+                normalized_target = F.normalize(target.float(), dim=-1)
+                loss_mask = valid_mask
+                if shift is True:
+                    token_loss = -(normalized_pred[:, :-1] * normalized_target[:, 1:]).sum(dim=-1)
+                    loss_mask = valid_mask[:, :-1] & valid_mask[:, 1:]
+                else:
+                    token_loss = -(normalized_pred * normalized_target).sum(dim=-1)
+
+                torch.testing.assert_close(loss, token_loss[loss_mask].mean())
+
+        empty_loss = nepa.prediction_loss(pred[:, :1], target[:, :1], shift=True, valid_mask=valid_mask[:, :1])
+        self.assertEqual(empty_loss.item(), 0.0)
+
+    def test_nepa_naflex(self) -> None:
+        patch_size = 16
+        backbone = registry.net_factory("naflex_vit_t16", 0, size=(patch_size, 2 * patch_size))
+        net = nepa.NEPA(backbone, config={"shift": True})
+        patches = torch.rand((2, 2, DEFAULT_NUM_CHANNELS * patch_size**2))
+        grid_sizes = torch.tensor([[1, 2], [1, 1]])
+        valid_mask = torch.tensor([[True, True], [True, False]])
+
+        out = net(patches, grid_sizes=grid_sizes, valid_mask=valid_mask)
+
+        self.assertTrue(torch.isfinite(out["loss"]))
+        self.assertEqual(out["loss"].ndim, 0)
 
     def test_nepa_moe_aux_loss(self) -> None:
         batch_size = 8

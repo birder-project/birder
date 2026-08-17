@@ -397,7 +397,7 @@ registry.register_model_config(
 registry.register_weights(
     "pnasnet_mobile_il-common",
     {
-        "description": "PNASNet mobile model trained on the il-common dataset",
+        "description": "PNASNet Mobile model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

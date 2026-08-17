@@ -18,6 +18,7 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
+from birder.data.collators.naflex import NaFlexPathCollator
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import ImageLoaderName
 from birder.data.datasets.directory import class_to_idx_from_paths
@@ -27,6 +28,7 @@ from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import inference_preset
+from birder.data.transforms.naflex import inference_preset as naflex_inference_preset
 from birder.inference.classification import infer_dataloader_features_iter
 from birder.inference.classification import infer_dataloader_iter
 from birder.inference.data_parallel import InferenceDataParallel
@@ -316,6 +318,18 @@ def predict(args: argparse.Namespace) -> None:
     logger.debug(f"Model loaded with {len(class_to_idx)} classes")
     logger.debug(f"RGB stats: {rgb_stats}")
 
+    if args.size is None:
+        args.size = lib.get_size_from_signature(signature)
+        logger.debug(f"Using size={args.size}")
+
+    if args.naflex is True:
+        max_seq_len = (args.size[0] // net.stem_stride) * (args.size[1] // net.stem_stride)
+        inference_transform = naflex_inference_preset(net.stem_stride, max_seq_len, rgb_stats)
+        inference_collate_fn = NaFlexPathCollator(net.stem_stride)
+    else:
+        inference_transform = inference_preset(args.size, rgb_stats, args.center_crop, args.simple_crop)
+        inference_collate_fn = None
+
     if args.ignore_dir_names is True:
         num_classes = len(class_to_idx)
         class_to_idx = class_to_idx_from_paths(args.data_path, hierarchical=args.hierarchical)
@@ -369,13 +383,8 @@ def predict(args: argparse.Namespace) -> None:
                 net.detection_features, fullgraph=args.compile_fullgraph, mode=args.compile_mode
             )
 
-    if args.size is None:
-        args.size = lib.get_size_from_signature(signature)
-        logger.debug(f"Using size={args.size}")
-
     input_channels = lib.get_channels_from_signature(signature)
     batch_size = args.batch_size
-    inference_transform = inference_preset(args.size, rgb_stats, args.center_crop, args.simple_crop)
     if args.wds is True:
         wds_path: str | list[str]
         if args.wds_info is not None:
@@ -400,7 +409,7 @@ def predict(args: argparse.Namespace) -> None:
             batch_size,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            collate_fn=None,
+            collate_fn=inference_collate_fn,
             world_size=1,
             pin_memory=False,
             exact=True,
@@ -418,6 +427,7 @@ def predict(args: argparse.Namespace) -> None:
             shuffle=args.shuffle,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
+            collate_fn=inference_collate_fn,
         )
 
     show_flag = (
@@ -442,9 +452,12 @@ def predict(args: argparse.Namespace) -> None:
     if args.epoch is not None:
         epoch_str = f"_e{args.epoch}"
 
-    base_output_path = (
-        f"{network_name}_{len(class_to_idx)}{epoch_str}_{args.size[0]}px_crop{args.center_crop}_{num_samples}"
-    )
+    if args.naflex is True:
+        size_str = f"na_{args.size[0]}px"
+    else:
+        size_str = f"{args.size[0]}px_crop{args.center_crop}"
+
+    base_output_path = f"{network_name}_{len(class_to_idx)}{epoch_str}_{size_str}_{num_samples}"
     if args.simple_crop is True:
         base_output_path = f"{base_output_path}_sc"
     if args.tta is True:
@@ -626,8 +639,8 @@ def predict(args: argparse.Namespace) -> None:
         summary_df = pl.concat(summary_list).group_by("prediction_names").agg(pl.col("count").sum())
         summary_df = summary_df.sort(by="count", descending=True)
         indent_size = summary_df["prediction_names"].str.len_chars().max() + 2  # type: ignore[operator]
-        for specie_name, count in summary_df.iter_rows():
-            logger.info(f"{specie_name:<{indent_size}} {count}")
+        for species_name, count in summary_df.iter_rows():
+            logger.info(f"{species_name:<{indent_size}} {count}")
 
 
 def get_args_parser() -> argparse.ArgumentParser:
@@ -637,20 +650,22 @@ def get_args_parser() -> argparse.ArgumentParser:
         epilog=(
             "Usage example:\n"
             "python -m birder.scripts.predict --network resnet_v2_50 --pts --gpu --save-output data/Unknown\n"
-            "python predict.py -n fastvit_t8 -t il-common_reparameterized -e 0 --batch-size 256 --reparameterized "
+            "python -m birder.scripts.predict -n fastvit_t8 -t il-common_reparameterized -e 0 --batch-size 256 "
+            "--reparameterized "
             "--gpu --save-results data/validation_il-common_packed\n"
-            "python predict.py --network inception_resnet_v2 -e 100 --gpu --show-out-of-k data/validation\n"
-            "python predict.py --network inception_v3 --gpu --batch-size 256 --save-results data/validation/*crane\n"
-            "python predict.py -n efficientnet_v2_m -e 0 --gpu --save-embeddings data/testing\n"
-            "python predict.py -n efficientnet_v1_b4 -e 300 --gpu --save-embeddings "
+            "python -m birder.scripts.predict --network inception_resnet_v2 -e 100 --gpu --show-out-of-k imgs/val\n"
+            "python -m birder.scripts.predict --network inception_v3 --gpu --batch-size 256 --save-results "
+            "data/validation/*crane\n"
+            "python -m birder.scripts.predict -n efficientnet_v2_m -e 0 --gpu --save-embeddings data/testing\n"
+            "python -m birder.scripts.predict -n efficientnet_v1_b4 -e 300 --gpu --save-embeddings "
             "data/*/Alpine\\ swift --suffix alpine_swift\n"
-            "python predict.py -n mobilevit_v2_1_5 -t intermediate -e 80 --gpu --save-results "
+            "python -m birder.scripts.predict -n mobilevit_v2_1_5 -t intermediate -e 80 --gpu --save-results "
             "--wds data/validation_packed\n"
             "python -m birder.scripts.predict -n rope_i_vit_l14_pn_ap_c1 -t pe-core --gpu --parallel --batch-size 256 "
             "--chunk-size 50000 --amp --amp-dtype bfloat16 --compile --save-embeddings "
             "--suffix raw_data data/raw_data\n"
-            "python predict.py -n convnext_v2_tiny -t intermediate -e 70 --gpu --gpu-id 1 --compile --fast-matmul "
-            "--show-class Unknown data/raw_data\n"
+            "python -m birder.scripts.predict -n convnext_v2_tiny -t intermediate -e 70 --gpu --gpu-id 1 --compile "
+            "--fast-matmul --show-class Unknown data/raw_data\n"
             "python -m birder.scripts.predict -n rope_vit_reg4_b14 --gpu --amp --ignore-dir-names data/imagenet-v2\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -710,6 +725,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--size", type=int, nargs="+", metavar=("H", "W"), help="image size for inference (defaults to model signature)"
     )
+    parser.add_argument("--naflex", default=False, action="store_true", help="use native aspect-ratio inference")
     parser.add_argument("--batch-size", type=int, default=32, metavar="N", help="the batch size")
     parser.add_argument(
         "--img-loader",
@@ -841,6 +857,25 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--compile-fullgraph is not supported with --parallel")
     if args.compile_mode is not None and args.compile is False:
         raise cli.ValidationError("--compile-mode requires --compile")
+
+    if args.naflex is True:
+        if args.tta is True:
+            raise cli.ValidationError("--naflex cannot be used with --tta")
+        if args.channels_last is True:
+            raise cli.ValidationError("--naflex cannot be used with --channels-last")
+        if saving_features is True:
+            raise cli.ValidationError("--naflex cannot be used with --save-features/--save-detection-features")
+        if args.pts is True:
+            raise cli.ValidationError("--naflex cannot be used with --pts")
+        if args.pt2 is True:
+            raise cli.ValidationError("--naflex cannot be used with --pt2")
+        if args.quantized is True:
+            raise cli.ValidationError("--naflex cannot be used with --quantized")
+        if args.simple_crop is True:
+            raise cli.ValidationError("--naflex cannot be used with --simple-crop")
+        if args.center_crop != 1.0:
+            raise cli.ValidationError("--naflex requires --center-crop 1.0")
+
     if args.save_results is True and args.save_sparse_results is True:
         raise cli.ValidationError("--save-results cannot be used with --save-sparse-results")
     if args.skip_results_analysis is True and args.save_results is True:

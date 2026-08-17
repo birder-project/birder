@@ -195,7 +195,7 @@ registry.register_model_config("shufflenet_v2_2_0", ShuffleNet_v2, config={"out_
 registry.register_weights(
     "shufflenet_v2_1_0_il-common",
     {
-        "description": "ShuffleNet v2 1.0x output channels model trained on the il-common dataset",
+        "description": "ShuffleNet v2 1.0x model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

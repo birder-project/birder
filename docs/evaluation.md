@@ -7,7 +7,7 @@ The `birder.eval` module provides a dedicated CLI for model evaluation workflows
 - Spatial robustness evaluation
 - Standardized benchmark runs on external datasets
 
-This module is intentionally separate from `birder-predict` and `birder.tools`.
+This module is intentionally separate from `birder.scripts.predict` and `birder.tools`.
 
 ## Usage
 

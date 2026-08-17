@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for regnet_y_1_6g_eu-common
 
-A RegNet Y image classification model. This model was trained on the `eu-common` dataset containing common European bird species.
+A RegNet Y 1.6 GF image classification model.
+This model was trained on the `eu-common` dataset containing common European bird species.
 
 The species list is derived from the Collins bird guide [^1].
 

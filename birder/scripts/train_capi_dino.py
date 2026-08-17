@@ -221,6 +221,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     else:
         training_states = fs_ops.TrainingStates.empty()
 
+    if args.adapt_size is not None:
+        logger.info(f"Adapting size from {args.size} to {args.adapt_size}")
+        student.adjust_size(args.adapt_size)
+        teacher.adjust_size(args.adapt_size)
+        args.size = args.adapt_size
+        sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
+
     teacher.eval()
 
     assert isinstance(student_backbone, MaskedTokenOmissionMixin)
@@ -786,8 +793,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     log.info(
                         f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
                         f"Loss: {running_loss.avg:.4f}  "
-                        f"CAPI: {running_loss_capi.avg:.4f}  "
-                        f"DINO: {running_loss_dino.avg:.4f}  "
                         f"Elapsed: {format_duration(time_now-epoch_start)}  "
                         f"ETA: {format_duration(estimated_time_to_finish_epoch)}  "
                         f"T: {time_cost:.1f}s  "
@@ -1050,6 +1055,7 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=0,
         help="number of initial epochs to disable Sinkhorn queueing",
     )
+    parser.add_argument("--adapt-size", type=int, nargs="+", metavar=("H", "W"), help="resize after loading")
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
     training_cli.add_lr_scheduler_args(parser, default_cosine_fraction=0.8)
@@ -1072,6 +1078,7 @@ def get_args_parser() -> argparse.ArgumentParser:
 def validate_args(args: argparse.Namespace) -> None:
     args.data_path = [str(p) for p in args.data_path]
     args.size = cli.parse_size(args.size)
+    args.adapt_size = cli.parse_size(args.adapt_size)
 
     # This will capture the common argument mistakes
     training_cli.common_args_validation(args)

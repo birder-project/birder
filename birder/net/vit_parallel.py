@@ -702,8 +702,8 @@ registry.register_weights(
             "vit_parallel_s16_18x2_ls_avg_data2vec-intermediate-il-all/resolve/main"
         ),
         "description": (
-            "ViT Parallel s16 18x2 model with data2vec pretraining and intermediate training, "
-            "then fine-tuned on the il-all dataset"
+            "ViT Parallel S/16 18x2 model with average pooling, data2vec pretraining, and intermediate training, then "
+            "fine-tuned on the il-all dataset"
         ),
         "resolution": (384, 384),
         "formats": {
@@ -723,8 +723,8 @@ registry.register_weights(
             "vit_parallel_s16_18x2_ls_avg_data2vec-intermediate-eu-common/resolve/main"
         ),
         "description": (
-            "ViT Parallel s16 18x2 model with data2vec pretraining and intermediate training, "
-            "then fine-tuned on the eu-common dataset"
+            "ViT Parallel S/16 18x2 model with average pooling, data2vec pretraining, and intermediate training, then "
+            "fine-tuned on the eu-common dataset"
         ),
         "resolution": (384, 384),
         "formats": {
@@ -744,8 +744,8 @@ registry.register_weights(
             "vit_parallel_s16_18x2_ls_avg_data2vec-intermediate-arabian-peninsula/resolve/main"
         ),
         "description": (
-            "ViT Parallel s16 18x2 model with data2vec pretraining and intermediate training, "
-            "then fine-tuned on the arabian-peninsula dataset"
+            "ViT Parallel S/16 18x2 model with average pooling, data2vec pretraining, and intermediate training, then "
+            "fine-tuned on the arabian-peninsula dataset"
         ),
         "resolution": (384, 384),
         "formats": {

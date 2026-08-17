@@ -406,7 +406,7 @@ registry.register_model_config(
 registry.register_weights(
     "swiftformer_xs_il-common",
     {
-        "description": "SwiftFormer model trained on the il-common dataset",
+        "description": "SwiftFormer XS model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

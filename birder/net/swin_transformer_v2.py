@@ -550,8 +550,8 @@ registry.register_weights(
             "https://huggingface.co/birder-project/swin_transformer_v2_s_intermediate-arabian-peninsula/resolve/main"
         ),
         "description": (
-            "Swin Transformer v2 small model with intermediate training, "
-            "then fine-tuned on the arabian-peninsula dataset"
+            "Swin Transformer v2 Small model with intermediate training, then fine-tuned on the arabian-peninsula "
+            "dataset"
         ),
         "resolution": (384, 384),
         "formats": {

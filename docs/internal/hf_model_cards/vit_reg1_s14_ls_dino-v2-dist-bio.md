@@ -12,8 +12,8 @@ base_model:
 
 # Model Card for vit_reg1_s14_ls_dino-v2-dist-bio
 
-`vit_reg1_s14_ls_dino-v2-dist-bio` is a compact Bio-DINO image encoder distilled from the larger [Bio-DINO SoViT-150M/14 model](https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio).
-It keeps the same natural-photography biodiversity scope as the teacher model, but uses a much smaller ViT-S/14-style student with 21.7M backbone parameters and 384-dimensional embeddings.
+ViT Reg1 S/14 is a compact Bio-DINO image encoder distilled from the larger [Bio-DINO SoViT Reg4 150M/14 model](https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio).
+It keeps the same natural-photography biodiversity scope as the teacher model, but uses a much smaller ViT Reg1 S/14 student with 21.7M backbone parameters and 384-dimensional embeddings.
 
 For the training-data description, intended scope, limitations, broader evaluation design and background on the Bio-DINO release, see the [teacher model card](https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio).
 This card focuses only on what is specific to the distilled model.

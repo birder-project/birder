@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.7.2 - 2026-08-17
+
+### Added
+
+- **Attention Pool Masks**: Added optional attention-mask support to `MultiHeadAttentionPool` and `EfficientProbing`.
+- **NaFlex ViT**: Added [NaViT](https://arxiv.org/abs/2307.06304)- and [SigLIP 2](https://arxiv.org/abs/2502.14786)-inspired NaFlex ViT image classification variants with efficient batched variable-grid position embeddings. Added end-to-end `--naflex` training and prediction, native-aspect transforms, padded patch-sequence collation with valid-token masks, regional MixUp and iterator visualization.
+- **NaFlex NEPA**: Added native-aspect-ratio NEPA pretraining with padded variable-length patch sequences, padding-aware prediction loss and end-to-end `--naflex` training support.
+- **RoPE Coordinate Augmentations**: Added shift, per-axis jitter and isotropic rescale augmentations for centered-separate RoPE coordinates.
+- **SSL Resume Resolution Adaptation**: Added `--adapt-size` to Franca and CAPI-DINO training to adapt model resolution after loading resumed checkpoints.
+- **UniRepLKNet**: Added [UniRepLKNet](https://arxiv.org/abs/2311.15599) image classification model variants with structural reparameterization.
+
+### Changed
+
+- **FlexiViT Configuration Support**: Expanded FlexiViT and RoPE FlexiViT support for compatible configuration options available in their corresponding ViT models.
+- **Training Preset APIs (Breaking)**: Made every classification and detection `training_preset()` argument after `rgv_values` keyword-only. Consumers must pass optional transform configuration by name.
+
+### Fixed
+
+- **FlexiViT ViT Weight Import**: Preserved special-token positional embeddings when importing ViT and RoPE ViT weights into FlexiViT and RoPE FlexiViT by folding them into the corresponding learned register and class tokens instead of discarding them.
+- **RoPE Attention Mixed Precision**: Cast rotary-transformed queries and keys to the value dtype before scaled dot-product attention, preserving Q/K/V dtype alignment under AMP.
+- **TQDM Environment Override**: Training commands now respect `TQDM_DISABLE` when stderr is attached to a TTY.
+
 ## 0.7.1 - 2026-08-06
 
 ### Added

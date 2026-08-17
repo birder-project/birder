@@ -708,7 +708,7 @@ registry.register_model_config(
 registry.register_weights(
     "transnext_micro_il-common",
     {
-        "description": "TransNeXt micro model trained on the il-common dataset",
+        "description": "TransNeXt Micro model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

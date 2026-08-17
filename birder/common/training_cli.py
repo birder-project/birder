@@ -297,7 +297,7 @@ def add_batch_norm_args(parser: argparse.ArgumentParser, backbone_freeze: bool =
     group.add_argument("--sync-bn", default=False, action="store_true", help="use synchronized BatchNorm")
 
 
-def add_input_args(parser: argparse.ArgumentParser, size_help: Optional[str] = None) -> None:
+def add_input_args(parser: argparse.ArgumentParser, size_help: Optional[str] = None, naflex: bool = False) -> None:
     group = parser.add_argument_group("Input parameters")
     if size_help is None:
         size_help = "image size (defaults to the network default size)"
@@ -306,6 +306,18 @@ def add_input_args(parser: argparse.ArgumentParser, size_help: Optional[str] = N
         "--channels", type=int, default=settings.DEFAULT_NUM_CHANNELS, metavar="N", help="no. of image channels"
     )
     group.add_argument("--size", type=int, nargs="+", metavar=("H", "W"), help=size_help)
+    if naflex is True:
+        group.add_argument("--naflex", default=False, action="store_true", help="use native aspect-ratio training")
+        group.add_argument(
+            "--naflex-sizes",
+            type=int,
+            nargs="+",
+            metavar="SIZE",
+            help=(
+                "square-equivalent image sizes in pixels to sample once per training batch, actual image "
+                "dimensions preserve aspect ratio (values must be divisible by the model patch size)"
+            ),
+        )
 
 
 def add_detection_input_args(parser: argparse.ArgumentParser) -> None:
@@ -1042,6 +1054,30 @@ def common_args_validation(args: argparse.Namespace) -> None:
     if hasattr(args, "pretrained") is True and args.pretrained is True and args.resume_epoch is not None:
         raise ValidationError("--pretrained cannot be used with --resume-epoch")
 
+    # Input args, shared by some scripts
+    if hasattr(args, "naflex") is True and args.naflex is True:
+        if hasattr(args, "channels_last") is True and args.channels_last is True:
+            raise ValidationError("--naflex cannot be used with --channels-last")
+        if hasattr(args, "cutmix") is True and args.cutmix is True:
+            raise ValidationError("--naflex cannot be used with --cutmix")
+        if hasattr(args, "simple_crop") is True and args.simple_crop is True:
+            raise ValidationError("--naflex cannot be used with --simple-crop")
+        if (
+            hasattr(args, "wds") is True
+            and args.wds is True
+            and hasattr(args, "wds_extra_shuffle") is True
+            and args.wds_extra_shuffle is True
+        ):
+            raise ValidationError("--naflex cannot be used with --wds-extra-shuffle")
+
+    if hasattr(args, "naflex_sizes") is True and args.naflex_sizes is not None:
+        if args.naflex is False:
+            raise ValidationError("--naflex-sizes requires --naflex")
+        if any(size <= 0 for size in args.naflex_sizes):
+            raise ValidationError(f"--naflex-sizes values must be positive, got {args.naflex_sizes}")
+        if len(set(args.naflex_sizes)) != len(args.naflex_sizes):
+            raise ValidationError(f"--naflex-sizes values must be unique, got {args.naflex_sizes}")
+
     # Data augmentation args have standard and detection version. Apply only to standard
     if hasattr(args, "rgb_mean") is True and args.rgb_mean is not None and len(args.rgb_mean) != args.channels:
         raise ValidationError(f"--rgb-mean must have {args.channels} values, got {len(args.rgb_mean)}")
@@ -1167,7 +1203,7 @@ def common_args_validation(args: argparse.Namespace) -> None:
         if args.fsdp_wrap_min_num_params is not None and args.fsdp_wrap_min_num_params <= 0:
             raise ValidationError("--fsdp-wrap-min-num-params must be > 0")
 
-    # Precision_args, shared by all scripts
+    # Precision args, shared by all scripts
     if args.amp is True and args.model_dtype != "float32":
         raise ValidationError("--amp can only be used with --model-dtype float32")
 

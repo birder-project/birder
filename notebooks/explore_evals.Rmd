@@ -61,16 +61,19 @@ EPOCH_RE = re.compile(r"_e(\d+)(?=_|$)")
 MODEL_SUFFIX_RE = re.compile(r"(?:_(?:e\d+|\d+))?_\d+px_crop[\d.]+(?:_\d+)?(?:_sc)?_embeddings$")
 # PREFIX = "bio-dino-"
 # PREFIX = "bio-dino-dist-s14-"
+# PREFIX = "bio-dino-dist-m14-"
 PREFIX = ""
 
 # MARK_EPOCHS = {185: "224px", 245: "252px", 250: "336px"}
+# MARK_EPOCHS = {260: "252px"}
 # MARK_EPOCHS = {260: "252px"}
 MARK_EPOCHS = None
 
 MODEL_LABELS = {
     # "vit_reg4_so150m_p14_ls_dino-v2-bio": "BIO-DINO",
     # "vit_reg1_s14_ls_dino-v2-dist-bio": "BIO-DINO-DIST",
-    "rope_deit3_m14_dino-v2-dist-bio": "BIO-DINO-DIST-M14",
+    # "rope_deit3_m14_dino-v2-dist-bio": "BIO-DINO-DIST-M14",
+    "rope_vit_reg8_b14_nps_avg_capi-dino-bio": "BIO-CAPI-DINO",
     # References
     "convnext_v1_large_fb-imagenet22k": "ConvNeXt Large",
     "rope_cs_vit_reg4_b16_nape_ls_c1_dino-v3-lvd1689m": "DINOv3 B16",

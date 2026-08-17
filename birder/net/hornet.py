@@ -438,7 +438,7 @@ registry.register_weights(
     "hornet_tiny_7x7_danube-delta",
     {
         "url": "https://huggingface.co/birder-project/hornet_tiny_7x7_danube-delta/resolve/main",
-        "description": "HorNet tiny 7x7 model trained on the danube-delta dataset",
+        "description": "HorNet Tiny 7x7 model trained on the danube-delta dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

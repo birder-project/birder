@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torchvision.datasets import DatasetFolder
+from torchvision.datasets import ImageFolder
 from torchvision.datasets.folder import IMG_EXTENSIONS
 from torchvision.datasets.folder import has_file_allowed_extension
 from torchvision.io import ImageReadMode
@@ -16,6 +17,7 @@ from torchvision.io import decode_image
 from torchvision.transforms.v2 import functional as F
 
 from birder.common import fs_ops
+from birder.common.lib import class_list_from_class_to_idx
 from birder.conf import settings
 
 ImageLoaderName = Literal["tv", "pil"]
@@ -85,6 +87,35 @@ def find_hierarchical_classes(
     return (classes, class_to_idx)
 
 
+class CustomImageFolder(ImageFolder):
+    def __init__(
+        self,
+        root: str,
+        transform: Optional[Callable[..., torch.Tensor]] = None,
+        target_transform: Optional[Callable[..., torch.Tensor]] = None,
+        loader: Callable[[str], Any] = tv_rgb_loader,
+        is_valid_file: Optional[Callable[[str], bool]] = None,
+        allow_empty: bool = False,
+        class_to_idx: Optional[dict[str, int]] = None,
+    ) -> None:
+        self._class_to_idx = class_to_idx
+        super().__init__(
+            root=root,
+            transform=transform,
+            target_transform=target_transform,
+            loader=loader,
+            is_valid_file=is_valid_file,
+            allow_empty=allow_empty,
+        )
+
+    def find_classes(self, directory: str) -> tuple[list[str], dict[str, int]]:
+        if self._class_to_idx is None:
+            return super().find_classes(directory)  # type: ignore[no-any-return]
+
+        classes = class_list_from_class_to_idx(self._class_to_idx)
+        return (classes, self._class_to_idx)
+
+
 class HierarchicalImageFolder(DatasetFolder):
     """
     A dataset class that supports hierarchical directory structures.
@@ -113,8 +144,10 @@ class HierarchicalImageFolder(DatasetFolder):
         is_valid_file: Optional[Callable[[str], bool]] = None,
         allow_empty: bool = False,
         separator: str = "_",
-    ):
+        class_to_idx: Optional[dict[str, int]] = None,
+    ) -> None:
         self.separator = separator
+        self._class_to_idx = class_to_idx
         if extensions is None:
             extensions = IMG_EXTENSIONS
 
@@ -144,6 +177,10 @@ class HierarchicalImageFolder(DatasetFolder):
         return file_path.lower().endswith(extensions)
 
     def find_classes(self, directory: str) -> tuple[list[str], dict[str, int]]:
+        if self._class_to_idx is not None:
+            classes = class_list_from_class_to_idx(self._class_to_idx)
+            return (classes, self._class_to_idx)
+
         return find_hierarchical_classes(directory, separator=self.separator, is_valid_file=self._is_valid_file)
 
     def make_dataset(  # pylint: disable=arguments-renamed

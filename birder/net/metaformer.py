@@ -917,7 +917,7 @@ registry.register_model_config(
 registry.register_weights(
     "poolformer_v1_s12_il-common",
     {
-        "description": "PoolFormer v1 small 12 layers trained on the il-common dataset",
+        "description": "PoolFormer v1 s12 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -931,7 +931,7 @@ registry.register_weights(
 registry.register_weights(
     "poolformer_v2_s12_il-common",
     {
-        "description": "PoolFormer v2 small 12 layers trained on the il-common dataset",
+        "description": "PoolFormer v2 s12 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

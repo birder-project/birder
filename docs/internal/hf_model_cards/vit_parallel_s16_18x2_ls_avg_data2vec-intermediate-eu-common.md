@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for vit_parallel_s16_18x2_ls_avg_data2vec-intermediate-eu-common
 
-A ViT Parallel s16 18x2 image classification model. The model follows a three-stage training process: first, data2vec pretraining, next intermediate training on a large-scale dataset containing diverse bird species from around the world, finally fine-tuned specifically on the `eu-common` dataset containing common European bird species.
+A ViT Parallel S/16 18x2 image classification model.
+The model follows a three-stage training process: first, data2vec pretraining, next intermediate training on a large-scale dataset containing diverse bird species from around the world, finally fine-tuned specifically on the `eu-common` dataset containing common European bird species.
 
 The species list is derived from the Collins bird guide [^1].
 

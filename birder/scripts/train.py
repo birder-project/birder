@@ -8,6 +8,7 @@ from collections.abc import Callable
 from collections.abc import Iterator
 from contextlib import nullcontext
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 from typing import Optional
@@ -22,7 +23,6 @@ from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.datasets import FakeData
-from torchvision.datasets import ImageFolder
 from tqdm import tqdm
 
 from birder.common import cli
@@ -33,16 +33,25 @@ from birder.common.lib import class_list_from_class_to_idx
 from birder.common.lib import format_duration
 from birder.common.lib import get_network_name
 from birder.conf import settings
+from birder.data.collators.naflex import NaFlexBatchProcessor
+from birder.data.collators.naflex import NaFlexMixupTrainingCollator
+from birder.data.collators.naflex import NaFlexTrainingCollator
 from birder.data.dataloader.webdataset import make_wds_loader
+from birder.data.datasets.directory import CustomImageFolder
 from birder.data.datasets.directory import HierarchicalImageFolder
+from birder.data.datasets.directory import class_to_idx_from_paths
 from birder.data.datasets.directory import get_image_loader
+from birder.data.datasets.naflex import NaFlexMultiScaleDataset
 from birder.data.datasets.webdataset import WDSImageDecoder
+from birder.data.datasets.webdataset import get_wds_num_shards
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_mixup_cutmix
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import inference_preset
+from birder.data.transforms.naflex import get_sequence_lengths as get_naflex_sequence_lengths
+from birder.data.transforms.naflex import inference_preset as naflex_inference_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
@@ -78,98 +87,19 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     logger.info(f"Using size={args.size}")
 
     #
-    # Data
+    # Class mapping
     #
     rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
     logger.debug(f"Using RGB stats: {rgb_stats}")
 
-    if overrides.training_transform is not None:
-        training_transform = overrides.training_transform(args)
-    else:
-        training_transform = training_utils.get_training_transform(args)
-
-    if overrides.validation_transform is not None:
-        val_transform = overrides.validation_transform(args)
-    else:
-        val_transform = inference_preset(args.size, rgb_stats, 1.0)
-
     if args.use_fake_data is True:
-        logger.warning("Using fake data")
-        training_dataset = FakeData(10000, (args.channels, *args.size), num_classes=10, transform=training_transform)
-        validation_dataset = FakeData(1000, (args.channels, *args.size), num_classes=10, transform=val_transform)
         class_to_idx = {str(i): i for i in range(10)}
-
     elif args.wds is True:
-        if overrides.wds_image_decoder is not None:
-            wds_image_decoder = overrides.wds_image_decoder
-        else:
-            wds_image_decoder = args.img_loader
-
-        training_wds_path: str | list[str]
-        val_wds_path: str | list[str]
-        if args.wds_info is not None:
-            training_wds_path, training_size = wds_args_from_info(args.wds_info, args.wds_training_split)
-            val_wds_path, val_size = wds_args_from_info(args.wds_info, args.wds_val_split)
-            if args.wds_train_size is not None:
-                training_size = args.wds_train_size
-            if args.wds_val_size is not None:
-                val_size = args.wds_val_size
-        else:
-            training_wds_path, training_size = prepare_wds_args(args.data_path, args.wds_train_size, device)
-            val_wds_path, val_size = prepare_wds_args(args.val_path, args.wds_val_size, device)
-
-        training_dataset = make_wds_dataset(
-            training_wds_path,
-            dataset_size=training_size,
-            shuffle=True,
-            samples_names=False,
-            transform=training_transform,
-            image_decoder=wds_image_decoder,
-            channels=args.channels,
-            cache_dir=args.wds_cache_dir,
-        )
-        validation_dataset = make_wds_dataset(
-            val_wds_path,
-            dataset_size=val_size,
-            shuffle=False,
-            samples_names=False,
-            transform=val_transform,
-            image_decoder=wds_image_decoder,
-            channels=args.channels,
-            cache_dir=args.wds_cache_dir,
-        )
-
         class_to_idx = fs_ops.read_class_file(args.wds_class_file)
-
     else:
-        if overrides.image_loader is not None:
-            image_loader = overrides.image_loader
-        else:
-            image_loader = get_image_loader(args.img_loader, args.channels)
-
-        if args.hierarchical is True:
-            dataset_cls = HierarchicalImageFolder
-        else:
-            dataset_cls = ImageFolder
-
-        training_dataset = dataset_cls(
-            args.data_path,
-            transform=training_transform,
-            loader=image_loader,
-            allow_empty=args.allow_empty,
-        )
-        validation_dataset = dataset_cls(
-            args.val_path,
-            transform=val_transform,
-            loader=image_loader,
-            allow_empty=True,
-        )
-        assert training_dataset.class_to_idx == validation_dataset.class_to_idx
-        class_to_idx = training_dataset.class_to_idx
-
-    logger.info(f"Using device {device}:{device_id}")
-    logger.info(f"Training dataset has {len(training_dataset):,} samples")
-    logger.info(f"Validation dataset has {len(validation_dataset):,} samples")
+        class_to_idx = class_to_idx_from_paths([args.data_path], hierarchical=args.hierarchical)
+        validation_class_to_idx = class_to_idx_from_paths([args.val_path], hierarchical=args.hierarchical)
+        assert class_to_idx == validation_class_to_idx
 
     num_outputs = len(class_to_idx)
     batch_size: int = args.batch_size
@@ -177,104 +107,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     model_ema_steps: int = args.model_ema_steps
     logger.debug(f"Effective batch size = {batch_size * grad_accum_steps * args.world_size}")
 
-    # Set data iterators
-    if args.mixup_alpha is not None or args.cutmix is True:
-        logger.debug("Mixup / cutmix collate activated")
-        t = get_mixup_cutmix(args.mixup_alpha, num_outputs, args.cutmix)
-
-        def collate_fn(batch: Any) -> Any:
-            return t(*default_collate(batch))
-
-    else:
-        collate_fn = None  # type: ignore
-
-    # Data loaders and samplers
-    virtual_epoch_mode = args.steps_per_epoch is not None
-    train_sampler, validation_sampler = training_utils.get_samplers(
-        args, training_dataset, validation_dataset, device=device, infinite=virtual_epoch_mode
-    )
-
-    if args.wds is True:
-        training_loader = make_wds_loader(
-            training_dataset,
-            batch_size,
-            num_workers=args.num_workers,
-            prefetch_factor=args.prefetch_factor,
-            collate_fn=collate_fn,
-            world_size=args.world_size,
-            pin_memory=args.pin_memory,
-            drop_last=args.drop_last,
-            persistent_workers=args.persistent_workers,
-            shuffle=args.wds_extra_shuffle,
-            infinite=virtual_epoch_mode,
-        )
-
-        validation_loader = make_wds_loader(
-            validation_dataset,
-            batch_size,
-            num_workers=args.num_workers,
-            prefetch_factor=args.prefetch_factor,
-            collate_fn=None,
-            world_size=args.world_size,
-            pin_memory=args.pin_memory,
-            persistent_workers=args.persistent_workers,
-        )
-
-    else:
-        training_loader = DataLoader(
-            training_dataset,
-            batch_size=batch_size,
-            sampler=train_sampler,
-            num_workers=args.num_workers,
-            prefetch_factor=args.prefetch_factor,
-            collate_fn=collate_fn,
-            pin_memory=args.pin_memory,
-            drop_last=args.drop_last,
-            persistent_workers=args.persistent_workers,
-        )
-        validation_loader = DataLoader(
-            validation_dataset,
-            batch_size=batch_size,
-            sampler=validation_sampler,
-            num_workers=args.num_workers,
-            prefetch_factor=args.prefetch_factor,
-            pin_memory=args.pin_memory,
-            persistent_workers=args.persistent_workers,
-        )
-
-    if virtual_epoch_mode is True:
-        optimizer_steps_per_epoch = args.steps_per_epoch
-        epoch_num_batches = args.steps_per_epoch * grad_accum_steps
-        epoch_samples = epoch_num_batches * batch_size * args.world_size
-        logger.debug(f"Virtual epoch has {epoch_samples:,} samples")
-    else:
-        optimizer_steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
-        epoch_num_batches = len(training_loader)
-        epoch_samples = len(training_dataset)
-
-    assert args.model_ema is False or model_ema_steps <= optimizer_steps_per_epoch
-
-    last_batch_idx = epoch_num_batches - 1
-    last_accum_steps = epoch_num_batches % grad_accum_steps
-    if last_accum_steps == 0:
-        last_accum_steps = grad_accum_steps
-
-    last_accum_start_idx = epoch_num_batches - last_accum_steps
-    begin_epoch = 1
-    epochs = args.epochs + 1
-    args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
-
-    logger.debug(
-        f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
-        f"virtual mode={virtual_epoch_mode}"
-    )
-
     #
     # Initialize network
     #
     model_dtype: torch.dtype = getattr(torch, args.model_dtype)
     sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
     network_name = get_network_name(args.network, tag=args.tag)
+    begin_epoch = 1
 
     if args.resume_epoch is not None:
         begin_epoch = args.resume_epoch + 1
@@ -322,6 +161,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         net = registry.net_factory(args.network, num_outputs, sample_shape[1], config=args.model_config, size=args.size)
         training_states = fs_ops.TrainingStates.empty()
 
+    if args.naflex is True:
+        patch_size = net.stem_stride
+        validation_max_seq_len = get_naflex_sequence_lengths(args.size, patch_size)[0]
+
     net.to(device, dtype=model_dtype)
     if args.channels_last is True:
         net = net.to(memory_format=torch.channels_last)
@@ -356,6 +199,247 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     # Compile network
     if args.compile is True:
         net = torch.compile(net, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+
+    #
+    # Data
+    #
+    collate_fn: Optional[Callable[[Any], Any]] = None
+    validation_collate_fn: Optional[Callable[[Any], Any]] = None
+    naflex_batch_processor: Optional[NaFlexBatchProcessor] = None
+    wds_num_shards: Optional[int] = None
+    naflex_sizes = args.naflex_sizes
+    if args.naflex is True:
+        naflex_seq_lens = get_naflex_sequence_lengths(args.size, patch_size, naflex_sizes)
+    else:
+        naflex_seq_lens = ()
+
+    if len(naflex_seq_lens) > 1:
+        if overrides.training_transform is not None:
+            raise ValueError("NaFlex multi-scale training does not support a custom training transform")
+
+        naflex_transforms = {
+            seq_len: training_utils.get_naflex_training_transform(args, patch_size, seq_len)
+            for seq_len in naflex_seq_lens
+        }
+        logger.info(f"Using NaFlex sizes: {list(naflex_sizes)} (maximum sequence lengths: {list(naflex_transforms)})")
+
+        training_transform = None
+        if args.mixup_alpha is None:
+            naflex_collator = NaFlexTrainingCollator(patch_size)
+        else:
+            logger.debug("NaFlex Mixup collate activated")
+            naflex_collator = NaFlexMixupTrainingCollator(patch_size, num_outputs, args.mixup_alpha)
+
+        naflex_batch_processor = NaFlexBatchProcessor(naflex_collator, naflex_transforms, seed=args.seed or 0)
+
+    elif overrides.training_transform is not None:
+        training_transform = overrides.training_transform(args)
+    elif args.naflex is True:
+        training_transform = training_utils.get_naflex_training_transform(args, patch_size, naflex_seq_lens[0])
+    else:
+        training_transform = training_utils.get_training_transform(args)
+
+    if overrides.validation_transform is not None:
+        val_transform = overrides.validation_transform(args)
+    elif args.naflex is True:
+        val_transform = naflex_inference_preset(patch_size, validation_max_seq_len, rgb_stats)
+    else:
+        val_transform = inference_preset(args.size, rgb_stats, 1.0)
+
+    if args.naflex is True:
+        validation_collate_fn = NaFlexTrainingCollator(patch_size)
+        if naflex_batch_processor is None:
+            if args.mixup_alpha is not None:
+                logger.debug("NaFlex Mixup collate activated")
+                collate_fn = NaFlexMixupTrainingCollator(patch_size, num_outputs, args.mixup_alpha)
+            else:
+                collate_fn = validation_collate_fn
+
+    elif args.mixup_alpha is not None or args.cutmix is True:
+        logger.debug("Mixup / cutmix collate activated")
+        t = get_mixup_cutmix(args.mixup_alpha, num_outputs, args.cutmix)
+
+        def mixup_cutmix_collate_fn(batch: Any) -> Any:
+            return t(*default_collate(batch))
+
+        collate_fn = mixup_cutmix_collate_fn
+        validation_collate_fn = None
+
+    else:
+        collate_fn = None
+        validation_collate_fn = None
+
+    if args.use_fake_data is True:
+        logger.warning("Using fake data")
+        training_dataset = FakeData(10000, (args.channels, *args.size), num_classes=10, transform=training_transform)
+        validation_dataset = FakeData(1000, (args.channels, *args.size), num_classes=10, transform=val_transform)
+
+    elif args.wds is True:
+        if overrides.wds_image_decoder is not None:
+            wds_image_decoder = overrides.wds_image_decoder
+        else:
+            wds_image_decoder = args.img_loader
+
+        training_wds_path: str | list[str]
+        val_wds_path: str | list[str]
+        if args.wds_info is not None:
+            training_wds_path, training_size = wds_args_from_info(args.wds_info, args.wds_training_split)
+            val_wds_path, val_size = wds_args_from_info(args.wds_info, args.wds_val_split)
+            if args.wds_train_size is not None:
+                training_size = args.wds_train_size
+            if args.wds_val_size is not None:
+                val_size = args.wds_val_size
+        else:
+            training_wds_path, training_size = prepare_wds_args(args.data_path, args.wds_train_size, device)
+            val_wds_path, val_size = prepare_wds_args(args.val_path, args.wds_val_size, device)
+
+        training_dataset = make_wds_dataset(
+            training_wds_path,
+            dataset_size=training_size,
+            shuffle=True,
+            samples_names=False,
+            transform=training_transform,
+            image_decoder=wds_image_decoder,
+            channels=args.channels,
+            cache_dir=args.wds_cache_dir,
+        )
+        validation_dataset = make_wds_dataset(
+            val_wds_path,
+            dataset_size=val_size,
+            shuffle=False,
+            samples_names=False,
+            transform=val_transform,
+            image_decoder=wds_image_decoder,
+            channels=args.channels,
+            cache_dir=args.wds_cache_dir,
+        )
+        if naflex_batch_processor is not None:
+            wds_num_shards = get_wds_num_shards(training_dataset)
+
+    else:
+        if overrides.image_loader is not None:
+            image_loader = overrides.image_loader
+        else:
+            image_loader = get_image_loader(args.img_loader, args.channels)
+
+        if args.hierarchical is True:
+            dataset_cls = HierarchicalImageFolder
+        else:
+            dataset_cls = CustomImageFolder  # type: ignore[assignment]
+
+        training_dataset = dataset_cls(
+            args.data_path,
+            transform=training_transform,
+            loader=image_loader,
+            allow_empty=args.allow_empty,
+            class_to_idx=class_to_idx,
+        )
+        validation_dataset = dataset_cls(
+            args.val_path,
+            transform=val_transform,
+            loader=image_loader,
+            allow_empty=True,
+            class_to_idx=class_to_idx,
+        )
+
+    if args.wds is False and naflex_batch_processor is not None:
+        training_dataset = NaFlexMultiScaleDataset(training_dataset, naflex_batch_processor)
+        collate_fn = naflex_batch_processor.base_collator
+
+    logger.info(f"Using device {device}:{device_id}")
+    logger.info(f"Training dataset has {len(training_dataset):,} samples")
+    logger.info(f"Validation dataset has {len(validation_dataset):,} samples")
+
+    # Data loaders and samplers
+    virtual_epoch_mode = args.steps_per_epoch is not None
+    train_sampler, validation_sampler = training_utils.get_samplers(
+        args, training_dataset, validation_dataset, device=device, infinite=virtual_epoch_mode
+    )
+
+    if args.wds is True:
+        wds_batcher: Optional[Callable[..., Iterator[tuple[Any, ...]]]] = None
+        if naflex_batch_processor is not None:
+            wds_batcher = partial(
+                naflex_batch_processor.iter_batches,
+                batch_size=batch_size,
+                drop_last=args.drop_last,
+            )
+
+        training_loader = make_wds_loader(
+            training_dataset,
+            batch_size,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=None if naflex_batch_processor is not None else collate_fn,
+            world_size=args.world_size,
+            pin_memory=args.pin_memory,
+            drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
+            shuffle=args.wds_extra_shuffle,
+            infinite=virtual_epoch_mode,
+            batcher=wds_batcher,
+            num_shards=wds_num_shards,
+        )
+
+        validation_loader = make_wds_loader(
+            validation_dataset,
+            batch_size,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=validation_collate_fn,
+            world_size=args.world_size,
+            pin_memory=args.pin_memory,
+            persistent_workers=args.persistent_workers,
+        )
+
+    else:
+        training_loader = DataLoader(
+            training_dataset,
+            batch_size=batch_size,
+            sampler=train_sampler,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=collate_fn,
+            pin_memory=args.pin_memory,
+            drop_last=args.drop_last,
+            persistent_workers=args.persistent_workers,
+        )
+        validation_loader = DataLoader(
+            validation_dataset,
+            batch_size=batch_size,
+            sampler=validation_sampler,
+            num_workers=args.num_workers,
+            prefetch_factor=args.prefetch_factor,
+            collate_fn=validation_collate_fn,
+            pin_memory=args.pin_memory,
+            persistent_workers=args.persistent_workers,
+        )
+
+    if virtual_epoch_mode is True:
+        optimizer_steps_per_epoch = args.steps_per_epoch
+        epoch_num_batches = args.steps_per_epoch * grad_accum_steps
+        epoch_samples = epoch_num_batches * batch_size * args.world_size
+        logger.debug(f"Virtual epoch has {epoch_samples:,} samples")
+    else:
+        optimizer_steps_per_epoch = math.ceil(len(training_loader) / grad_accum_steps)
+        epoch_num_batches = len(training_loader)
+        epoch_samples = len(training_dataset)
+
+    assert args.model_ema is False or model_ema_steps <= optimizer_steps_per_epoch
+
+    last_batch_idx = epoch_num_batches - 1
+    last_accum_steps = epoch_num_batches % grad_accum_steps
+    if last_accum_steps == 0:
+        last_accum_steps = grad_accum_steps
+
+    last_accum_start_idx = epoch_num_batches - last_accum_steps
+    epochs = args.epochs + 1
+    args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
+
+    logger.debug(
+        f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
+        f"virtual mode={virtual_epoch_mode}"
+    )
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -544,6 +628,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     #
     optimizer_step = (begin_epoch - 1) * optimizer_steps_per_epoch
     if virtual_epoch_mode is True:
+        # Virtual epochs share one continuous loader iterator, so initialize the NaFlex schedule before creating it
+        if naflex_batch_processor is not None:
+            naflex_batch_processor.set_epoch(begin_epoch)
+
         train_iter = iter(training_loader)
 
     top_k = args.top_k
@@ -565,6 +653,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+
+        if naflex_batch_processor is not None and virtual_epoch_mode is False:
+            naflex_batch_processor.set_epoch(epoch)
 
         # Clear metrics
         running_loss.clear()
@@ -604,6 +695,14 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             batch_iter = enumerate(training_loader)
 
         for i, (inputs, targets) in batch_iter:
+            batch_kwargs: dict[str, torch.Tensor] = {}
+            if args.naflex is True:
+                inputs, grid_sizes, valid_mask = inputs
+                batch_kwargs = {
+                    "grid_sizes": grid_sizes.to(device, non_blocking=True),
+                    "valid_mask": valid_mask.to(device, non_blocking=True),
+                }
+
             if args.channels_last is True:
                 inputs = inputs.to(device, dtype=model_dtype, non_blocking=True, memory_format=torch.channels_last)
             else:
@@ -628,12 +727,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             with sync_context():
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
                     if args.moe_aux_loss is True:
-                        outputs, aux_losses = net(inputs)
+                        outputs, aux_losses = net(inputs, **batch_kwargs)
                         moe_aux_loss = aux_losses["auxiliary_loss"]
                         classification_loss = criterion(outputs, loss_targets)
                         raw_loss = classification_loss + moe_aux_loss
                     else:
-                        outputs = net(inputs)
+                        outputs = net(inputs, **batch_kwargs)
                         moe_aux_loss = None
                         classification_loss = criterion(outputs, loss_targets)
                         raw_loss = classification_loss
@@ -789,6 +888,14 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         epoch_start = time.time()
         with torch.inference_mode():
             for inputs, targets in validation_loader:
+                batch_kwargs = {}
+                if args.naflex is True:
+                    inputs, grid_sizes, valid_mask = inputs
+                    batch_kwargs = {
+                        "grid_sizes": grid_sizes.to(device, non_blocking=True),
+                        "valid_mask": valid_mask.to(device, non_blocking=True),
+                    }
+
                 if args.channels_last is True:
                     inputs = inputs.to(device, dtype=model_dtype, non_blocking=True, memory_format=torch.channels_last)
                 else:
@@ -801,7 +908,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     loss_targets = loss_targets.to(dtype=inputs.dtype)
 
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
-                    outputs = eval_model(inputs)
+                    outputs = eval_model(inputs, **batch_kwargs)
                     val_loss = criterion(outputs, loss_targets)
 
                 # Statistics
@@ -899,6 +1006,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             args.model_config = json.dumps(args.model_config)
         if args.size is not None:
             args.size = json.dumps(args.size)
+        if args.naflex_sizes is not None:
+            args.naflex_sizes = json.dumps(args.naflex_sizes)
 
         # Save all args
         summary_writer.add_hparams(
@@ -937,10 +1046,10 @@ def get_args_parser() -> argparse.ArgumentParser:
             "Usage examples\n"
             "==============\n"
             "Training on an image directory using default locations:\n"
-            "python train.py --network densenet_161 --batch-size 64 --lr-scheduler cosine --smoothing-alpha 0.1\n"
+            "python -m birder.scripts.train --network densenet_161 --batch-size 64 --lr-scheduler cosine\n"
             "\n"
             "A more advanced ImageNet example on 2 GPUs using a remote WebDataset:\n"
-            "torchrun --nproc_per_node=2 train.py \\\n"
+            "torchrun --nproc_per_node=2 -m birder.scripts.train \\\n"
             "    --network resnet_v2_50 \\\n"
             "    --tag imagenet1k \\\n"
             "    --bce-loss --bce-threshold 0.2 \\\n"
@@ -1004,7 +1113,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_training_schedule_args(parser)
     training_cli.add_ema_args(parser)
     training_cli.add_batch_norm_args(parser)
-    training_cli.add_input_args(parser)
+    training_cli.add_input_args(parser, naflex=True)
     training_cli.add_data_aug_args(parser, smoothing_alpha=True, mixup_cutmix=True)
     training_cli.add_dataloader_args(parser, ra_sampler=True)
     training_cli.add_precision_args(parser, channels_last=True)

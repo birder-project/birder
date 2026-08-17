@@ -382,7 +382,7 @@ registry.register_model_config("repghost_1_5", RepGhost, config={"width": 1.5})
 registry.register_weights(
     "repghost_1_0_il-common",
     {
-        "description": "RepGhost (width 1.0) model trained on the il-common dataset",
+        "description": "RepGhost 1.0x model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -396,7 +396,7 @@ registry.register_weights(
 registry.register_weights(
     "repghost_1_0_il-common_reparameterized",
     {
-        "description": "RepGhost (width 1.0 reparameterized) model trained on the il-common dataset",
+        "description": "RepGhost 1.0x (reparameterized) model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

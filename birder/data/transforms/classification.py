@@ -331,12 +331,10 @@ class BirderAugment(nn.Module):
 AugType = Literal["birder", "aa", "ra", "ta_wide", "augmix", "3aug", "clip"]
 
 
-def training_preset(
-    size: tuple[int, int],
+def get_training_augmentations(
     aug_type: AugType,
     level: int,
     rgv_values: RGBType,
-    resize_min_scale: Optional[float] = None,
     re_prob: Optional[float] = None,
     use_grayscale: bool = False,
     ra_num_ops: int = 2,
@@ -344,53 +342,119 @@ def training_preset(
     augmix_severity: int = 3,
     clip_color_jitter_prob: float = 0.8,
     clip_gray_prob: float = 0.2,
-    simple_crop: bool = False,
-    resize_max_scale: float = 1.0,
-) -> Callable[..., torch.Tensor]:
+) -> list[nn.Module]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
+    transforms: list[nn.Module] = []
 
     if aug_type == "birder":
         if 0 > level or level > 10:
             raise ValueError("Unsupported aug level")
 
-        if level == 0:
-            return v2.Compose(  # type: ignore
+        if level > 0:
+            transforms.extend(
                 [
-                    v2.Resize(size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
-                    v2.PILToTensor(),
-                    v2.ToDtype(torch.float32, scale=True),
-                    v2.Normalize(mean=mean, std=std),
+                    BirderAugment(level, re_prob, use_grayscale),
+                    v2.RandomHorizontalFlip(0.5),
                 ]
             )
 
-        if resize_min_scale is None:
-            resize_min_scale = 0.8 - (level * 0.05)
-
-        if simple_crop is True:
-            crop_transform = SimpleRandomCropWithRandomInterpolation(
-                size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
-            )
-        else:
-            crop_transform = RandomResizedCropWithRandomInterpolation(
-                size,
-                scale=(resize_min_scale, resize_max_scale),
-                ratio=(3 / 4, 4 / 3),
-                interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
-            )
-
-        return v2.Compose(  # type: ignore
+    elif aug_type == "clip":
+        transforms.extend(
             [
-                v2.PILToTensor(),
-                crop_transform,
-                BirderAugment(level, re_prob, use_grayscale),
-                v2.RandomHorizontalFlip(0.5),
-                v2.ToDtype(torch.float32, scale=True),
-                v2.Normalize(mean=mean, std=std),
+                v2.RandomApply([v2.ColorJitter(0.32, 0.32, 0.32, 0.08)], p=clip_color_jitter_prob),  # OpenCLIP values
+                v2.RandomGrayscale(p=clip_gray_prob),
             ]
         )
 
-    if aug_type == "clip":
+    else:
+        if aug_type == "aa":  # AutoAugment policy
+            transforms.append(v2.AutoAugment(v2.AutoAugmentPolicy.IMAGENET, v2.InterpolationMode.BILINEAR))
+        elif aug_type == "ra":  # RandAugment policy
+            transforms.append(v2.RandAugment(ra_num_ops, ra_magnitude, interpolation=v2.InterpolationMode.BILINEAR))
+        elif aug_type == "ta_wide":  # TrivialAugmentWide policy
+            transforms.append(v2.TrivialAugmentWide(interpolation=v2.InterpolationMode.BILINEAR))
+        elif aug_type == "augmix":
+            transforms.append(v2.AugMix(augmix_severity, interpolation=v2.InterpolationMode.BILINEAR))
+        elif aug_type == "3aug":
+            transforms.extend(
+                [
+                    v2.RandomChoice(
+                        [
+                            v2.RandomGrayscale(p=1.0),
+                            v2.RandomSolarize(128, p=1.0),
+                            v2.GaussianBlur(kernel_size=(3, 3)),
+                        ]
+                    ),
+                    v2.ColorJitter(brightness=0.3, contrast=0.3, hue=0.3),
+                ]
+            )
+        else:
+            raise ValueError("Unsupported augmentation type")
+
+        transforms.extend(
+            [
+                v2.RandomHorizontalFlip(0.5),
+                v2.Identity() if re_prob is None or re_prob == 0 else v2.RandomErasing(re_prob),
+            ]
+        )
+
+    transforms.extend(
+        [
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=mean, std=std),
+        ]
+    )
+
+    return transforms
+
+
+def training_preset(
+    size: tuple[int, int],
+    aug_type: AugType,
+    level: int,
+    rgv_values: RGBType,
+    *,
+    resize_min_scale: Optional[float] = None,
+    resize_max_scale: float = 1.0,
+    resize_ratio: tuple[float, float] = (3 / 4, 4 / 3),
+    simple_crop: bool = False,
+    re_prob: Optional[float] = None,
+    use_grayscale: bool = False,
+    ra_num_ops: int = 2,
+    ra_magnitude: int = 9,
+    augmix_severity: int = 3,
+    clip_color_jitter_prob: float = 0.8,
+    clip_gray_prob: float = 0.2,
+) -> Callable[..., torch.Tensor]:
+    if aug_type == "birder":
+        if 0 > level or level > 10:
+            raise ValueError("Unsupported aug level")
+
+        if level == 0:
+            transforms: list[nn.Module] = [
+                v2.Resize(size, interpolation=v2.InterpolationMode.BICUBIC, antialias=True),
+                v2.PILToTensor(),
+            ]
+        else:
+            if resize_min_scale is None:
+                resize_min_scale = 0.8 - (level * 0.05)
+
+            if simple_crop is True:
+                crop_transform = SimpleRandomCropWithRandomInterpolation(
+                    size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
+                )
+            else:
+                crop_transform = RandomResizedCropWithRandomInterpolation(
+                    size,
+                    scale=(resize_min_scale, resize_max_scale),
+                    ratio=resize_ratio,
+                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
+                )
+
+            transforms = [v2.PILToTensor(), crop_transform]
+
+    elif aug_type == "clip":
         if resize_min_scale is None:
             resize_min_scale = 0.8
 
@@ -406,70 +470,48 @@ def training_preset(
                 RandomResizedCropWithRandomInterpolation(
                     size,
                     scale=(resize_min_scale, resize_max_scale),
-                    ratio=(3 / 4, 4 / 3),
+                    ratio=resize_ratio,
                     interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
                 )
             )
 
-        return v2.Compose(  # type: ignore
-            [
-                *transforms,
-                v2.RandomApply([v2.ColorJitter(0.32, 0.32, 0.32, 0.08)], p=clip_color_jitter_prob),  # OpenCLIP values
-                v2.RandomGrayscale(p=clip_gray_prob),
-                v2.ToDtype(torch.float32, scale=True),
-                v2.Normalize(mean=mean, std=std),
-            ]
-        )
-
-    if resize_min_scale is None:
-        resize_min_scale = 0.08
-    if re_prob is None:
-        re_prob = 0.0
-
-    transforms = [v2.PILToTensor()]
-    if simple_crop is True:
-        transforms.append(
-            SimpleRandomCropWithRandomInterpolation(
-                size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
-            )
-        )
     else:
-        transforms.append(
-            RandomResizedCropWithRandomInterpolation(
-                size,
-                scale=(resize_min_scale, resize_max_scale),
-                ratio=(3 / 4, 4 / 3),
-                interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
-            )
-        )
+        if resize_min_scale is None:
+            resize_min_scale = 0.08
 
-    if aug_type == "aa":  # AutoAugment policy
-        transforms.append(v2.AutoAugment(v2.AutoAugmentPolicy.IMAGENET, v2.InterpolationMode.BILINEAR))
-    elif aug_type == "ra":  # RandAugment policy
-        transforms.append(v2.RandAugment(ra_num_ops, ra_magnitude, interpolation=v2.InterpolationMode.BILINEAR))
-    elif aug_type == "ta_wide":  # TrivialAugmentWide policy
-        transforms.append(v2.TrivialAugmentWide(interpolation=v2.InterpolationMode.BILINEAR))
-    elif aug_type == "augmix":
-        transforms.append(v2.AugMix(augmix_severity, interpolation=v2.InterpolationMode.BILINEAR))
-    elif aug_type == "3aug":
-        transforms.append(
-            v2.RandomChoice(
-                [v2.RandomGrayscale(p=1.0), v2.RandomSolarize(128, p=1.0), v2.GaussianBlur(kernel_size=(3, 3))]
+        transforms = [v2.PILToTensor()]
+        if simple_crop is True:
+            transforms.append(
+                SimpleRandomCropWithRandomInterpolation(
+                    size, interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC]
+                )
             )
-        )
-        transforms.append(v2.ColorJitter(brightness=0.3, contrast=0.3, hue=0.3))
-    else:
-        raise ValueError("Unsupported augmentation type")
+        else:
+            transforms.append(
+                RandomResizedCropWithRandomInterpolation(
+                    size,
+                    scale=(resize_min_scale, resize_max_scale),
+                    ratio=resize_ratio,
+                    interpolation=[v2.InterpolationMode.BILINEAR, v2.InterpolationMode.BICUBIC],
+                )
+            )
 
-    return v2.Compose(  # type: ignore
-        [
-            *transforms,
-            v2.RandomHorizontalFlip(0.5),
-            v2.Identity() if re_prob == 0 else v2.RandomErasing(re_prob),
-            v2.ToDtype(torch.float32, scale=True),
-            v2.Normalize(mean=mean, std=std),
-        ]
+    transforms.extend(
+        get_training_augmentations(
+            aug_type,
+            level,
+            rgv_values,
+            re_prob,
+            use_grayscale,
+            ra_num_ops,
+            ra_magnitude,
+            augmix_severity,
+            clip_color_jitter_prob,
+            clip_gray_prob,
+        )
     )
+
+    return v2.Compose(transforms)  # type: ignore
 
 
 def inference_preset(

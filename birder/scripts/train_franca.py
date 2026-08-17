@@ -366,6 +366,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     else:
         training_states = fs_ops.TrainingStates.empty()
 
+    if args.adapt_size is not None:
+        logger.info(f"Adapting size from {args.size} to {args.adapt_size}")
+        student.backbone.adjust_size(args.adapt_size)
+        teacher.backbone.adjust_size(args.adapt_size)
+        args.size = args.adapt_size
+        sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
+
     assert isinstance(student_backbone, MaskedTokenRetentionMixin)
     assert isinstance(net, torch.nn.Module)
 
@@ -1219,6 +1226,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--local-crop-size", type=int, nargs="+", default=[96, 96], metavar=("H", "W"), help="local view size"
     )
+    parser.add_argument("--adapt-size", type=int, nargs="+", metavar=("H", "W"), help="resize after loading")
     parser.add_argument("--moe-aux-loss", default=False, action="store_true", help="enable MoE auxiliary loss")
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser, wd_end=True)
@@ -1242,6 +1250,7 @@ def get_args_parser() -> argparse.ArgumentParser:
 def validate_args(args: argparse.Namespace) -> None:
     args.data_path = [str(p) for p in args.data_path]
     args.size = cli.parse_size(args.size)
+    args.adapt_size = cli.parse_size(args.adapt_size)
     args.local_crop_size = cli.parse_size(args.local_crop_size)
 
     # This will capture the common argument mistakes

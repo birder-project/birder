@@ -11,7 +11,7 @@ base_model:
 
 # Model Card for vit_reg4_b14_nps_ls_dino-v2-lvd142m
 
-A ViT b14 with register tokens image encoder from the DINOv2 model by Oquab et al., converted to the Birder format for image feature extraction.
+A ViT Reg4 B/14 image encoder from the DINOv2 model by Oquab et al., converted to the Birder format for image feature extraction.
 This version preserves the original model weights and architecture for downstream tasks.
 
 See <https://huggingface.co/facebook/dinov2-with-registers-large> and <https://github.com/facebookresearch/dinov2> for further details.

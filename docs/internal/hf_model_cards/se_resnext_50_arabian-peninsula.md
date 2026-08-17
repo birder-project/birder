@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for se_resnext_50_arabian-peninsula
 
-A SE ResNeXt image classification model. This model was trained on the `arabian-peninsula` dataset (all the relevant bird species found in the Arabian peninsula inc. rarities).
+An SE ResNeXt 50 image classification model.
+This model was trained on the `arabian-peninsula` dataset (all the relevant bird species found in the Arabian peninsula inc. rarities).
 
 The species list is derived from data available at <https://avibase.bsc-eoc.org/checklist.jsp?region=ARA>.
 

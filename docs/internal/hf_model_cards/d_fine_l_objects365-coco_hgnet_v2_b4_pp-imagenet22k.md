@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for d_fine_l_objects365-coco_hgnet_v2_b4_pp-imagenet22k
 
-A D-FINE large object detector with an HGNet v2 B4 backbone, pretrained on Objects365-2020 and fine-tuned on COCO 2017.
+A D-FINE L object detector with an HGNet v2 B4 backbone pretrained on ImageNet-22K, trained on Objects365-2020, then fine-tuned on COCO 2017.
 Training used multi-resolution inputs sampled from 480px to 800px.
 
 An inference-optimized, structurally reparameterized checkpoint is also provided as

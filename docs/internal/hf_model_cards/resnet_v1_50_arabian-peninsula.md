@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for resnet_v1_50_arabian-peninsula
 
-A ResNet v1 image classification model. This model was trained on the `arabian-peninsula` dataset (all the relevant bird species found in the Arabian peninsula inc. rarities).
+A ResNet v1 50 image classification model.
+This model was trained on the `arabian-peninsula` dataset (all the relevant bird species found in the Arabian peninsula inc. rarities).
 The training followed RSB procedure A2.
 
 The species list is derived from data available at <https://avibase.bsc-eoc.org/checklist.jsp?region=ARA>.

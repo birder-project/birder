@@ -13,7 +13,7 @@ datasets:
 
 # Model Card for vit_b16_pn_biotrove-clip-o
 
-A ViT b16 image encoder from BioTrove by Yang et al., converted to the Birder format for image feature extraction.
+A ViT B/16 image encoder from BioTrove by Yang et al., converted to the Birder format for image feature extraction.
 This version preserves the original model weights and architecture.
 Trained on the large-scale BioTrove dataset, it serves as a powerful foundation for downstream computer vision tasks.
 The model excels at understanding biological imagery across diverse taxonomic groups.

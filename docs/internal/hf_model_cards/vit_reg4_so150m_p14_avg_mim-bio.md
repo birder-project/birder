@@ -10,7 +10,9 @@ license: apache-2.0
 
 # Model Card for vit_reg4_so150m_p14_avg_mim-bio
 
-A SoViT 150m p14 image encoder pretrained using Masked Image Modeling (MIM). It was trained with a mask unit size of 2 for 300 epochs. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
+A SoViT Reg4 150M/14 image encoder pretrained using Masked Image Modeling (MIM) on natural biological images.
+It was trained with a mask unit size of 2 for 300 epochs.
+This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 ## Model Details
 

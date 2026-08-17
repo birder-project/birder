@@ -526,7 +526,7 @@ registry.register_weights(
     "crossformer_s_arabian-peninsula256px",
     {
         "url": "https://huggingface.co/birder-project/crossformer_s_arabian-peninsula/resolve/main",
-        "description": "CrossFormer small model trained on the arabian-peninsula dataset",
+        "description": "CrossFormer Small model trained on the arabian-peninsula dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -541,7 +541,7 @@ registry.register_weights(
     "crossformer_s_arabian-peninsula",
     {
         "url": "https://huggingface.co/birder-project/crossformer_s_arabian-peninsula/resolve/main",
-        "description": "CrossFormer small model trained on the arabian-peninsula dataset",
+        "description": "CrossFormer Small model trained on the arabian-peninsula dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {

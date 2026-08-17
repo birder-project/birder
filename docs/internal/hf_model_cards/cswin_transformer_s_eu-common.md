@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for cswin_transformer_s_eu-common
 
-A CSWin Transformer small image classification model. This model was trained on the `eu-common` dataset containing common European bird species.
+A CSWin Transformer Small image classification model.
+This model was trained on the `eu-common` dataset containing common European bird species.
 
 The species list is derived from the Collins bird guide [^1].
 

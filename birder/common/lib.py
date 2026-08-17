@@ -163,7 +163,7 @@ def get_network_config(
 def get_pretrained_model_url(weights: str, file_format: str) -> tuple[str, str]:
     model_metadata = registry.get_pretrained_metadata(weights)
     model_file = f"{weights}.{file_format}"
-    base_url = model_metadata.get("url", settings.REGISTRY_BASE_UTL)
+    base_url = model_metadata.get("url", settings.REGISTRY_BASE_URL)
     url = f"{base_url}/{model_file}"
 
     return (model_file, url)

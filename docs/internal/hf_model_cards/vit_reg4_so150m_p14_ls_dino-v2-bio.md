@@ -12,8 +12,8 @@ base_model:
 
 # Model Card for vit_reg4_so150m_p14_ls_dino-v2-bio
 
-`vit_reg4_so150m_p14_ls_dino-v2-bio` is a Bio-DINO image encoder for natural photographs of living organisms.
-It uses a SoViT-150M/14 Vision Transformer with 4 register tokens and 133.6M backbone parameters, trained with a DINOv2-style self-supervised objective on approximately 31 million curated images spanning plants, fungi, insects, fish, corals, birds, mammals and other biodiversity subjects.
+SoViT Reg4 150M/14 is a Bio-DINO image encoder for natural photographs of living organisms.
+It has 133.6M backbone parameters and was trained with a DINOv2-style self-supervised objective on approximately 31 million curated images spanning plants, fungi, insects, fish, corals, birds, mammals and other biodiversity subjects.
 
 The model is released as a single repository with three checkpoints: 224 x 224, 252 x 252 and 336 x 336.
 The 252px checkpoint is the recommended default, the 224px checkpoint is a faster and lower-cost variant, and the 336px checkpoint is a short high-resolution adaptation for users who want to trade latency for more input detail.
@@ -102,7 +102,7 @@ Known public components and source families used in the training mixture include
 
 ## Training Procedure
 
-The model was trained with a DINOv2-style self-supervised objective using a SoViT-150M/14 backbone with 4 register tokens.
+The model was trained with a DINOv2-style self-supervised objective using a SoViT Reg4 150M/14 backbone.
 The longest training stage was run at 224 x 224 for efficiency, then continued at 252 x 252 for the main release checkpoint and finished with a short 336 x 336 high-resolution adaptation.
 
 ### Resolution Schedule

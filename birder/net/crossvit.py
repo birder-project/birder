@@ -516,7 +516,7 @@ registry.register_model_config(
 registry.register_weights(
     "crossvit_9d_il-common",
     {
-        "description": "CrossViT 9 dagger model trained on the il-common dataset",
+        "description": "CrossViT 9 Dagger model trained on the il-common dataset",
         "resolution": (240, 240),
         "formats": {
             "pt": {

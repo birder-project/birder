@@ -13,7 +13,7 @@ datasets:
 
 # Model Card for vit_l14_pn_bioclip-v2
 
-A ViT l14 image encoder from BioCLIP-2 by Gu et al., converted to the Birder format for image feature extraction.
+A ViT L/14 image encoder from BioCLIP v2 by Gu et al., converted to the Birder format for image feature extraction.
 This version preserves the original model weights and architecture.
 Trained on the large-scale TreeOfLife-200M dataset, it serves as a powerful foundation for downstream computer vision tasks.
 The model excels at understanding biological imagery across diverse taxonomic groups.

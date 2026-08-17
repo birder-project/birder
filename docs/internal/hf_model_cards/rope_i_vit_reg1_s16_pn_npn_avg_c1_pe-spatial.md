@@ -11,8 +11,8 @@ base_model:
 
 # Model Card for rope_i_vit_reg1_s16_pn_npn_avg_c1_pe-spatial
 
-A ViT-S16 image encoder from the PE-Spatial model by Bolya et al., converted to the Birder format for image feature extraction.
-This version retains the original model weights and architecture, with the exception of treating the original CLS token as a REG token.
+A RoPEi ViT Reg1 S/16 image encoder from the PE-Spatial model by Bolya et al., converted to the Birder format for image feature extraction.
+This version retains the original model weights and architecture, with the exception of treating the original CLS token as a register token.
 It is a general-purpose visual backbone.
 
 See: <https://huggingface.co/facebook/PE-Spatial-S16-512> for further details.

@@ -1225,7 +1225,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/lw_detr_2stg_objects365_pe_spatial_s16/resolve/main",
         "description": (
-            "LW-DETR (2 stage) with a PE-Spatial s16 backbone, detection model trained on the Objects365-2020 dataset"
+            "Two-stage LW-DETR detection model with a PE-Spatial S/16 backbone, trained on the Objects365-2020 dataset"
         ),
         "resolution": (640, 640),
         "formats": {
@@ -1243,8 +1243,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/lw_detr_2stg_objects365-coco_pe_spatial_s16/resolve/main",
         "description": (
-            "LW-DETR (2 stage) with a PE-Spatial s16 backbone, detection model trained on the Objects365-2020 dataset "
-            "and fine-tuned on the COCO dataset"
+            "Two-stage LW-DETR detection model with a PE-Spatial S/16 backbone, trained on the Objects365-2020 "
+            "dataset, then fine-tuned on the COCO dataset"
         ),
         "resolution": (640, 640),
         "formats": {

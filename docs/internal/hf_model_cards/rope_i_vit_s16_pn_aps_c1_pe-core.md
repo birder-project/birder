@@ -11,7 +11,7 @@ base_model:
 
 # Model Card for rope_i_vit_s16_pn_aps_c1_pe-core
 
-A ViT-S16 image encoder from the PE-Core model by Bolya et al., converted to the Birder format for image feature extraction.
+A RoPEi ViT S/16 image encoder from the PE-Core model by Bolya et al., converted to the Birder format for image feature extraction.
 This version retains the original model weights and architecture, with the exception of removing the CLIP projection layer to expose raw image embeddings.
 It is a general-purpose visual backbone.
 

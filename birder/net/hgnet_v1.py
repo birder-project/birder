@@ -453,7 +453,7 @@ registry.register_model_config(
 registry.register_weights(
     "hgnet_v1_tiny_il-common",
     {
-        "description": "HGNet v1 tiny model trained on the il-common dataset",
+        "description": "HGNet v1 Tiny model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

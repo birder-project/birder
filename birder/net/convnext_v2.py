@@ -325,7 +325,7 @@ registry.register_model_config(
 registry.register_weights(
     "convnext_v2_atto_il-common",
     {
-        "description": "ConvNeXt v2 nano model trained on the il-common dataset",
+        "description": "ConvNeXt v2 Atto model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -340,7 +340,7 @@ registry.register_weights(
     "convnext_v2_tiny_intermediate-il-common",
     {
         "url": "https://huggingface.co/birder-project/convnext_v2_tiny_intermediate-il-common/resolve/main",
-        "description": "ConvNeXt v2 tiny model with intermediate training, then fine-tuned on the il-common dataset",
+        "description": "ConvNeXt v2 Tiny model with intermediate training, then fine-tuned on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -355,7 +355,7 @@ registry.register_weights(
     "convnext_v2_tiny_eu-common256px",
     {
         "url": "https://huggingface.co/birder-project/convnext_v2_tiny_eu-common/resolve/main",
-        "description": "ConvNeXt v2 tiny model trained on the eu-common dataset",
+        "description": "ConvNeXt v2 Tiny model trained on the eu-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -370,7 +370,7 @@ registry.register_weights(
     "convnext_v2_tiny_eu-common",
     {
         "url": "https://huggingface.co/birder-project/convnext_v2_tiny_eu-common/resolve/main",
-        "description": "ConvNeXt v2 tiny model trained on the eu-common dataset",
+        "description": "ConvNeXt v2 Tiny model trained on the eu-common dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {
@@ -385,7 +385,7 @@ registry.register_weights(
     "convnext_v2_tiny_intermediate-eu-common",
     {
         "url": "https://huggingface.co/birder-project/convnext_v2_tiny_intermediate-eu-common/resolve/main",
-        "description": "ConvNeXt v2 tiny model with intermediate training, then fine-tuned on the eu-common dataset",
+        "description": "ConvNeXt v2 Tiny model with intermediate training, then fine-tuned on the eu-common dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {

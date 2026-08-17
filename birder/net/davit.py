@@ -675,7 +675,7 @@ registry.register_weights(
     "davit_tiny_il-all",
     {
         "url": "https://huggingface.co/birder-project/davit_tiny_il-all/resolve/main",
-        "description": "DaViT tiny model trained on the il-all dataset",
+        "description": "DaViT Tiny model trained on the il-all dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {
@@ -690,7 +690,10 @@ registry.register_weights(  # Florence v2: https://arxiv.org/abs/2311.06242
     "davit_fl_base_florence-v2",
     {
         "url": "https://huggingface.co/birder-project/davit_fl_base_florence-v2/resolve/main",
-        "description": "",
+        "description": (
+            "DaViT FL Base image encoder pretrained by Microsoft as part of Florence-2. "
+            "It has not been fine-tuned for a specific classification task"
+        ),
         "resolution": (768, 768),
         "formats": {
             "pt": {

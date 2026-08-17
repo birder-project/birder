@@ -425,7 +425,7 @@ registry.register_weights(
     "nextvit_s_eu-common256px",
     {
         "url": "https://huggingface.co/birder-project/nextvit_s_eu-common/resolve/main",
-        "description": "Next-ViT small model trained on the eu-common dataset",
+        "description": "Next-ViT Small model trained on the eu-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -440,7 +440,7 @@ registry.register_weights(
     "nextvit_s_eu-common",
     {
         "url": "https://huggingface.co/birder-project/nextvit_s_eu-common/resolve/main",
-        "description": "Next-ViT small model trained on the eu-common dataset",
+        "description": "Next-ViT Small model trained on the eu-common dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {

@@ -1,30 +1,50 @@
 # Inference
 
 Birder provides powerful command-line tools for running inference using its pretrained models.
-This document covers the usage of `birder-predict` for image classification and `birder-predict_detection` for object detection.
+This document covers `python -m birder.scripts.predict` for image classification and `python -m birder.scripts.predict_detection` for object detection.
 While these scripts serve different purposes, they share many common options for model loading, hardware configuration, and output handling.
 
 ## Image Classification Inference
 
-The `birder-predict` script (or `python -m birder.scripts.predict`) allows you to perform image classification inference. This versatile tool is designed for classifying single images, entire directories of images, or even WebDataset archives, offering extensive options for visualization, detailed reporting, and various performance optimizations.
+The `python -m birder.scripts.predict` command allows you to perform image classification inference. This versatile tool is designed for classifying single images, entire directories of images, or even WebDataset archives, offering extensive options for visualization, detailed reporting, and various performance optimizations.
 
 ### Classification - Basic Usage
 
 To classify images within a directory using a specified network and model tag, use the following command:
 
 ```sh
-birder-predict -n <network_name> -t <model_tag> data/my_images/
+python -m birder.scripts.predict -n <network_name> -t <model_tag> data/my_images
 ```
 
 For a comprehensive list of all available options and their detailed usage, run:
 
 ```sh
-birder-predict --help
+python -m birder.scripts.predict --help
 ```
+
+### Classification - NaFlex Inference at Native Aspect Ratio
+
+NaFlex models can run inference without forcing every image to the same aspect ratio.
+Enable this mode explicitly with `--naflex`.
+Each image is resized to a patch-aligned resolution that preserves its source aspect ratio as closely as possible.
+
+```sh
+python -m birder.scripts.predict \
+    --network naflex_vit_b16 \
+    --tag <model_tag> \
+    --naflex \
+    data/my_images
+```
+
+In NaFlex mode, `--size` defines the patch-token budget rather than an exact output shape.
+For example, `--size 384` with a 16-pixel patch size permits at most 576 image patch tokens, while the actual height and width depend on each image's aspect ratio.
+If `--size` is omitted, the budget is derived from the model signature.
+
+Not all `predict` options are supported in NaFlex mode, unsupported flags, such as `--save-features`, will be rejected.
 
 ### Classification - Output Files
 
-When running birder-predict, the script can generate several types of outputs depending on the flags you provide.
+When running classification prediction, the script can generate several types of outputs depending on the flags you provide.
 All outputs are saved under the configured results directory (default: `results/`) with automatically generated file names that encode the model, epoch, image size, number of classes, and other settings (e.g., `resnet_v2_50_200_e0_224px_crop1.0_10000.csv`).
 You can also prepend or append text using `--prefix` and `--suffix`.
 
@@ -94,7 +114,7 @@ If you want to load them manually with another library, make sure to skip the fi
 If you run a command like:
 
 ```sh
-birder-predict -n resnet_v2_50 -t my_model_tag data/my_images/ --save-results --save-output --save-embeddings --save-labels --output-format parquet
+python -m birder.scripts.predict -n resnet_v2_50 -t my_model_tag data/my_images/ --save-results --save-output --save-embeddings --save-labels --output-format parquet
 ```
 
 You might expect to see files similar to these in your `results` directory:
@@ -105,7 +125,7 @@ You might expect to see files similar to these in your `results` directory:
 
 ## Object Detection Inference
 
-The `birder-predict_detection` script (or `python -m birder.scripts.predict_detection`) enables you to perform object detection inference using Birder's pretrained models.
+The `python -m birder.scripts.predict_detection` command enables you to perform object detection inference using Birder's pretrained models.
 This tool is designed for locating and identifying objects (e.g., birds) within images, providing bounding boxes and class labels.
 It supports various input formats, visualization options, and performance optimizations.
 
@@ -114,7 +134,7 @@ It supports various input formats, visualization options, and performance optimi
 To run detection inference on images within a directory using a specified network and its backbone, use the following command:
 
 ```sh
-birder-predict_detection -n <network_name> --backbone <backbone_name> data/my_detection_images/
+python -m birder.scripts.predict_detection -n <network_name> --backbone <backbone_name> data/my_detection_images/
 ```
 
 ### Detection - Sliding Window
@@ -123,7 +143,7 @@ Use sliding-window inference for large images where resizing the full image woul
 It runs native-resolution tiles and merges the tile detections.
 
 ```sh
-birder-predict_detection -n <network_name> --backbone <backbone_name> \
+python -m birder.scripts.predict_detection -n <network_name> --backbone <backbone_name> \
   --sliding-window --tile-size 640 --tile-overlap 128 \
   --sliding-window-global-size 800 --sliding-window-merge greedy_nmm \
   data/my_detection_images/
@@ -135,5 +155,5 @@ It cannot be combined with `--tta`.
 For a comprehensive list of all available options and their detailed usage, run:
 
 ```sh
-birder-predict_detection --help
+python -m birder.scripts.predict_detection --help
 ```

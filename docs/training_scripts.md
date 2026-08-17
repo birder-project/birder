@@ -169,6 +169,37 @@ python custom_train_msm.py --network mae_vit --encoder vit_reg4_b16 --channels 1
 
 ## Key Features
 
+### NaFlex Training at Native Aspect Ratio
+
+NaFlex models can be trained without forcing every image to the same aspect ratio.
+Enable this mode with `--naflex`.
+Each image is resized to a patch-aligned resolution that preserves its source aspect ratio as closely as possible.
+
+```sh
+python -m birder.scripts.train \
+    --network naflex_vit_b16 \
+    --batch-size 64 \
+    --size 288 \
+    --naflex
+```
+
+In NaFlex mode, `--size` defines a patch-token budget rather than an exact output shape.
+For example, `--size 288` with a 16-pixel patch size permits at most 324 image patch tokens, while the actual height and width depend on each image's aspect ratio.
+
+To train at multiple budgets, use `--naflex-sizes`:
+
+```sh
+python -m birder.scripts.train \
+    --network naflex_vit_b16 \
+    --batch-size 64 \
+    --size 288 \
+    --naflex \
+    --naflex-sizes 192 224 256 288
+```
+
+Each `--naflex-sizes` value is a square-equivalent resolution budget and must be divisible by the model's patch size.
+One budget is selected for each training batch, while validation always uses the budget derived from `--size`.
+
 ### WebDataset Integration
 
 The training scripts support WebDataset, a format optimized for efficient deep learning training. This is particularly useful for large datasets or training on cloud infrastructure.

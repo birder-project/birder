@@ -358,7 +358,7 @@ registry.register_model_config(
 registry.register_weights(
     "inception_next_a_il-common",
     {
-        "description": "InceptionNeXt atto model trained on the il-common dataset",
+        "description": "InceptionNeXt Atto model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

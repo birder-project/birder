@@ -10,7 +10,8 @@ license: apache-2.0
 
 # Model Card for rope_vit5_reg4_b16_nepa-bio
 
-A RoPE ViT-5 b16 image encoder pretrained using NEPA. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
+A RoPE ViT-5 Reg4 B/16 image encoder pretrained using NEPA on natural biological images.
+This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 ## Model Details
 

@@ -312,7 +312,7 @@ registry.register_model_config(
 registry.register_weights(
     "efficientnet_lite0_il-common",
     {
-        "description": "EfficientNet lite0 model trained on the il-common dataset",
+        "description": "EfficientNet Lite0 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

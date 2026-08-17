@@ -54,8 +54,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/sscd_resnext_101_c1/resolve/main",
         "description": (
-            "SSCD ResNeXt 101 model trained DISC for image copy detection. "
-            "This model has not been fine-tuned for a specific classification task"
+            "ResNeXt 101 image encoder pretrained using SSCD on the DISC dataset for image copy detection. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (320, 320),
         "formats": {

@@ -703,6 +703,9 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
 
         image_size = self.size
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", True)
+        pos_embed_interpolation_mode: Literal["bilinear", "bicubic"] = self.config.get(
+            "pos_embed_interpolation_mode", "bicubic"
+        )
         patch_size: int = self.config["patch_size"]
         stem_type: Literal["patchify", "hmlp"] = self.config.get("stem_type", "patchify")
         stem_norm_layer_type: Optional[Literal["BatchNorm2d", "LayerNorm2d"]] = self.config.get(
@@ -742,6 +745,9 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         router_importance_loss_weight: float = self.config.get("router_importance_loss_weight", 0.005)
         router_load_loss_weight: float = self.config.get("router_load_loss_weight", 0.005)
 
+        if pos_embed_interpolation_mode not in ("bilinear", "bicubic"):
+            raise ValueError(f"Unknown pos_embed_interpolation_mode '{pos_embed_interpolation_mode}'")
+
         if stem_type == "patchify":
             if stem_norm_layer_type is not None:
                 raise ValueError("stem_norm_layer_type is only supported with stem_type='hmlp'")
@@ -780,6 +786,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
         self.pos_embed_special_tokens = pos_embed_special_tokens
+        self.pos_embed_interpolation_mode = pos_embed_interpolation_mode
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
@@ -887,6 +894,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
             self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
+            interpolation_mode=self.pos_embed_interpolation_mode,
             antialias=False,
         )
 
@@ -1166,6 +1174,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
                 (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
                 (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
                 self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
+                interpolation_mode=self.pos_embed_interpolation_mode,
             )
 
         self.pos_embedding = nn.Parameter(pos_embedding)

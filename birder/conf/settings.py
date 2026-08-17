@@ -74,7 +74,7 @@ TOP_K = 3
 MAX_DETECTIONS = [1, 10, 100]
 
 # Model registry
-REGISTRY_BASE_UTL = "https://f000.backblazeb2.com/file/birder/models"
+REGISTRY_BASE_URL = "https://f000.backblazeb2.com/file/birder/models"
 
 # Logging
 # https://docs.python.org/3/library/logging.config.html

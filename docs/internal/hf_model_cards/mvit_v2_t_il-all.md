@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for mvit_v2_t_il-all
 
-A MViTv2 image classification model. This model was trained on the `il-all` dataset, encompassing all relevant bird species found in Israel, including rarities.
+An MViT v2 Tiny image classification model.
+This model was trained on the `il-all` dataset, encompassing all relevant bird species found in Israel, including rarities.
 
 The species list is derived from data available at <https://www.israbirding.com/checklist/>.
 

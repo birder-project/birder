@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -12,7 +15,14 @@ class MultiHeadAttentionPool(nn.Module):
     """
 
     def __init__(
-        self, dim: int, num_heads: int, mlp_dim: int, qkv_bias: bool, latent_len: int = 1, norm_eps: float = 1e-5
+        self,
+        dim: int,
+        num_heads: int,
+        mlp_dim: int,
+        qkv_bias: bool,
+        latent_len: int = 1,
+        norm_eps: float = 1e-5,
+        activation_layer: Callable[..., nn.Module] = nn.GELU,
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0
@@ -28,12 +38,12 @@ class MultiHeadAttentionPool(nn.Module):
         self.proj = nn.Linear(dim, dim)
 
         self.norm = nn.LayerNorm(dim, eps=norm_eps)
-        self.mlp = FFN(dim, mlp_dim, act_layer=nn.GELU)
+        self.mlp = FFN(dim, mlp_dim, act_layer=activation_layer)
 
         # Weight initialization
         nn.init.trunc_normal_(self.latent, std=dim**-0.5)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, N, C = x.size()
 
         q_latent = self.latent.expand(B, self.latent_len, -1)
@@ -42,7 +52,13 @@ class MultiHeadAttentionPool(nn.Module):
         kv = self.kv(x).reshape(B, N, 2, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
         k, v = kv.unbind(0)
 
-        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint: disable=not-callable
+        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
+            q,
+            k,
+            v,
+            attn_mask=attn_mask,
+            scale=self.scale,
+        )
         x = x.transpose(1, 2).reshape(B, self.latent_len, C)
         x = self.proj(x)
         x = x + self.mlp(self.norm(x))
@@ -66,6 +82,7 @@ class EfficientProbing(nn.Module):
         qkv_bias: bool,
         latent_len: int = 32,
         norm_eps: float = 1e-5,  # pylint: disable=unused-argument
+        activation_layer: Callable[..., nn.Module] = nn.GELU,  # pylint: disable=unused-argument
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0
@@ -79,7 +96,7 @@ class EfficientProbing(nn.Module):
         self.latent = nn.Parameter(torch.randn(1, self.latent_len, dim) * 0.02)
         self.v = nn.Linear(dim, dim, bias=qkv_bias)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, N, C = x.size()
 
         q = self.latent.expand(B, -1, -1).reshape(B, self.latent_len, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
@@ -87,6 +104,12 @@ class EfficientProbing(nn.Module):
         v = self.v(x).reshape(B, N, self.latent_len, self.chunk_dim).permute(0, 2, 1, 3)
 
         attn = torch.matmul(q * self.scale, k.transpose(-2, -1))
+        if attn_mask is not None:
+            if attn_mask.dtype == torch.bool:
+                attn = attn.masked_fill(attn_mask.logical_not(), float("-inf"))
+            else:
+                attn = attn + attn_mask.to(dtype=attn.dtype)
+
         attn = attn.softmax(dim=-1)
         attn = attn.mean(dim=1)
         x = torch.matmul(attn.unsqueeze(2), v).reshape(B, 1, C)

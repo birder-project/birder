@@ -11,7 +11,8 @@ base_model:
 
 # Model Card for rope_vit_reg4_b14_capi-intermediate-eu-common
 
-A RoPE ViT image classification model. The model follows a three-stage training process: first, CAPI pretraining, next intermediate training on a large-scale dataset containing diverse bird species from around the world, finally fine-tuned specifically on the `eu-common` dataset.
+A RoPE ViT Reg4 B/14 image classification model.
+The model follows a three-stage training process: first, CAPI pretraining, next intermediate training on a large-scale dataset containing diverse bird species from around the world, finally fine-tuned specifically on the `eu-common` dataset.
 
 The species list is derived from the Collins bird guide [^1].
 

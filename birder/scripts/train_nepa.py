@@ -21,6 +21,7 @@ from collections.abc import Callable
 from collections.abc import Iterator
 from contextlib import nullcontext
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 from typing import Optional
@@ -42,15 +43,20 @@ from birder.common.lib import format_duration
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.conf import settings
+from birder.data.collators.naflex import NaFlexBatchProcessor
+from birder.data.collators.naflex import NaFlexPathCollator
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.directory import make_image_dataset
 from birder.data.datasets.fake import FakeDataWithPaths
+from birder.data.datasets.naflex import NaFlexMultiScaleDataset
 from birder.data.datasets.webdataset import WDSImageDecoder
+from birder.data.datasets.webdataset import get_wds_num_shards
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_rgb_stats
+from birder.data.transforms.naflex import get_sequence_lengths as get_naflex_sequence_lengths
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import MaskedTokenOmissionMixin
@@ -86,16 +92,104 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
     logger.info(f"Using size={args.size}")
 
-    #
-    # Data
-    #
     rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
     logger.debug(f"Using RGB stats: {rgb_stats}")
 
-    if overrides.training_transform is not None:
+    batch_size: int = args.batch_size
+    grad_accum_steps: int = args.grad_accum_steps
+    logger.debug(f"Effective batch size = {batch_size * grad_accum_steps * args.world_size}")
+
+    begin_epoch = 1
+    epochs = args.epochs + 1
+    args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
+
+    #
+    # Initialize network
+    #
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
+    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
+    backbone_name = get_network_name(args.network, tag="nepa")
+    if args.tag is not None:
+        backbone_name = f"{backbone_name}-{args.tag}"
+
+    network_name = get_mim_network_name("nepa", encoder=args.network, tag=args.tag)
+
+    backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
+    net = NEPA(backbone, config={"shift": not args.no_shift, "remove_reg_tokens": args.remove_reg_tokens})
+
+    if args.resume_epoch is not None:
+        begin_epoch = args.resume_epoch + 1
+        net, training_states = fs_ops.load_simple_checkpoint(
+            device, net, network_name, epoch=args.resume_epoch, strict=not args.non_strict_weights
+        )
+
+    else:
+        training_states = fs_ops.TrainingStates.empty()
+
+    patch_size = net.backbone.stem_stride
+    net.to(device, dtype=model_dtype)
+
+    if args.freeze_bn is True:
+        net = training_utils.freeze_batchnorm2d(net)
+    elif args.sync_bn is True and args.distributed is True:
+        net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
+
+    ema_backbone = copy.deepcopy(net.backbone)
+    ema_backbone.eval()
+    for p in ema_backbone.parameters():
+        p.requires_grad_(False)
+
+    if args.fast_matmul is True or args.amp is True:
+        torch.set_float32_matmul_precision("high")
+
+    if args.grad_checkpointing is True:
+        net.backbone.set_grad_checkpointing(
+            segments=args.grad_checkpointing_segments,
+            preserve_rng_state=args.grad_checkpointing_preserve_rng_state,
+        )
+
+    # Compile network
+    if args.compile is True:
+        net = torch.compile(net, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+
+    #
+    # Data
+    #
+    collate_fn: Optional[Callable[[Any], Any]] = None
+    naflex_batch_processor: Optional[NaFlexBatchProcessor] = None
+    wds_num_shards: Optional[int] = None
+    naflex_sizes = args.naflex_sizes
+    if args.naflex is True:
+        naflex_seq_lens = get_naflex_sequence_lengths(args.size, patch_size, naflex_sizes)
+    else:
+        naflex_seq_lens = ()
+
+    if len(naflex_seq_lens) > 1:
+        if overrides.training_transform is not None:
+            raise ValueError("NaFlex multi-scale training does not support a custom training transform")
+
+        naflex_transforms = {
+            seq_len: training_utils.get_naflex_training_transform(args, patch_size, seq_len)
+            for seq_len in naflex_seq_lens
+        }
+        logger.info(f"Using NaFlex sizes: {list(naflex_sizes)} (maximum sequence lengths: {list(naflex_transforms)})")
+
+        training_transform = None
+        naflex_batch_processor = NaFlexBatchProcessor(
+            NaFlexPathCollator(patch_size), naflex_transforms, seed=args.seed or 0
+        )
+
+    elif overrides.training_transform is not None:
         training_transform = overrides.training_transform(args)
+    elif args.naflex is True:
+        training_transform = training_utils.get_naflex_training_transform(args, patch_size, naflex_seq_lens[0])
     else:
         training_transform = training_utils.get_training_transform(args)
+
+    if args.naflex is True and naflex_batch_processor is None:
+        collate_fn = NaFlexPathCollator(patch_size)
+    elif args.naflex is False:
+        collate_fn = None
 
     if args.use_fake_data is True:
         logger.warning("Using fake data")
@@ -128,6 +222,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             cls_key=None,
             cache_dir=args.wds_cache_dir,
         )
+        if naflex_batch_processor is not None:
+            wds_num_shards = get_wds_num_shards(training_dataset)
 
     else:
         if overrides.image_loader is not None:
@@ -142,12 +238,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             loader=image_loader,
         )
 
+    if args.wds is False and naflex_batch_processor is not None:
+        training_dataset = NaFlexMultiScaleDataset(training_dataset, naflex_batch_processor)
+        collate_fn = naflex_batch_processor.base_collator
+
     logger.info(f"Using device {device}:{device_id}")
     logger.info(f"Training dataset has {len(training_dataset):,} samples")
-
-    batch_size: int = args.batch_size
-    grad_accum_steps: int = args.grad_accum_steps
-    logger.debug(f"Effective batch size = {batch_size * grad_accum_steps * args.world_size}")
 
     # Data loaders and samplers
     virtual_epoch_mode = args.steps_per_epoch is not None
@@ -156,18 +252,28 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     )
 
     if args.wds is True:
+        wds_batcher: Optional[Callable[..., Iterator[tuple[Any, ...]]]] = None
+        if naflex_batch_processor is not None:
+            wds_batcher = partial(
+                naflex_batch_processor.iter_batches,
+                batch_size=batch_size,
+                drop_last=args.drop_last,
+            )
+
         training_loader = make_wds_loader(
             training_dataset,
             batch_size,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            collate_fn=None,
+            collate_fn=None if naflex_batch_processor is not None else collate_fn,
             world_size=args.world_size,
             pin_memory=args.pin_memory,
             drop_last=args.drop_last,
             persistent_workers=args.persistent_workers,
             shuffle=args.wds_extra_shuffle,
             infinite=virtual_epoch_mode,
+            batcher=wds_batcher,
+            num_shards=wds_num_shards,
         )
 
     else:
@@ -180,6 +286,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             pin_memory=args.pin_memory,
             drop_last=args.drop_last,
             persistent_workers=args.persistent_workers,
+            collate_fn=collate_fn,
         )
 
     if virtual_epoch_mode is True:
@@ -198,62 +305,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         last_accum_steps = grad_accum_steps
 
     last_accum_start_idx = epoch_num_batches - last_accum_steps
-    begin_epoch = 1
-    epochs = args.epochs + 1
-    args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
-
     logger.debug(
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
     )
-
-    #
-    # Initialize network
-    #
-    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
-    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    backbone_name = get_network_name(args.network, tag="nepa")
-    if args.tag is not None:
-        backbone_name = f"{backbone_name}-{args.tag}"
-
-    network_name = get_mim_network_name("nepa", encoder=args.network, tag=args.tag)
-
-    backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
-    net = NEPA(backbone, config={"shift": not args.no_shift, "remove_reg_tokens": args.remove_reg_tokens})
-
-    if args.resume_epoch is not None:
-        begin_epoch = args.resume_epoch + 1
-        net, training_states = fs_ops.load_simple_checkpoint(
-            device, net, network_name, epoch=args.resume_epoch, strict=not args.non_strict_weights
-        )
-
-    else:
-        training_states = fs_ops.TrainingStates.empty()
-
-    net.to(device, dtype=model_dtype)
-
-    if args.freeze_bn is True:
-        net = training_utils.freeze_batchnorm2d(net)
-    elif args.sync_bn is True and args.distributed is True:
-        net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
-
-    ema_backbone = copy.deepcopy(net.backbone)
-    ema_backbone.eval()
-    for p in ema_backbone.parameters():
-        p.requires_grad_(False)
-
-    if args.fast_matmul is True or args.amp is True:
-        torch.set_float32_matmul_precision("high")
-
-    if args.grad_checkpointing is True:
-        net.backbone.set_grad_checkpointing(
-            segments=args.grad_checkpointing_segments,
-            preserve_rng_state=args.grad_checkpointing_preserve_rng_state,
-        )
-
-    # Compile network
-    if args.compile is True:
-        net = torch.compile(net, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
 
     #
     # Optimizer, learning rate scheduler and training parameter groups
@@ -402,6 +457,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     # Training loop
     #
     if virtual_epoch_mode is True:
+        # Virtual epochs share one continuous loader iterator, so initialize the NaFlex schedule before creating it
+        if naflex_batch_processor is not None:
+            naflex_batch_processor.set_epoch(begin_epoch)
+
         train_iter = iter(training_loader)
 
     running_loss = training_utils.SmoothedValue(window_size=64)
@@ -413,6 +472,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+
+        if naflex_batch_processor is not None and virtual_epoch_mode is False:
+            naflex_batch_processor.set_epoch(epoch)
 
         # Clear metrics
         running_loss.clear()
@@ -443,8 +505,16 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         else:
             batch_iter = enumerate(training_loader)
 
-        for i, (_, images, _) in batch_iter:
-            images = images.to(device, dtype=model_dtype, non_blocking=True)
+        for i, (_, inputs, _) in batch_iter:
+            batch_kwargs: dict[str, torch.Tensor] = {}
+            if args.naflex is True:
+                inputs, grid_sizes, valid_mask = inputs
+                batch_kwargs = {
+                    "grid_sizes": grid_sizes.to(device, non_blocking=True),
+                    "valid_mask": valid_mask.to(device, non_blocking=True),
+                }
+
+            inputs = inputs.to(device, dtype=model_dtype, non_blocking=True)
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
             sync_context = no_sync_cm if optimizer_update is False else nullcontext
             if i >= last_accum_start_idx:
@@ -455,7 +525,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             # Forward and backward
             with sync_context():
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
-                    outputs: dict[str, torch.Tensor] = net(images)
+                    outputs: dict[str, torch.Tensor] = net(inputs, **batch_kwargs)
                     nepa_loss = outputs["loss"]
                     if args.moe_aux_loss is True:
                         moe_aux_loss = outputs["moe_auxiliary_loss"]
@@ -697,7 +767,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_lr_scheduler_args(parser)
     training_cli.add_training_schedule_args(parser, default_epochs=800)
     training_cli.add_batch_norm_args(parser)
-    training_cli.add_input_args(parser)
+    training_cli.add_input_args(parser, naflex=True)
     training_cli.add_data_aug_args(parser, default_level=1, default_min_scale=0.15, default_re_prob=0.0)
     training_cli.add_dataloader_args(parser, default_drop_last=True)
     training_cli.add_precision_args(parser)

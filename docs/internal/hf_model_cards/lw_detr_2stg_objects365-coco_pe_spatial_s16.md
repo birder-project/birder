@@ -11,7 +11,7 @@ base_model:
 
 # Model Card for lw_detr_2stg_objects365-coco_pe_spatial_s16
 
-A two-stage LW-DETR object detector with a PE-Spatial s16 backbone, initialized from the Objects365-2020 checkpoint and fine-tuned on COCO 2017.
+A two-stage LW-DETR object detector with a PE-Spatial S/16 backbone, initialized from the Objects365-2020 checkpoint and fine-tuned on COCO 2017.
 Training used multi-resolution inputs sampled from 512px to 672px, followed by a final fixed-resolution stage at 640px.
 
 **Custom Kernels**: This model uses optimized custom kernel for Deformable Attention operations. If you encounter compilation issues or prefer to use pure PyTorch implementations, set the environment variable `DISABLE_CUSTOM_KERNELS=1` before loading the model.

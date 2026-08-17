@@ -24,7 +24,6 @@ from birder.layers.activations import get_activation_module
 from birder.layers.rope import RoPE
 from birder.layers.rope import RoPERotationType
 from birder.layers.rope import RoPEStyleType
-from birder.layers.rope import build_rotary_pos_embed
 from birder.model_registry import registry
 from birder.net._vit_configs import BASE
 from birder.net._vit_configs import SMALL
@@ -393,6 +392,9 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
 
         image_size = self.size
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", True)
+        pos_embed_interpolation_mode: Literal["bilinear", "bicubic"] = self.config.get(
+            "pos_embed_interpolation_mode", "bicubic"
+        )
         patch_size: int = self.config["patch_size"]
         stem_type: Literal["patchify", "hmlp"] = self.config.get("stem_type", "patchify")
         stem_norm_layer_type: Optional[Literal["BatchNorm2d", "LayerNorm2d"]] = self.config.get(
@@ -415,6 +417,9 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         rope_grid_indexing: Literal["ij", "xy"] = self.config.get("rope_grid_indexing", "ij")
         rope_grid_offset: int = self.config.get("rope_grid_offset", 0)
         rope_temperature: float = self.config.get("rope_temperature", 100.0)
+        rope_shift_coords: Optional[float] = self.config.get("rope_shift_coords", None)
+        rope_jitter_coords: Optional[float] = self.config.get("rope_jitter_coords", None)
+        rope_rescale_coords: Optional[float] = self.config.get("rope_rescale_coords", None)
         pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
         dropout: float = self.config.get("dropout", 0.0)
         attention_dropout: float = self.config.get("attention_dropout", 0.0)
@@ -437,6 +442,9 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         router_g_shard_loss_weight: float = self.config.get("router_g_shard_loss_weight", 0.0)
         router_importance_loss_weight: float = self.config.get("router_importance_loss_weight", 0.005)
         router_load_loss_weight: float = self.config.get("router_load_loss_weight", 0.005)
+
+        if pos_embed_interpolation_mode not in ("bilinear", "bicubic"):
+            raise ValueError(f"Unknown pos_embed_interpolation_mode '{pos_embed_interpolation_mode}'")
 
         if stem_type == "patchify":
             if stem_norm_layer_type is not None:
@@ -476,6 +484,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
         self.pos_embed_special_tokens = pos_embed_special_tokens
+        self.pos_embed_interpolation_mode = pos_embed_interpolation_mode
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.num_heads = num_heads
@@ -529,6 +538,9 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             pt_grid_size=self.pt_grid_size,
             rope_style=rope_style,
             rope_rot_type=rope_rot_type,
+            shift_coords=rope_shift_coords,
+            jitter_coords=rope_jitter_coords,
+            rescale_coords=rope_rescale_coords,
         )
         self.encoder = Encoder(
             num_layers,
@@ -614,28 +626,15 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
             self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
+            interpolation_mode=self.pos_embed_interpolation_mode,
             antialias=False,
         )
 
     def _get_rope_embed(self, H: int, W: int) -> torch.Tensor:
         if self.dynamic_size is False:
-            return self.rope.pos_embed
+            return self.rope.get_pos_embed(self.rope.grid_size)
 
-        if H == self.size[0] and W == self.size[1]:
-            return self.rope.pos_embed
-
-        return torch.concat(
-            build_rotary_pos_embed(
-                self.hidden_dim // self.num_heads,
-                self.rope_temperature,
-                grid_size=(H // self.patch_size, W // self.patch_size),
-                grid_indexing=self.rope_grid_indexing,
-                grid_offset=self.rope_grid_offset,
-                pt_grid_size=self.pt_grid_size,
-                rope_style=self.rope_style,
-            ),
-            dim=-1,
-        ).to(self.rope.pos_embed.device, dtype=self.rope.pos_embed.dtype)
+        return self.rope.get_pos_embed((H // self.patch_size, W // self.patch_size))
 
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
         for param in self.parameters():
@@ -922,23 +921,13 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
                     (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
                     (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
                     num_prefix_tokens,
+                    interpolation_mode=self.pos_embed_interpolation_mode,
                 )
 
             self.pos_embedding = nn.Parameter(pos_embedding)
 
-        # Adjust RoPE
-        old_dtype = self.rope.pos_embed.dtype
-        self.rope = RoPE(
-            self.hidden_dim // self.num_heads,
-            temperature=self.rope_temperature,
-            grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
-            grid_indexing=self.rope_grid_indexing,
-            grid_offset=self.rope_grid_offset,
-            pt_grid_size=self.pt_grid_size,
-            rope_style=self.rope_style,
-            rope_rot_type=self.rope_rot_type,
-            device=self.rope.pos_embed.device,
-        ).to(dtype=old_dtype)
+        grid_size = (new_size[0] // self.patch_size, new_size[1] // self.patch_size)
+        self.rope.set_grid_size(grid_size)
 
         # Define adjusted decoder block
         self.decoder_block = partial(
@@ -946,7 +935,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             16,
             num_special_tokens=self.num_special_tokens,
             activation_layer=self.act_layer,
-            grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+            grid_size=grid_size,
             rope_grid_indexing=self.rope_grid_indexing,
             rope_grid_offset=self.rope_grid_offset,
             rope_temperature=self.rope_temperature,

@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for xcit_nano12_p16_il-common
 
-A XCiT image classification model. This model was trained on the `il-common` dataset, which contains common bird species found in Israel.
+An XCiT Nano-12 p16 image classification model.
+This model was trained on the `il-common` dataset, which contains common bird species found in Israel.
 
 The species list is derived from data available at <https://www.israbirding.com/checklist/>.
 

@@ -677,8 +677,8 @@ registry.register_weights(  # Segment Anything: https://arxiv.org/abs/2304.02643
     {
         "url": "https://huggingface.co/birder-project/vit_sam_b16_sam-sa1b/resolve/main",
         "description": (
-            "ViT SAM b16 image encoder pretrained by Meta AI. "
-            "This model has not been fine-tuned for a specific classification task"
+            "ViT SAM B/16 image encoder pretrained by Meta AI. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (1024, 1024),
         "formats": {

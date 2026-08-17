@@ -487,7 +487,7 @@ registry.register_model_config(
 registry.register_weights(
     "mobilenet_v4_hybrid_m_il-common",
     {
-        "description": "MobileNet hybrid v4 medium model trained on the il-common dataset",
+        "description": "MobileNet v4 Hybrid Medium model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

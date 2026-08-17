@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for resnet_v2_50_inat21
 
-A ResNet v2 image classification model. This model was trained on the `iNaturalist 2021` dataset - <https://github.com/visipedia/inat_comp/tree/master/2021>.
+A ResNet v2 50 image classification model.
+This model was trained on the `iNaturalist 2021` dataset - <https://github.com/visipedia/inat_comp/tree/master/2021>.
 The model was trained using an adapted procedure from ResNet Strikes Back (RSB) A2.
 
 Note: A 256 x 256 variant of this model is available as `resnet_v2_50_inat21-256px`.

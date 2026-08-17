@@ -281,7 +281,7 @@ registry.register_model_config("mnasnet_1_3", MNASNet, config={"alpha": 1.3})
 registry.register_weights(
     "mnasnet_0_5_il-common",
     {
-        "description": "MnasNet with depth multiplier of 0.5 trained on the il-common dataset",
+        "description": "MnasNet 0.5x model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -295,7 +295,7 @@ registry.register_weights(
 registry.register_weights(
     "mnasnet_1_0_il-common",
     {
-        "description": "MnasNet with depth multiplier of 1 trained on the il-common dataset",
+        "description": "MnasNet 1.0x model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

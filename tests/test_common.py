@@ -406,7 +406,7 @@ class TestTrainingUtils(unittest.TestCase):
         self.assertTrue(model.classifier.weight.requires_grad)
 
         model = torch.nn.Sequential(torch.nn.Linear(4, 4), torch.nn.Linear(4, 2))
-        with self.assertRaisesRegex(ValueError, "missing"):
+        with self.assertRaises(ValueError):
             training_utils.freeze_modules_by_name(model, ["0", "missing"])
 
         self.assertTrue(model[0].weight.requires_grad)

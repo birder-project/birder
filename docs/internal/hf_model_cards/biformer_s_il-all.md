@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for biformer_s_il-all
 
-A BiFormer image classification model. This model was trained on the `il-all` dataset, encompassing all relevant bird species found in Israel, including rarities.
+A BiFormer Small image classification model.
+This model was trained on the `il-all` dataset, encompassing all relevant bird species found in Israel, including rarities.
 
 The species list is derived from data available at <https://www.israbirding.com/checklist/>.
 

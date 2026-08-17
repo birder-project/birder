@@ -260,7 +260,7 @@ registry.register_model_config(
 registry.register_weights(
     "regnet_z_500m_il-common",
     {
-        "description": "RegNet Z 500m model trained on the il-common dataset",
+        "description": "RegNet Z 500 MF model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -275,7 +275,7 @@ registry.register_weights(
     "regnet_z_4g_eu-common256px",
     {
         "url": "https://huggingface.co/birder-project/regnet_z_4g_eu-common/resolve/main",
-        "description": "RegNet Z 4g model trained on the eu-common dataset",
+        "description": "RegNet Z 4 GF model trained on the eu-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -290,7 +290,7 @@ registry.register_weights(
     "regnet_z_4g_eu-common",
     {
         "url": "https://huggingface.co/birder-project/regnet_z_4g_eu-common/resolve/main",
-        "description": "RegNet Z 4g model trained on the eu-common dataset",
+        "description": "RegNet Z 4 GF model trained on the eu-common dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {

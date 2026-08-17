@@ -9,7 +9,9 @@ license: mit
 
 # Model Card for resnet_v1_50_c1_sscd
 
-A ResNet v1 model designed to be used for image copy detection, converted to the Birder format for image feature extraction. This version retains the original model weights. The model produces 512-dimensional L2 normalized descriptors for each input image.
+A ResNet v1 50 image encoder pretrained using SSCD on the DISC dataset for image copy detection, converted to the Birder format for image feature extraction.
+This version retains the original model weights.
+The model produces 512-dimensional L2-normalized descriptors for each input image.
 
 The similarity between two images, represented by their descriptors a and b, can be effectively measured using descriptor cosine similarity `a.dot(b)`, where higher values indicate greater similarity.
 Alternatively, Euclidean distance `torch.linalg.vector_norm(a-b)` can be used, with lower values indicating greater similarity.

@@ -10,7 +10,8 @@ license: apache-2.0
 
 # Model Card for rope_vit_s14_swiglu_avg_eva-bio
 
-A RoPE ViT s14 image encoder pretrained using EVA-style Masked Image Modeling (MIM) distillation from a BioCLIP v2 ViT l14 teacher. This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
+A RoPE ViT S/14 image encoder pretrained using EVA-style Masked Image Modeling (MIM) distillation from a BioCLIP v2 ViT L/14 teacher.
+This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 ## Model Details
 

@@ -11,7 +11,8 @@ base_model:
 
 # Model Card for rope_vit_reg4_b14_capi-inat21
 
-A RoPE ViT image classification model. The model follows a two-stage training process: first, CAPI pretraining, then fine-tuned on the `iNaturalist 2021` dataset - <https://github.com/visipedia/inat_comp/tree/master/2021>.
+A RoPE ViT Reg4 B/14 image classification model.
+The model follows a two-stage training process: first, CAPI pretraining, then fine-tuned on the `iNaturalist 2021` dataset - <https://github.com/visipedia/inat_comp/tree/master/2021>.
 
 The model's class-to-index mapping uses original scientific names with full taxonomic rank,
 a partial mapping to common names can be found here: <https://gitlab.com/birder/birder/-/blob/main/public_datasets_metadata/inat21-mapping.json>

@@ -120,6 +120,18 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         config={"patch_size": 32, **BASE, "drop_path_rate": 0.0, "pre_norm": True, "norm_layer_eps": 1e-5},
     )
     registry.register_model_config(
+        "vit_b32_pn_npn",
+        vit,
+        config={
+            "patch_size": 32,
+            **BASE,
+            "drop_path_rate": 0.0,
+            "pre_norm": True,
+            "post_norm": False,
+            "norm_layer_eps": 1e-5,
+        },
+    )
+    registry.register_model_config(
         "vit_b16",
         vit,
         config={"patch_size": 16, **BASE},
@@ -240,6 +252,11 @@ def register_vit_configs(vit: type[BaseNet]) -> None:
         "vit_l14_pn",
         vit,
         config={"patch_size": 14, **LARGE, "pre_norm": True, "norm_layer_eps": 1e-5},
+    )
+    registry.register_model_config(
+        "vit_l14_pn_npn",
+        vit,
+        config={"patch_size": 14, **LARGE, "pre_norm": True, "post_norm": False, "norm_layer_eps": 1e-5},
     )
     registry.register_model_config(
         "vit_l14_pn_quick_gelu",

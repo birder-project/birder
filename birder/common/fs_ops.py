@@ -27,6 +27,7 @@ from birder.conf import settings
 from birder.data.transforms.classification import RGBType
 from birder.data.transforms.classification import inference_preset
 from birder.data.transforms.detection import InferenceTransform
+from birder.data.transforms.naflex import inference_preset as naflex_inference_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.model_registry.manifest import FileFormatType
@@ -1029,6 +1030,7 @@ def load_pretrained_model_and_transform(
     dst: Optional[str | Path] = None,
     file_format: FileFormatType = "pt",
     inference: bool = True,
+    naflex: bool = False,
     device: Optional[torch.device] = None,
     dtype: Optional[torch.dtype] = None,
     custom_config: Optional[dict[str, Any]] = None,
@@ -1053,6 +1055,8 @@ def load_pretrained_model_and_transform(
         Model format.
     inference
         Whether to prepare the model for inference mode.
+    naflex
+        Whether to use native aspect-ratio preprocessing for classification models.
     device
         Device to load the model on.
     dtype
@@ -1062,7 +1066,7 @@ def load_pretrained_model_and_transform(
     progress_bar
         Whether to display a progress bar during file download.
     classification_kwargs
-        Optional keyword arguments forwarded to inference_preset.
+        Optional keyword arguments forwarded to the selected classification inference preset.
     detection_kwargs
         Optional keyword arguments forwarded to InferenceTransform. If dynamic_size is
         not provided it defaults to the model signature value.
@@ -1089,6 +1093,9 @@ def load_pretrained_model_and_transform(
     size = lib.get_size_from_signature(model_info.signature)
     transform: Callable[..., torch.Tensor]
     if isinstance(model_info, DetectionModelInfo):
+        if naflex is True:
+            raise ValueError("NaFlex preprocessing is not supported for detection models")
+
         detection_args = {} if detection_kwargs is None else dict(detection_kwargs)
         detection_args.setdefault("dynamic_size", model_info.signature["dynamic"])
         transform = InferenceTransform(size, model_info.rgb_stats, **detection_args)
@@ -1096,7 +1103,12 @@ def load_pretrained_model_and_transform(
             net.set_dynamic_size()
     else:
         classification_args = {} if classification_kwargs is None else dict(classification_kwargs)
-        transform = inference_preset(size, model_info.rgb_stats, **classification_args)
+        if naflex is True:
+            patch_size = net.stem_stride
+            max_seq_len = (size[0] // patch_size) * (size[1] // patch_size)
+            transform = naflex_inference_preset(patch_size, max_seq_len, model_info.rgb_stats, **classification_args)
+        else:
+            transform = inference_preset(size, model_info.rgb_stats, **classification_args)
 
     return (net, model_info, transform)
 

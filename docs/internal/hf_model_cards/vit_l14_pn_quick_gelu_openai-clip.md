@@ -11,7 +11,7 @@ base_model:
 
 # Model Card for vit_l14_pn_quick_gelu_openai-clip
 
-A ViT l14 image encoder from the original OpenAI CLIP model by Radford et al., converted to the Birder format for image feature extraction.
+A ViT L/14 image encoder from the original OpenAI CLIP model by Radford et al., converted to the Birder format for image feature extraction.
 This version preserves the original model weights and architecture, including the CLIP projection layer for further downstream tasks.
 
 See: <https://huggingface.co/openai/clip-vit-large-patch14> and <https://github.com/openai/CLIP> for further details.

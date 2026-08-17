@@ -605,7 +605,7 @@ registry.register_model_config(
 registry.register_weights(
     "regnet_x_400m_il-common",
     {
-        "description": "RegNet X 400m model trained on the il-common dataset",
+        "description": "RegNet X 400 MF model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -620,7 +620,7 @@ registry.register_weights(
 registry.register_weights(
     "regnet_y_200m_il-common",
     {
-        "description": "RegNet Y 200m model trained on the il-common dataset",
+        "description": "RegNet Y 200 MF model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -634,7 +634,7 @@ registry.register_weights(
 registry.register_weights(
     "regnet_y_400m_il-common",
     {
-        "description": "RegNet Y 400m model trained on the il-common dataset",
+        "description": "RegNet Y 400 MF model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -648,7 +648,7 @@ registry.register_weights(
 registry.register_weights(
     "regnet_y_600m_il-common",
     {
-        "description": "RegNet Y 600m model trained on the il-common dataset",
+        "description": "RegNet Y 600 MF model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -662,7 +662,7 @@ registry.register_weights(
 registry.register_weights(
     "regnet_y_1_6g_il-common",
     {
-        "description": "RegNet Y 1.6g model trained on the il-common dataset",
+        "description": "RegNet Y 1.6 GF model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -677,7 +677,7 @@ registry.register_weights(
     "regnet_y_1_6g_eu-common",
     {
         "url": "https://huggingface.co/birder-project/regnet_y_1_6g_eu-common/resolve/main",
-        "description": "RegNet Y 1.6g model trained on the eu-common dataset",
+        "description": "RegNet Y 1.6 GF model trained on the eu-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -692,7 +692,7 @@ registry.register_weights(
     "regnet_y_8g_intermediate-eu-common",
     {
         "url": "https://huggingface.co/birder-project/regnet_y_8g_intermediate-eu-common/resolve/main",
-        "description": "RegNet Y 8g model with intermediate training, then fine-tuned on the eu-common dataset",
+        "description": "RegNet Y 8 GF model with intermediate training, then fine-tuned on the eu-common dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {

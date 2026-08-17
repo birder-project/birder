@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for pvt_v2_b2_mmcr-il-all
 
-A PVT v2 image classification model. The model follows a two-stage training process: first undergoing self-supervised training (MMCR) on the `il-all` dataset, then fine-tuned on the same dataset. The dataset, encompassing all relevant bird species found in Israel, including rarities.
+A PVT v2 B2 image classification model.
+The model was pretrained using MMCR on the `il-all` dataset, then fine-tuned on the same dataset, which encompasses all relevant bird species found in Israel, including rarities.
 
 The species list is derived from data available at <https://www.israbirding.com/checklist/>.
 

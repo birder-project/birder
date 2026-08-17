@@ -24,6 +24,7 @@ from birder.common import fs_ops
 from birder.common.lib import class_list_from_class_to_idx
 from birder.common.lib import format_duration
 from birder.conf import settings
+from birder.data.datasets.directory import CustomImageFolder
 
 logger = logging.getLogger(__name__)
 
@@ -31,16 +32,6 @@ logger = logging.getLogger(__name__)
 Image.MAX_IMAGE_PIXELS = int(2048 * 2048 * 1024 // 4 // 3)
 MAX_SIZE = 16_000
 QUEUE_TIMEOUT = 1.0
-
-
-class CustomImageFolder(ImageFolder):
-    def __init__(self, root: str, *, class_to_idx: dict[str, int]) -> None:
-        self._class_to_idx = class_to_idx
-        super().__init__(root, loader=str, allow_empty=True)
-
-    def find_classes(self, _directory: str) -> tuple[list[str], dict[str, int]]:
-        classes = class_list_from_class_to_idx(self._class_to_idx)
-        return (classes, self._class_to_idx)
 
 
 def _get_class_to_idx(paths: list[str]) -> dict[str, int]:
@@ -346,7 +337,7 @@ def pack(args: argparse.Namespace, pack_path: Path) -> None:
 
         datasets = []
         for path in data_paths:
-            datasets.append(CustomImageFolder(path, class_to_idx=class_to_idx))
+            datasets.append(CustomImageFolder(path, loader=str, allow_empty=True, class_to_idx=class_to_idx))
 
         dataset = ConcatDataset(datasets)
 

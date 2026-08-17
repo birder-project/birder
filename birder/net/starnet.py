@@ -196,7 +196,7 @@ registry.register_model_config(
 registry.register_weights(
     "starnet_esm10_il-common",
     {
-        "description": "StarNet extremely small model 1M trained on the il-common dataset",
+        "description": "StarNet ESM10 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

@@ -356,7 +356,7 @@ registry.register_model_config(
 registry.register_weights(
     "cas_vit_xs_il-common",
     {
-        "description": "CAS-ViT extra small model trained on the il-common dataset",
+        "description": "CAS-ViT XS model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

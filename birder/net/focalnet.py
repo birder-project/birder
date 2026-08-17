@@ -204,7 +204,7 @@ class FocalNetBlock(nn.Module):
         self.focal_level = focal_level
         self.use_post_norm = use_post_norm
 
-        self.norm1 = norm_layer(dim) if not use_post_norm else nn.Identity()
+        self.norm1 = norm_layer(dim) if use_post_norm is False else nn.Identity()
         self.modulation = FocalModulation(
             dim,
             focal_window=focal_window,
@@ -216,11 +216,11 @@ class FocalNetBlock(nn.Module):
             proj_drop=proj_drop,
             norm_layer=norm_layer,
         )
-        self.norm1_post = norm_layer(dim) if use_post_norm else nn.Identity()
+        self.norm1_post = norm_layer(dim) if use_post_norm is True else nn.Identity()
         self.ls1 = LayerScale2d(dim, layer_scale_value) if layer_scale_value is not None else nn.Identity()
         self.drop_path1 = StochasticDepth(drop_path, mode="row")
 
-        self.norm2 = norm_layer(dim) if not use_post_norm else nn.Identity()
+        self.norm2 = norm_layer(dim) if use_post_norm is False else nn.Identity()
         self.mlp = MLP(
             in_features=dim,
             hidden_features=int(dim * mlp_ratio),
@@ -228,7 +228,7 @@ class FocalNetBlock(nn.Module):
             act_layer=nn.GELU,
             drop=proj_drop,
         )
-        self.norm2_post = norm_layer(dim) if use_post_norm else nn.Identity()
+        self.norm2_post = norm_layer(dim) if use_post_norm is True else nn.Identity()
         self.ls2 = LayerScale2d(dim, layer_scale_value) if layer_scale_value is not None else nn.Identity()
         self.drop_path2 = StochasticDepth(drop_path, mode="row")
 
@@ -688,9 +688,7 @@ registry.register_weights(
     "focalnet_b_lrf_intermediate-eu-common",
     {
         "url": "https://huggingface.co/birder-project/focalnet_b_lrf_intermediate-eu-common/resolve/main",
-        "description": (
-            "FocalNet Base (LRF) model with intermediate training, then fine-tuned on the eu-common dataset"
-        ),
+        "description": "FocalNet Base LRF model with intermediate training, then fine-tuned on the eu-common dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {
@@ -706,7 +704,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/focalnet_b_lrf_intermediate-arabian-peninsula/resolve/main",
         "description": (
-            "FocalNet Base (LRF) model with intermediate training, then fine-tuned on the arabian-peninsula dataset"
+            "FocalNet Base LRF model with intermediate training, then fine-tuned on the arabian-peninsula dataset"
         ),
         "resolution": (384, 384),
         "formats": {

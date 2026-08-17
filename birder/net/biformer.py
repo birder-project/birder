@@ -571,7 +571,7 @@ registry.register_weights(
     "biformer_s_il-all",
     {
         "url": "https://huggingface.co/birder-project/biformer_s_il-all/resolve/main",
-        "description": "BiFormer small model trained on the il-all dataset",
+        "description": "BiFormer Small model trained on the il-all dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {

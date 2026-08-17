@@ -11,7 +11,7 @@ datasets:
 
 # Model Card for vit_b16_ls_franca-bioscan5m
 
-A ViT b16 image encoder pretrained using Franca.
+A ViT B/16 image encoder pretrained using Franca on the BIOSCAN-5M dataset.
 
 The model is primarily a feature extractor. Separately trained linear probing classification heads for various taxonomic levels (order, family, genus, species) are available for classification tasks.
 

@@ -609,8 +609,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/hieradet_d_small_dino-v2/resolve/main",
         "description": (
-            "HieraDet (d) small image encoder pretrained using DINOv2. "
-            "This model has not been fine-tuned for a specific classification task"
+            "HieraDet Small image encoder pretrained using DINO v2. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
         "formats": {
@@ -627,7 +627,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/hieradet_d_small_dino-v2-inat21/resolve/main",
         "description": (
-            "HieraDet (d) small model pretrained using DINOv2, then fine-tuned on the iNaturalist 2021 dataset"
+            "HieraDet Small model pretrained using DINO v2, then fine-tuned on the iNaturalist 2021 dataset"
         ),
         "resolution": (256, 256),
         "formats": {
@@ -644,7 +644,7 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/hieradet_d_small_dino-v2-inat21/resolve/main",
         "description": (
-            "HieraDet (d) small model pretrained using DINOv2, then fine-tuned on the iNaturalist 2021 dataset"
+            "HieraDet Small model pretrained using DINO v2, then fine-tuned on the iNaturalist 2021 dataset"
         ),
         "resolution": (384, 384),
         "formats": {
@@ -660,7 +660,7 @@ registry.register_weights(
     "hieradet_d_small_dino-v2-imagenet12k",
     {
         "url": "https://huggingface.co/birder-project/hieradet_d_small_dino-v2-imagenet12k/resolve/main",
-        "description": "HieraDet (d) small model pretrained using DINOv2, then fine-tuned on the ImageNet-12K dataset",
+        "description": "HieraDet Small model pretrained using DINO v2, then fine-tuned on the ImageNet 12K dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -677,8 +677,8 @@ registry.register_weights(  # SAM v2: https://arxiv.org/abs/2408.00714
     {
         "url": "https://huggingface.co/birder-project/hieradet_small_sam2_1/resolve/main",
         "description": (
-            "HieraDet small image encoder pretrained by Meta AI using SAM v2. "
-            "This model has not been fine-tuned for a specific classification task"
+            "HieraDet Small image encoder pretrained by Meta AI using SAM 2.1. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (1024, 1024),
         "formats": {

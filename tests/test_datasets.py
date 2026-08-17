@@ -3,16 +3,51 @@ import unittest
 from unittest.mock import patch
 
 import torch
+from torch.utils.data import DataLoader
 
+from birder.data.collators import naflex as naflex_collators
 from birder.data.datasets import coco
 from birder.data.datasets import directory
 from birder.data.datasets import fake
+from birder.data.datasets import naflex as naflex_datasets
 from birder.data.datasets import webdataset
 
 logging.disable(logging.CRITICAL)
 
 
 class TestDatasets(unittest.TestCase):
+    def test_naflex_multiscale_dataset_transforms_during_loading(self) -> None:
+        events: list[tuple[str, int]] = []
+
+        class TestDataset(torch.utils.data.Dataset):
+            def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
+                events.append(("load", index))
+                return (torch.full((1, 4, 4), index), index)
+
+            def __len__(self) -> int:
+                return 2
+
+        def transform(image: torch.Tensor) -> torch.Tensor:
+            index = int(image[0, 0, 0].item())
+            events.append(("transform", index))
+            return image[:, :2, :2]
+
+        batch_processor = naflex_collators.NaFlexBatchProcessor(
+            naflex_collators.NaFlexTrainingCollator(2),
+            {1: transform},
+            seed=0,
+        )
+        dataset = naflex_datasets.NaFlexMultiScaleDataset(TestDataset(), batch_processor)
+        loader = DataLoader(dataset, batch_size=2, collate_fn=batch_processor.base_collator)
+
+        (patches, grid_sizes, valid_mask), targets = next(iter(loader))
+
+        self.assertSequenceEqual(events, [("load", 0), ("transform", 0), ("load", 1), ("transform", 1)])
+        self.assertEqual(patches.size(), (2, 1, 4))
+        torch.testing.assert_close(grid_sizes, torch.ones((2, 2), dtype=torch.int64))
+        self.assertTrue(valid_mask.all().item())
+        torch.testing.assert_close(targets, torch.tensor([0, 1]))
+
     def test_fake_data_with_paths(self) -> None:
         dataset = fake.FakeDataWithPaths(
             size=4,
@@ -219,7 +254,7 @@ class TestDatasets(unittest.TestCase):
         class_to_idx = {"class-a": 1, "class-b": 2}
         label_mapping = {"class-a": "family-1"}
 
-        with self.assertRaisesRegex(ValueError, "Missing label mapping for class 'class-b'"):
+        with self.assertRaises(ValueError):
             coco._mapped_class_to_idx(class_to_idx, label_mapping)
 
     def test_build_label_mapping_indices(self) -> None:

@@ -32,7 +32,7 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools list-models --pretrained\n"
             "python -m birder.tools list-models --pretrained\n"
             "python -m birder.tools list-models --pretrained --detection --verbose\n"
-            "python tool.py list-models --pretrained --verbose --filter '*mobile*'\n"
+            "python -m birder.tools list-models --pretrained --verbose --filter '*mobile*'\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )

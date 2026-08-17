@@ -1492,8 +1492,8 @@ registry.register_weights(
             "https://huggingface.co/birder-project/d_fine_l_objects365-coco_hgnet_v2_b4_pp-imagenet22k/resolve/main"
         ),
         "description": (
-            "D-FINE large with a HGNet v2 B4 backbone pretrained on ImageNet 22K, "
-            "detection model trained on the Objects365-2020 dataset and fine-tuned on the COCO dataset"
+            "D-FINE L detection model with an HGNet v2 B4 backbone pretrained on ImageNet 22K, trained on the "
+            "Objects365-2020 dataset, then fine-tuned on the COCO dataset"
         ),
         "resolution": (640, 640),
         "formats": {
@@ -1513,8 +1513,8 @@ registry.register_weights(
             "https://huggingface.co/birder-project/d_fine_l_objects365-coco_hgnet_v2_b4_pp-imagenet22k/resolve/main"
         ),
         "description": (
-            "D-FINE large (reparameterized) with a HGNet v2 B4 backbone pretrained on ImageNet 22K, "
-            "detection model trained on the Objects365-2020 dataset and fine-tuned on the COCO dataset"
+            "D-FINE L (reparameterized) detection model with an HGNet v2 B4 backbone pretrained on ImageNet 22K, "
+            "trained on the Objects365-2020 dataset, then fine-tuned on the COCO dataset"
         ),
         "resolution": (640, 640),
         "formats": {

@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for mobilenet_v4_l_eu-common
 
-A MobileNet v4 image classification model. This model was trained on the `eu-common` dataset containing common European bird species.
+A MobileNet v4 Large image classification model.
+This model was trained on the `eu-common` dataset containing common European bird species.
 
 The species list is derived from the Collins bird guide [^1].
 

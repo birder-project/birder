@@ -13,9 +13,9 @@ from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
 from birder.conf import settings
+from birder.data.datasets.directory import CustomImageFolder
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
-from birder.tools.pack import CustomImageFolder
 from birder.tools.stats import detection_object_count
 from birder.tools.stats import directory_label_count
 
@@ -473,8 +473,10 @@ def print_datasets_stats(_ctx):
         class_to_idx = fs_ops.read_class_file(class_file)
         dataset_name = class_file.stem.removesuffix("_classes")
 
-        training_dataset = CustomImageFolder(settings.TRAINING_DATA_PATH, class_to_idx=class_to_idx)
-        validation_dataset = CustomImageFolder(settings.VALIDATION_DATA_PATH, class_to_idx=class_to_idx)
+        training_dataset = CustomImageFolder(settings.TRAINING_DATA_PATH, allow_empty=True, class_to_idx=class_to_idx)
+        validation_dataset = CustomImageFolder(
+            settings.VALIDATION_DATA_PATH, allow_empty=True, class_to_idx=class_to_idx
+        )
         datasets_stats.append(
             {
                 "Name": dataset_name,
@@ -652,6 +654,7 @@ def predict_eval_benchmarks(
     size=None,
     parallel=True,
     simple_crop=True,
+    naflex=False,
 ):
     """
     Run prediction across evaluation benchmarks with benchmark-specific overrides
@@ -681,6 +684,8 @@ def predict_eval_benchmarks(
         base_cmd += ["--size", str(size)]
     if parallel is True:
         base_cmd.append("--parallel")
+    if naflex is True:
+        base_cmd.append("--naflex")
 
     base_cmd += [
         "--gpu",
@@ -702,7 +707,7 @@ def predict_eval_benchmarks(
         for run_spec in EVAL_BENCHMARK_PREDICT_RUNS[benchmark_name]:
             run_index += 1
             cmd = list(base_cmd)
-            if simple_crop is True and run_spec.get("simple_crop", True) is True:
+            if naflex is False and simple_crop is True and run_spec.get("simple_crop", True) is True:
                 cmd.append("--simple-crop")
             if run_spec.get("save_labels", False) is True:
                 cmd.append("--save-labels")

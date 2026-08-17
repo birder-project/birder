@@ -553,7 +553,7 @@ registry.register_model_config(
 registry.register_weights(
     "efficientvit_msft_m0_il-common",
     {
-        "description": "EfficientViT (MSFT) M0 model trained on the il-common dataset",
+        "description": "EfficientViT MSFT M0 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

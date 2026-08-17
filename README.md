@@ -75,16 +75,16 @@ mkdir data
 wget https://huggingface.co/spaces/birder-project/birder-image-classification/resolve/main/Eurasian%20teal.jpeg -O data/img_001.jpeg
 ```
 
-To classify bird images, use the `birder-predict` script as follows:
+For a quick first run after installing from PyPI, use the `birder-predict` convenience command:
 
 ```sh
 birder-predict -n mvit_v2_t -t il-all --show data/img_001.jpeg
 ```
 
-For more options and detailed usage of the prediction tool, run:
+For more options and detailed usage of the prediction tool, run the canonical module command:
 
 ```sh
-birder-predict --help
+python -m birder.scripts.predict --help
 ```
 
 For more detailed usage instructions and examples, see [docs/README.md](docs/README.md).

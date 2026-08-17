@@ -653,7 +653,7 @@ registry.register_weights(
     "dino_v2_vit_reg4_so150m_p14_ls_bio-224px",
     {
         "url": "https://huggingface.co/birder-project/dino_v2_vit_reg4_so150m_p14_ls_bio/resolve/main",
-        "description": "DINOv2 with a ViT reg4 SO150m p14 image encoder, trained on natural biological images",
+        "description": "DINO v2 model with a SoViT Reg4 150M/14 image encoder, trained on natural biological images",
         "resolution": (224, 224),
         "formats": {
             "pt": {
@@ -669,7 +669,7 @@ registry.register_weights(
     "dino_v2_vit_reg4_so150m_p14_ls_bio-252px",
     {
         "url": "https://huggingface.co/birder-project/dino_v2_vit_reg4_so150m_p14_ls_bio/resolve/main",
-        "description": "DINOv2 with a ViT reg4 SO150m p14 image encoder, trained on natural biological images",
+        "description": "DINO v2 model with a SoViT Reg4 150M/14 image encoder, trained on natural biological images",
         "resolution": (252, 252),
         "formats": {
             "pt": {

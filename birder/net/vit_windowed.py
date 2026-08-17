@@ -1,6 +1,7 @@
 import math
 from collections.abc import Callable
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -332,6 +333,9 @@ class ViT_Windowed(DetectorBackbone):
         attention_dropout = 0.0
         dropout = 0.0
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", True)
+        pos_embed_interpolation_mode: Literal["bilinear", "bicubic"] = self.config.get(
+            "pos_embed_interpolation_mode", "bicubic"
+        )
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
@@ -348,10 +352,14 @@ class ViT_Windowed(DetectorBackbone):
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
+        if pos_embed_interpolation_mode not in ("bilinear", "bicubic"):
+            raise ValueError(f"Unknown pos_embed_interpolation_mode '{pos_embed_interpolation_mode}'")
+
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
         self.pos_embed_special_tokens = pos_embed_special_tokens
+        self.pos_embed_interpolation_mode = pos_embed_interpolation_mode
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
@@ -454,6 +462,7 @@ class ViT_Windowed(DetectorBackbone):
             (orig_grid_h, orig_grid_w),
             (grid_h, grid_w),
             self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
+            interpolation_mode=self.pos_embed_interpolation_mode,
             antialias=False,
         )
 
@@ -607,6 +616,7 @@ class ViT_Windowed(DetectorBackbone):
                 (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
                 (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
                 self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
+                interpolation_mode=self.pos_embed_interpolation_mode,
             )
 
         self.pos_embedding = nn.Parameter(pos_embedding)

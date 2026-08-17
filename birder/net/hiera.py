@@ -30,6 +30,7 @@ from torchvision.ops import StochasticDepth
 from birder.common.masking import mask_from_indices
 from birder.layers import EfficientProbing
 from birder.layers import MultiHeadAttentionPool
+from birder.layers.activations import get_activation_module
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
@@ -340,6 +341,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         attn_pool_head: bool = self.config.get("attn_pool_head", False)
         attn_pool_type: str = self.config.get("attn_pool_type", "MultiHeadAttentionPool")
         attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
+        attn_pool_act_layer_type: str = self.config.get("attn_pool_act_layer_type", "gelu")
         drop_path_rate: float = self.config["drop_path_rate"]
 
         self.grad_checkpointing = False
@@ -439,7 +441,13 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             else:
                 raise ValueError(f"Unknown attn_pool_type '{attn_pool_type}'")
 
-            attn_pool = attn_pool(embed_dim, attn_pool_num_heads, int(mlp_ratio * embed_dim), qkv_bias=True)
+            attn_pool = attn_pool(
+                embed_dim,
+                attn_pool_num_heads,
+                int(mlp_ratio * embed_dim),
+                qkv_bias=True,
+                activation_layer=get_activation_module(attn_pool_act_layer_type),
+            )
 
         self.body = nn.Sequential(stages)
         self.features = nn.Sequential(
@@ -863,8 +871,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/hiera_abswin_base_mim/resolve/main",
         "description": (
-            "Hiera base with abswin image encoder pretrained using Masked Image Modeling (MIM) for 400 epochs. "
-            "This model has not been fine-tuned for a specific classification task"
+            "Hiera AbsWin Base image encoder pretrained using Masked Image Modeling (MIM) for 400 epochs. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
         "formats": {
@@ -885,8 +893,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/hiera_abswin_base_mim-intermediate-eu-common/resolve/main",
         "description": (
-            "Hiera base with abswin model with MIM pretraining and intermediate training, "
-            "then fine-tuned on the eu-common dataset"
+            "Hiera AbsWin Base model with MIM pretraining and intermediate training, then fine-tuned on the "
+            "eu-common dataset"
         ),
         "resolution": (384, 384),
         "formats": {

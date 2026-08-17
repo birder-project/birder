@@ -12,8 +12,8 @@ base_model:
 
 # Model Card for rope_deit3_m14_dino-v2-dist-bio
 
-`rope_deit3_m14_dino-v2-dist-bio` is a compact Bio-DINO image encoder distilled from the larger [Bio-DINO SoViT-150M/14 model](https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio).
-It keeps the same natural-photography biodiversity scope as the teacher model, but uses a much smaller DeiT3-M/14-style student with 38.3M backbone parameters and 512-dimensional embeddings.
+RoPE DeiT3 M/14 is a compact Bio-DINO image encoder distilled from the larger [Bio-DINO SoViT Reg4 150M/14 model](https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio).
+It keeps the same natural-photography biodiversity scope as the teacher model, but uses a much smaller RoPE DeiT3 M/14 student with 38.3M backbone parameters and 512-dimensional embeddings.
 
 For the training-data description, intended scope, limitations, broader evaluation design and background on the Bio-DINO release, see the [teacher model card](https://huggingface.co/birder-project/vit_reg4_so150m_p14_ls_dino-v2-bio).
 This card focuses only on what is specific to the distilled model.

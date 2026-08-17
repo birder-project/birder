@@ -347,7 +347,7 @@ registry.register_model_config("mobilevit_v2_2_0", MobileViT_v2, config={"width_
 registry.register_weights(
     "mobilevit_v2_1_0_il-common",
     {
-        "description": "MobileViT v2 (1.0 width factor) model trained on the il-common dataset",
+        "description": "MobileViT v2 1.0x model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

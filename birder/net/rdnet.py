@@ -409,7 +409,7 @@ registry.register_weights(
     "rdnet_t_ibot-bioscan5m",
     {
         "url": "https://huggingface.co/birder-project/rdnet_t_ibot-bioscan5m/resolve/main",
-        "description": "RDNet tiny model pretrained using iBOT on the BIOSCAN-5M dataset",
+        "description": "RDNet Tiny model pretrained using iBOT on the BIOSCAN-5M dataset",
         "resolution": (224, 224),
         "formats": {
             "pt": {
@@ -424,7 +424,7 @@ registry.register_weights(
     "rdnet_s_arabian-peninsula256px",
     {
         "url": "https://huggingface.co/birder-project/rdnet_s_arabian-peninsula/resolve/main",
-        "description": "RDNet small model trained on the arabian-peninsula dataset",
+        "description": "RDNet Small model trained on the arabian-peninsula dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -439,7 +439,7 @@ registry.register_weights(
     "rdnet_s_arabian-peninsula",
     {
         "url": "https://huggingface.co/birder-project/rdnet_s_arabian-peninsula/resolve/main",
-        "description": "RDNet small model trained on the arabian-peninsula dataset",
+        "description": "RDNet Small model trained on the arabian-peninsula dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {

@@ -483,7 +483,7 @@ registry.register_weights(
     "moganet_s_eu-common256px",
     {
         "url": "https://huggingface.co/birder-project/moganet_s_eu-common/resolve/main",
-        "description": "MogaNet small model trained on the eu-common dataset",
+        "description": "MogaNet Small model trained on the eu-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -498,7 +498,7 @@ registry.register_weights(
     "moganet_s_eu-common",
     {
         "url": "https://huggingface.co/birder-project/moganet_s_eu-common/resolve/main",
-        "description": "MogaNet small model trained on the eu-common dataset",
+        "description": "MogaNet Small model trained on the eu-common dataset",
         "resolution": (384, 384),
         "formats": {
             "pt": {

@@ -255,7 +255,7 @@ registry.register_weights(
     "mae_hiera_hiera_abswin_base",
     {
         "url": "https://huggingface.co/birder-project/mae_hiera_hiera_abswin_base/resolve/main",
-        "description": "Masked auto-encoder Hiera with a Hiera abswin base image encoder, trained on 12M images",
+        "description": "MAE Hiera model with a Hiera AbsWin Base image encoder, pretrained on 12M images",
         "resolution": (224, 224),
         "formats": {
             "pt": {

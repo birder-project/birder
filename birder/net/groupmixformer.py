@@ -468,7 +468,7 @@ registry.register_model_config(
 registry.register_weights(
     "groupmixformer_mobile_il-common",
     {
-        "description": "GroupMixFormer mobile model trained on the il-common dataset",
+        "description": "GroupMixFormer Mobile model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

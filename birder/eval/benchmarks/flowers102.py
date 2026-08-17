@@ -102,7 +102,7 @@ def _load_flowers102_metadata(dataset_path: Path) -> pl.DataFrame:
     rows: list[dict[str, Any]] = []
     for split in ["training", "validation", "testing"]:
         split_dir = dataset_path.joinpath(split)
-        if not split_dir.exists():
+        if split_dir.exists() is False:
             continue
 
         dataset = ImageFolder(str(split_dir))

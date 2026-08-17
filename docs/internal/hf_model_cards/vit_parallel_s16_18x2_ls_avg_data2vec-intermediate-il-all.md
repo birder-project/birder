@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for vit_parallel_s16_18x2_ls_avg_data2vec-intermediate-il-all
 
-A ViT Parallel s16 18x2 image classification model. The model follows a three-stage training process: first, data2vec pretraining, next intermediate training on a large-scale dataset containing diverse bird species from around the world, finally fine-tuned specifically on the `il-all` dataset. The dataset, encompassing all relevant bird species found in Israel, including rarities.
+A ViT Parallel S/16 18x2 image classification model.
+The model follows a three-stage training process: first, data2vec pretraining, next intermediate training on a large-scale dataset containing diverse bird species from around the world, finally fine-tuned specifically on the `il-all` dataset, which encompasses all relevant bird species found in Israel, including rarities.
 
 The species list is derived from data available at <https://www.israbirding.com/checklist/>.
 

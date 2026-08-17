@@ -11,7 +11,8 @@ base_model:
 
 # Model Card for hiera_abswin_base_mim-intermediate-eu-common
 
-A Hiera image classification model. The model follows a three-stage training process: first, masked image modeling, next intermediate training on a large-scale dataset containing diverse bird species from around the world, finally fine-tuned specifically on the `eu-common` dataset.
+A Hiera AbsWin Base image classification model.
+The model follows a three-stage training process: first, masked image modeling, next intermediate training on a large-scale dataset containing diverse bird species from around the world, finally fine-tuned specifically on the `eu-common` dataset.
 
 The species list is derived from the Collins bird guide [^1].
 

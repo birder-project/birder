@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for mvit_v2_s_yellowstone
 
-A MViTv2 small image classification model. This model was trained on the `yellowstone` dataset (all the relevant bird species found in the Yellowstone national park).
+An MViT v2 Small image classification model.
+This model was trained on the `yellowstone` dataset (all the relevant bird species found in Yellowstone National Park).
 
 The species list is derived from data available at <https://avibase.bsc-eoc.org/checklist.jsp?region=USmtys>.
 

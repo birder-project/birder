@@ -920,7 +920,7 @@ registry.register_model_config(
 registry.register_weights(
     "fastvit_t8_il-common",
     {
-        "description": "FastViT T-8 model trained on the il-common dataset",
+        "description": "FastViT T8 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -934,7 +934,7 @@ registry.register_weights(
 registry.register_weights(
     "fastvit_t8_il-common_reparameterized",
     {
-        "description": "FastViT T-8 (reparameterized) model trained on the il-common dataset",
+        "description": "FastViT T8 (reparameterized) model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -948,7 +948,7 @@ registry.register_weights(
 registry.register_weights(
     "fastvit_t12_il-common",
     {
-        "description": "FastViT T-12 model trained on the il-common dataset",
+        "description": "FastViT T12 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -962,7 +962,7 @@ registry.register_weights(
 registry.register_weights(
     "fastvit_t12_il-common_reparameterized",
     {
-        "description": "FastViT T-12 (reparameterized) model trained on the il-common dataset",
+        "description": "FastViT T12 (reparameterized) model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -976,7 +976,7 @@ registry.register_weights(
 registry.register_weights(
     "fastvit_sa12_il-common",
     {
-        "description": "FastViT SA-12 model trained on the il-common dataset",
+        "description": "FastViT SA12 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -990,7 +990,7 @@ registry.register_weights(
 registry.register_weights(
     "fastvit_sa12_il-common_reparameterized",
     {
-        "description": "FastViT SA-12 (reparameterized) model trained on the il-common dataset",
+        "description": "FastViT SA12 (reparameterized) model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -1004,7 +1004,7 @@ registry.register_weights(
 registry.register_weights(
     "mobileclip_v1_i0_il-common",
     {
-        "description": "MobileClip v1 i0 model trained on the il-common dataset",
+        "description": "MobileCLIP v1 i0 model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -1018,7 +1018,7 @@ registry.register_weights(
 registry.register_weights(
     "mobileclip_v1_i0_il-common_reparameterized",
     {
-        "description": "MobileClip v1 i0 (reparameterized) model trained on the il-common dataset",
+        "description": "MobileCLIP v1 i0 (reparameterized) model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

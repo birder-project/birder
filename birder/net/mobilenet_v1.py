@@ -156,7 +156,7 @@ registry.register_model_config("mobilenet_v1_1_0", MobileNet_v1, config={"alpha"
 registry.register_weights(
     "mobilenet_v1_0_5_il-common",
     {
-        "description": "MobileNet v1 (0.5 multiplier) model trained on the il-common dataset",
+        "description": "MobileNet v1 0.5x model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {
@@ -170,7 +170,7 @@ registry.register_weights(
 registry.register_weights(
     "mobilenet_v1_1_0_il-common",
     {
-        "description": "MobileNet v1 (1.0 multiplier) model trained on the il-common dataset",
+        "description": "MobileNet v1 1.0x model trained on the il-common dataset",
         "resolution": (256, 256),
         "formats": {
             "pt": {

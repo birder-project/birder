@@ -9,7 +9,8 @@ license: apache-2.0
 
 # Model Card for hgnet_v2_b2_danube-delta
 
-A HGNet v2 image classification model. This model was trained on the `danube-delta` dataset (all the relevant bird species found int the Danube Delta region).
+An HGNet v2 B2 image classification model.
+This model was trained on the `danube-delta` dataset (all the relevant bird species found in the Danube Delta region).
 
 The species list is derived from data available at <https://www.discoverdanubedelta.com/wp-content/uploads/2023/01/BirdsList-ian-2023.pdf>.
 

@@ -29,9 +29,7 @@ from birder.layers.activations import get_activation_module
 from birder.layers.rope import RoPE
 from birder.layers.rope import RoPERotationType
 from birder.layers.rope import RoPEStyleType
-from birder.layers.rope import apply_interleaved_rotary_pos_embed
-from birder.layers.rope import apply_rotary_pos_embed
-from birder.layers.rope import build_rotary_pos_embed
+from birder.layers.rope import get_rope_apply_fn
 from birder.model_registry import registry
 from birder.net._vit_configs import BASE
 from birder.net._vit_configs import GIANT
@@ -98,12 +96,7 @@ class RoPEAttention(nn.Module):
         self.scale = self.head_dim**-0.5
         self.num_special_tokens = num_special_tokens
         self.num_reg_tokens = num_reg_tokens
-        if rope_rot_type == "standard":
-            self.apply_rot_fn = apply_rotary_pos_embed
-        elif rope_rot_type == "interleaved":
-            self.apply_rot_fn = apply_interleaved_rotary_pos_embed
-        else:
-            raise ValueError(f"Unknown rope_rot_type, got '{rope_rot_type}'")
+        self.apply_rot_fn = get_rope_apply_fn(rope_rot_type)
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         if qk_norm is True:
@@ -147,8 +140,8 @@ class RoPEAttention(nn.Module):
         k = self.k_norm(k)
 
         patch_rope, reg_rope = rope
-        q = self._apply_split_rope(q, patch_rope, reg_rope)
-        k = self._apply_split_rope(k, patch_rope, reg_rope)
+        q = self._apply_split_rope(q, patch_rope, reg_rope).type_as(v)
+        k = self._apply_split_rope(k, patch_rope, reg_rope).type_as(v)
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q,
@@ -482,6 +475,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
         attn_pool_special_tokens: bool = self.config.get("attn_pool_special_tokens", False)
         attn_pool_norm_eps: float = self.config.get("attn_pool_norm_eps", 1e-5)
+        attn_pool_act_layer_type: str = self.config.get("attn_pool_act_layer_type", "gelu")
         norm_layer_type: str = self.config.get("norm_layer_type", "RMSNorm")
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_layer_type: str = self.config.get("mlp_layer_type", "FFN")
@@ -493,6 +487,9 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         rope_grid_offset: int = self.config.get("rope_grid_offset", 0)
         rope_temperature: float = self.config.get("rope_temperature", 10000.0)
         rope_reg_temperature: float = self.config.get("rope_reg_temperature", 100.0)
+        rope_shift_coords: Optional[float] = self.config.get("rope_shift_coords", None)
+        rope_jitter_coords: Optional[float] = self.config.get("rope_jitter_coords", None)
+        rope_rescale_coords: Optional[float] = self.config.get("rope_rescale_coords", None)
         pt_grid_size: Optional[tuple[int, int]] = self.config.get("pt_grid_size", None)
         dropout: float = self.config.get("dropout", 0.0)
         attention_dropout: float = self.config.get("attention_dropout", 0.0)
@@ -592,6 +589,9 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             pt_grid_size=self.pt_grid_size,
             rope_style=rope_style,
             rope_rot_type=rope_rot_type,
+            shift_coords=rope_shift_coords,
+            jitter_coords=rope_jitter_coords,
+            rescale_coords=rope_rescale_coords,
         )
         if self.num_reg_tokens == 0:
             self.rope_reg = None
@@ -649,7 +649,12 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
                 raise ValueError(f"Unknown attn_pool_type '{attn_pool_type}'")
 
             self.attn_pool = attn_pool(
-                hidden_dim, attn_pool_num_heads, mlp_dim, qkv_bias=True, norm_eps=attn_pool_norm_eps
+                hidden_dim,
+                attn_pool_num_heads,
+                mlp_dim,
+                qkv_bias=True,
+                norm_eps=attn_pool_norm_eps,
+                activation_layer=get_activation_module(attn_pool_act_layer_type),
             )
 
         num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
@@ -714,22 +719,9 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
 
     def _get_rope_embed(self, H: int, W: int) -> RoPEPosEmbedType:
         if self.dynamic_size is False:
-            rope = self.rope.pos_embed
-        elif H == self.size[0] and W == self.size[1]:
-            rope = self.rope.pos_embed
+            rope = self.rope.get_pos_embed(self.rope.grid_size)
         else:
-            rope = torch.concat(
-                build_rotary_pos_embed(
-                    self.hidden_dim // self.num_heads,
-                    self.rope_temperature,
-                    grid_size=(H // self.patch_size, W // self.patch_size),
-                    grid_indexing=self.rope_grid_indexing,
-                    grid_offset=self.rope_grid_offset,
-                    pt_grid_size=self.pt_grid_size,
-                    rope_style=self.rope_style,
-                ),
-                dim=-1,
-            ).to(self.rope.pos_embed.device, dtype=self.rope.pos_embed.dtype)
+            rope = self.rope.get_pos_embed((H // self.patch_size, W // self.patch_size))
 
         if self.rope_reg is not None:
             rope_reg = self.rope_reg.pos_embed.to(rope.device, dtype=rope.dtype)
@@ -1030,19 +1022,8 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
 
             self.pos_embedding = nn.Parameter(pos_embedding)
 
-        # Adjust RoPE
-        old_dtype = self.rope.pos_embed.dtype
-        self.rope = RoPE(
-            self.hidden_dim // self.num_heads,
-            temperature=self.rope_temperature,
-            grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
-            grid_indexing=self.rope_grid_indexing,
-            grid_offset=self.rope_grid_offset,
-            pt_grid_size=self.pt_grid_size,
-            rope_style=self.rope_style,
-            rope_rot_type=self.rope_rot_type,
-            device=self.rope.pos_embed.device,
-        ).to(dtype=old_dtype)
+        grid_size = (new_size[0] // self.patch_size, new_size[1] // self.patch_size)
+        self.rope.set_grid_size(grid_size)
 
         # Define adjusted decoder block
         self.decoder_block = partial(
@@ -1051,7 +1032,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             num_special_tokens=self.num_special_tokens,
             num_reg_tokens=self.num_reg_tokens,
             activation_layer=self.act_layer,
-            grid_size=(new_size[0] // self.patch_size, new_size[1] // self.patch_size),
+            grid_size=grid_size,
             rope_grid_indexing=self.rope_grid_indexing,
             rope_grid_offset=self.rope_grid_offset,
             rope_temperature=self.rope_temperature,
@@ -1116,8 +1097,8 @@ registry.register_weights(
     {
         "url": "https://huggingface.co/birder-project/rope_vit5_reg4_b16_nepa-bio/resolve/main",
         "description": (
-            "RoPE ViT-5 reg4 b16 model trained on natural biological images. "
-            "This model has not been fine-tuned for a specific classification task"
+            "RoPE ViT-5 Reg4 B/16 image encoder pretrained using NEPA on natural biological images. "
+            "It has not been fine-tuned for a specific classification task"
         ),
         "resolution": (224, 224),
         "formats": {

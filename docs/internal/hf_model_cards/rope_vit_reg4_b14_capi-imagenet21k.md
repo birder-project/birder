@@ -13,7 +13,8 @@ datasets:
 
 # Model Card for rope_vit_reg4_b14_capi-imagenet21k
 
-A RoPE ViT image classification model. The model follows a two-stage training process: first, CAPI pretraining, then fine-tuned on the `ImageNet-21K` dataset.
+A RoPE ViT Reg4 B/14 image classification model.
+The model follows a two-stage training process: first, CAPI pretraining, then fine-tuned on the `ImageNet-21K` dataset.
 
 ## RoPE Configuration
 

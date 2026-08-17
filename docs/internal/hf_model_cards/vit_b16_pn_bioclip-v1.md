@@ -13,7 +13,7 @@ datasets:
 
 # Model Card for vit_b16_pn_bioclip-v1
 
-A ViT b16 image encoder from BioCLIP by Stevens et al., converted to the Birder format for image feature extraction.
+A ViT B/16 image encoder from BioCLIP v1 by Stevens et al., converted to the Birder format for image feature extraction.
 This version preserves the original model weights and architecture.
 Trained on the large-scale TreeOfLife-10M dataset, it serves as a powerful foundation for downstream computer vision tasks.
 The model excels at understanding biological imagery across diverse taxonomic groups.

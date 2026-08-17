@@ -11,7 +11,7 @@ base_model:
 
 # Model Card for hieradet_small_sam2_1
 
-A HieraDet small image encoder from Meta's SAM 2.1 release, converted to the Birder format for image feature extraction.
+A HieraDet Small image encoder from Meta's SAM 2.1 release, converted to the Birder format for image feature extraction.
 This version retains the pretrained backbone weights and exposes the backbone as a general-purpose visual feature extractor for downstream tasks (e.g., embeddings or detection backbones).
 
 See: <https://huggingface.co/facebook/sam2.1-hiera-small> and the official SAM 2 repository for further details.

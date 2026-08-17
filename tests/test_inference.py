@@ -4,8 +4,10 @@ import unittest
 import numpy as np
 import torch
 from torch import nn
+from torch.utils.data import DataLoader
 
 from birder import net
+from birder.data.collators.naflex import NaFlexPathCollator
 from birder.inference import classification
 from birder.inference import sliding_window
 from birder.inference import wbf
@@ -20,6 +22,18 @@ class OrderTestModel(nn.Module):
         # This lets us track if order is preserved
         batch_size = x.size(0)
         return x.view(batch_size, -1)[:, :10]
+
+
+class StructuredInputTestModel(nn.Module):
+    def embedding(self, x: torch.Tensor, grid_sizes: torch.Tensor, valid_mask: torch.Tensor) -> torch.Tensor:
+        x = x.masked_fill(~valid_mask.unsqueeze(-1), 0)
+        return x[:, 0, :10] + grid_sizes[:, :1]
+
+    def classify(self, x: torch.Tensor) -> torch.Tensor:
+        return x
+
+    def forward(self, x: torch.Tensor, grid_sizes: torch.Tensor, valid_mask: torch.Tensor) -> torch.Tensor:
+        return self.classify(self.embedding(x, grid_sizes, valid_mask))
 
 
 class TestInference(unittest.TestCase):
@@ -75,6 +89,34 @@ class TestInference(unittest.TestCase):
             expected_logits = self.model(dummy_input).cpu().float().numpy()
 
         np.testing.assert_allclose(out, expected_logits)
+
+    def test_structured_dataloader_input(self) -> None:
+        dataset = [
+            ("image_a.jpg", torch.rand((3, 4, 6)), 3),
+            ("image_b.jpg", torch.rand((3, 2, 4)), 7),
+        ]
+        dataloader = DataLoader(dataset, batch_size=2, collate_fn=NaFlexPathCollator(2))
+
+        for return_embedding in (False, True):
+            with self.subTest(return_embedding=return_embedding), torch.inference_mode():
+                result = list(
+                    classification.infer_dataloader_iter(
+                        torch.device("cpu"),
+                        StructuredInputTestModel(),
+                        dataloader,
+                        return_embedding=return_embedding,
+                        num_samples=2,
+                    )
+                )
+
+            self.assertEqual(len(result), 1)
+            paths, out, labels, embeddings = result[0]
+            self.assertSequenceEqual(paths, ["image_a.jpg", "image_b.jpg"])
+            self.assertEqual(out.shape, (2, 10))
+            np.testing.assert_array_equal(labels, np.array([3, 7]))
+            self.assertEqual(len(embeddings), int(return_embedding))
+            if return_embedding is True:
+                self.assertEqual(embeddings[0].shape, (2, 10))
 
 
 class TestWBF(unittest.TestCase):
