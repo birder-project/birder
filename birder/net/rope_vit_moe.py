@@ -18,8 +18,10 @@ from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
 from birder.layers import FFN
+from birder.layers import EfficientProbing
 from birder.layers import LayerNorm2d
 from birder.layers import LayerScale
+from birder.layers import MultiHeadAttentionPool
 from birder.layers.activations import get_activation_module
 from birder.layers.rope import RoPE
 from birder.layers.rope import RoPERotationType
@@ -64,6 +66,8 @@ class EncoderBlock(nn.Module):
         norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
         qkv_bias: bool = True,
+        qk_norm: bool = False,
+        attn_norm: bool = False,
         rope_rot_type: RoPERotationType = "standard",
     ) -> None:
         super().__init__()
@@ -75,6 +79,8 @@ class EncoderBlock(nn.Module):
             proj_drop=projection_dropout,
             num_special_tokens=num_special_tokens,
             qkv_bias=qkv_bias,
+            qk_norm=qk_norm,
+            attn_norm=attn_norm,
             norm_layer=norm_layer,
             norm_layer_eps=norm_layer_eps,
             rope_rot_type=rope_rot_type,
@@ -87,6 +93,7 @@ class EncoderBlock(nn.Module):
 
         self.norm2 = norm_layer(hidden_dim, eps=norm_layer_eps)
         self.mlp = mlp_layer(hidden_dim, mlp_dim, act_layer=activation_layer, dropout=dropout)
+        self.is_sparse_moe = isinstance(self.mlp, SparseMoE_FFN)
         self.moe_loss_output = False
         if layer_scale_init_value is not None:
             self.layer_scale_2 = LayerScale(hidden_dim, layer_scale_init_value)
@@ -109,20 +116,30 @@ class EncoderBlock(nn.Module):
                         nn.init.normal_(m.bias, std=1e-6)
 
     def forward(
-        self, x: torch.Tensor, rope: torch.Tensor, attn_mask: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        rope: torch.Tensor,
+        attn_mask: Optional[torch.Tensor] = None,
+        token_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor | tuple[torch.Tensor, AuxLossesType]:
         x = x + self.drop_path(self.layer_scale_1(self.attn(self.norm1(x), rope, attn_mask=attn_mask)))
-        if self.training is True and self.moe_loss_output is True:
-            y, aux_losses = self.mlp(self.norm2(x))
-            x = x + self.drop_path(self.layer_scale_2(y))
-            return (x, aux_losses)
+        y = self.norm2(x)
+        if self.is_sparse_moe is True:
+            if self.training is True and self.moe_loss_output is True:
+                y, aux_losses = self.mlp(y, token_mask=token_mask)
+                x = x + self.drop_path(self.layer_scale_2(y))
+                return (x, aux_losses)
 
-        x = x + self.drop_path(self.layer_scale_2(self.mlp(self.norm2(x))))
+            y = self.mlp(y, token_mask=token_mask)
+        else:
+            y = self.mlp(y)
+
+        x = x + self.drop_path(self.layer_scale_2(y))
 
         return x
 
     def set_moe_loss_output(self, enable: bool = True) -> None:
-        if isinstance(self.mlp, SparseMoE_FFN):
+        if self.is_sparse_moe is True:
             self.moe_loss_output = enable
             self.mlp.set_moe_loss_output(enable)
         else:
@@ -145,7 +162,10 @@ class Encoder(nn.Module):
         attention_dropout: float,
         projection_dropout: float,
         dpr: list[float],
+        pre_norm: bool = False,
         qkv_bias: bool = True,
+        qk_norm: bool = False,
+        attn_norm: bool = False,
         activation_layer: Callable[..., nn.Module] = nn.GELU,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
@@ -172,6 +192,8 @@ class Encoder(nn.Module):
         pre_layers = []
         if dropout > 0.0:
             pre_layers.append(nn.Dropout(dropout))
+        if pre_norm is True:
+            pre_layers.append(norm_layer(hidden_dim, eps=norm_layer_eps))
 
         self.pre_block = nn.Sequential(*pre_layers)
         layers = []
@@ -210,6 +232,8 @@ class Encoder(nn.Module):
                     norm_layer_eps=norm_layer_eps,
                     mlp_layer=mlp_layer,
                     qkv_bias=qkv_bias,
+                    qk_norm=qk_norm,
+                    attn_norm=attn_norm,
                     rope_rot_type=rope_rot_type,
                 )
             )
@@ -223,14 +247,15 @@ class Encoder(nn.Module):
         start: int,
         end: int,
         attn_mask: Optional[torch.Tensor] = None,
+        token_mask: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         aux_loss_list: list[AuxLossesType] = []
         for blk in self.block[start:end]:
             if self.training is True and blk.moe_loss_output is True:
-                x, aux_losses = blk(x, rope, attn_mask=attn_mask)
+                x, aux_losses = blk(x, rope, attn_mask=attn_mask, token_mask=token_mask)
                 aux_loss_list.append(aux_losses)
             else:
-                x = blk(x, rope, attn_mask=attn_mask)
+                x = blk(x, rope, attn_mask=attn_mask, token_mask=token_mask)
 
         aux_losses = _sum_aux_losses(aux_loss_list, x)
         return (
@@ -242,7 +267,11 @@ class Encoder(nn.Module):
         )
 
     def _checkpoint_blocks_with_aux_losses(
-        self, x: torch.Tensor, rope: torch.Tensor, attn_mask: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        rope: torch.Tensor,
+        attn_mask: Optional[torch.Tensor] = None,
+        token_mask: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, AuxLossesType]:
         if self.grad_checkpointing_segments is None:
             segments = len(self.block)
@@ -254,7 +283,14 @@ class Encoder(nn.Module):
         start = 0
         for segment_idx in range(segments):
             end = start + segment_size if segment_idx < segments - 1 else len(self.block)
-            block_range = partial(self._checkpoint_block_range, rope=rope, start=start, end=end, attn_mask=attn_mask)
+            block_range = partial(
+                self._checkpoint_block_range,
+                rope=rope,
+                start=start,
+                end=end,
+                attn_mask=attn_mask,
+                token_mask=token_mask,
+            )
             if segment_idx < segments - 1:
                 x, auxiliary_loss, g_shard_loss, importance_loss, load_loss = checkpoint(
                     block_range,
@@ -278,17 +314,27 @@ class Encoder(nn.Module):
         return (x, _sum_aux_losses(aux_loss_list, x))
 
     def _checkpoint_blocks(
-        self, x: torch.Tensor, rope: torch.Tensor, attn_mask: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        rope: torch.Tensor,
+        attn_mask: Optional[torch.Tensor] = None,
+        token_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor | tuple[torch.Tensor, AuxLossesType]:
         if self.training is True and self.moe_loss_output is True:
-            return self._checkpoint_blocks_with_aux_losses(x, rope, attn_mask=attn_mask)
+            return self._checkpoint_blocks_with_aux_losses(x, rope, attn_mask=attn_mask, token_mask=token_mask)
 
         if self.grad_checkpointing_segments is None:
             segments = len(self.block)
         else:
             segments = min(self.grad_checkpointing_segments, len(self.block))
 
-        blocks = tuple(partial(block, rope=rope, attn_mask=attn_mask) for block in self.block)
+        if attn_mask is not None or token_mask is not None:
+            blocks = tuple(
+                partial(block, rope=rope, attn_mask=attn_mask, token_mask=token_mask) for block in self.block
+            )
+        else:
+            blocks = tuple(partial(block, rope=rope) for block in self.block)
+
         return checkpoint_sequential(
             blocks,
             segments,
@@ -324,19 +370,23 @@ class Encoder(nn.Module):
         self.grad_checkpointing_use_reentrant = use_reentrant
 
     def forward(
-        self, x: torch.Tensor, rope: torch.Tensor, attn_mask: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        rope: torch.Tensor,
+        attn_mask: Optional[torch.Tensor] = None,
+        token_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor | tuple[torch.Tensor, AuxLossesType]:
         x = self.pre_block(x)
         if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
-            return self._checkpoint_blocks(x, rope, attn_mask=attn_mask)
+            return self._checkpoint_blocks(x, rope, attn_mask=attn_mask, token_mask=token_mask)
 
         aux_loss_list: list[AuxLossesType] = []
         for blk in self.block:
             if self.training is True and blk.moe_loss_output is True:
-                x, aux_losses = blk(x, rope, attn_mask=attn_mask)
+                x, aux_losses = blk(x, rope, attn_mask=attn_mask, token_mask=token_mask)
                 aux_loss_list.append(aux_losses)
             else:
-                x = blk(x, rope, attn_mask=attn_mask)
+                x = blk(x, rope, attn_mask=attn_mask, token_mask=token_mask)
 
         if self.training is True and self.moe_loss_output is True:
             return (x, _sum_aux_losses(aux_loss_list, x))
@@ -349,6 +399,7 @@ class Encoder(nn.Module):
         rope: torch.Tensor,
         out_indices: Optional[list[int]] = None,
         attn_mask: Optional[torch.Tensor] = None,
+        token_mask: Optional[torch.Tensor] = None,
     ) -> list[torch.Tensor] | tuple[list[torch.Tensor], AuxLossesType]:
         x = self.pre_block(x)
 
@@ -357,10 +408,10 @@ class Encoder(nn.Module):
         aux_loss_list: list[AuxLossesType] = []
         for idx, blk in enumerate(self.block):
             if self.training is True and blk.moe_loss_output is True:
-                x, aux_losses = blk(x, rope, attn_mask=attn_mask)
+                x, aux_losses = blk(x, rope, attn_mask=attn_mask, token_mask=token_mask)
                 aux_loss_list.append(aux_losses)
             else:
-                x = blk(x, rope, attn_mask=attn_mask)
+                x = blk(x, rope, attn_mask=attn_mask, token_mask=token_mask)
 
             if out_indices_set is None or idx in out_indices_set:
                 xs.append(x)
@@ -391,6 +442,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         assert self.config is not None, "must set config"
 
         image_size = self.size
+        abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", True)
         pos_embed_interpolation_mode: Literal["bilinear", "bicubic"] = self.config.get(
             "pos_embed_interpolation_mode", "bicubic"
@@ -405,9 +457,20 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
+        pre_norm: bool = self.config.get("pre_norm", False)
+        post_norm: bool = self.config.get("post_norm", True)
+        norm_after_pool: bool = self.config.get("norm_after_pool", False)
         qkv_bias: bool = self.config.get("qkv_bias", True)
+        qk_norm: bool = self.config.get("qk_norm", False)
+        attn_norm: bool = self.config.get("attn_norm", False)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
+        attn_pool_head: bool = self.config.get("attn_pool_head", False)
+        attn_pool_type: str = self.config.get("attn_pool_type", "MultiHeadAttentionPool")
+        attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
+        attn_pool_special_tokens: bool = self.config.get("attn_pool_special_tokens", False)
+        attn_pool_norm_eps: float = self.config.get("attn_pool_norm_eps", 1e-5)
+        attn_pool_act_layer_type: str = self.config.get("attn_pool_act_layer_type", "gelu")
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_head = self.config.get("mlp_head", False)
@@ -456,6 +519,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
                 kernel_size=(patch_size, patch_size),
                 stride=(patch_size, patch_size),
                 padding=(0, 0),
+                bias=not pre_norm,
             )
         elif stem_type == "hmlp":
             assert patch_size == 16, "The hMLP stem requires patch_size=16"
@@ -483,6 +547,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
+        self.abs_pos_embed = abs_pos_embed
         self.pos_embed_special_tokens = pos_embed_special_tokens
         self.pos_embed_interpolation_mode = pos_embed_interpolation_mode
         self.patch_size = patch_size
@@ -491,6 +556,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         self.hidden_dim = hidden_dim
         self.layer_scale_init_value = layer_scale_init_value
         self.num_reg_tokens = num_reg_tokens
+        self.attn_pool_special_tokens = attn_pool_special_tokens
         self.mlp_head = mlp_head
         self.norm_layer = norm_layer
         self.norm_layer_eps = norm_layer_eps
@@ -519,6 +585,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         else:
             self.class_token = None
 
+        # Add optional register tokens
         if self.num_reg_tokens > 0:
             self.reg_tokens = nn.Parameter(torch.zeros(1, self.num_reg_tokens, hidden_dim))
             self.num_special_tokens += self.num_reg_tokens
@@ -527,7 +594,11 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         else:
             self.reg_tokens = None
 
-        self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))
+        # Add positional embedding
+        if self.abs_pos_embed is True:
+            self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))
+        else:
+            self.pos_embedding = None
 
         self.rope = RoPE(
             hidden_dim // num_heads,
@@ -553,7 +624,10 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             attention_dropout,
             projection_dropout,
             dpr,
+            pre_norm=pre_norm,
             qkv_bias=qkv_bias,
+            qk_norm=qk_norm,
+            attn_norm=attn_norm,
             activation_layer=act_layer,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
@@ -570,7 +644,39 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             router_importance_loss_weight=router_importance_loss_weight,
             router_load_loss_weight=router_load_loss_weight,
         )
-        self.norm = norm_layer(hidden_dim, eps=norm_layer_eps)
+
+        if post_norm is True and norm_after_pool is False:
+            self.norm = norm_layer(hidden_dim, eps=norm_layer_eps)
+        else:
+            self.norm = nn.Identity()
+
+        if post_norm is True and norm_after_pool is True:
+            self.embedding_norm = norm_layer(hidden_dim, eps=norm_layer_eps)
+        else:
+            self.embedding_norm = nn.Identity()
+
+        if attn_pool_head is False:
+            self.attn_pool = None
+        else:
+            if attn_pool_type == "MultiHeadAttentionPool":
+                attn_pool = MultiHeadAttentionPool
+                if attn_pool_num_heads is None:
+                    attn_pool_num_heads = num_heads
+            elif attn_pool_type == "EfficientProbing":
+                attn_pool = EfficientProbing
+                if attn_pool_num_heads is None:
+                    attn_pool_num_heads = 1
+            else:
+                raise ValueError(f"Unknown attn_pool_type '{attn_pool_type}'")
+
+            self.attn_pool = attn_pool(
+                hidden_dim,
+                attn_pool_num_heads,
+                mlp_dim,
+                qkv_bias=True,
+                norm_eps=attn_pool_norm_eps,
+                activation_layer=get_activation_module(attn_pool_act_layer_type),
+            )
 
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
@@ -614,7 +720,10 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             if self.classifier[-1].bias is not None:
                 nn.init.constant_(self.classifier[-1].bias, head_bias_init)
 
-    def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
+    def _get_pos_embed(self, H: int, W: int) -> Optional[torch.Tensor]:
+        if self.pos_embedding is None:
+            return None
+
         if self.dynamic_size is False:
             return self.pos_embedding
 
@@ -647,6 +756,11 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         if unfreeze_features is True:
             for param in self.norm.parameters():
                 param.requires_grad_(True)
+            for param in self.embedding_norm.parameters():
+                param.requires_grad_(True)
+            if self.attn_pool is not None:
+                for param in self.attn_pool.parameters():
+                    param.requires_grad_(True)
 
     def set_grad_checkpointing(
         self,
@@ -670,10 +784,24 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)
 
-    def _pool(self, x: torch.Tensor) -> torch.Tensor:
-        if self.class_token is None:
-            return x[:, self.num_special_tokens :].mean(dim=1)
+    def strip_for_forward_features(self) -> None:
+        super().strip_for_forward_features()
+        self.embedding_norm = nn.Identity()
+        self.attn_pool = None
 
+    def _pool(self, x: torch.Tensor) -> torch.Tensor:
+        if self.attn_pool is not None:
+            if self.attn_pool_special_tokens is False:
+                x = x[:, self.num_special_tokens :]
+
+            x = self.attn_pool(x)
+            return x[:, 0]
+
+        if self.class_token is None:
+            x = x[:, self.num_special_tokens :]
+            return x.mean(dim=1)
+
+        # Classifier "token" as used by standard language architectures
         return x[:, self.num_reg_tokens]
 
     def masked_encoding_omission(
@@ -688,28 +816,32 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         x = self.conv_proj(x)
         x = self.patch_embed(x)
         pos_embedding = self._get_pos_embed(H, W)
-        if self.pos_embed_special_tokens is True:
-            x = x + pos_embedding[:, self.num_special_tokens :, :]
-        else:
-            x = x + pos_embedding
+        if pos_embedding is not None:
+            if self.pos_embed_special_tokens is True:
+                x = x + pos_embedding[:, self.num_special_tokens :, :]
+            else:
+                x = x + pos_embedding
 
         rope = self._get_rope_embed(H, W)
+
+        # Mask tokens
         if ids_keep is not None:
             x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, x.size(2)))
             rope = rope.unsqueeze(0).expand(x.size(0), -1, -1)
             rope = torch.gather(rope, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, rope.size(2)))
 
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            if self.pos_embed_special_tokens is True:
-                reg_tokens = self.reg_tokens + pos_embedding[:, : self.num_reg_tokens, :]
+            if pos_embedding is not None and self.pos_embed_special_tokens is True:
+                reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
             else:
                 reg_tokens = self.reg_tokens
 
             special_tokens.append(reg_tokens.expand(x.size(0), -1, -1))
 
         if self.class_token is not None:
-            if self.pos_embed_special_tokens is True:
+            if pos_embedding is not None and self.pos_embed_special_tokens is True:
                 cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
             else:
                 cls_token = self.class_token
@@ -728,7 +860,6 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
 
             xs[-1] = self.norm(xs[-1])
             x = torch.stack(xs, dim=-1)
-
         else:
             if self.training is True and self.moe_loss_output is True:
                 x, aux_losses = self.encoder(x, rope)
@@ -745,7 +876,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             if return_all_features is True:
                 x = x[..., -1]
 
-            result["embedding"] = self._pool(x)
+            result["embedding"] = self.embedding_from_features(x)
 
         if aux_losses is not None:
             result["auxiliary_losses"] = aux_losses
@@ -767,9 +898,10 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         x = self.patch_embed(x)
         pos_embedding = self._get_pos_embed(H, W)
 
-        if self.pos_embed_special_tokens is False:
+        if pos_embedding is not None and self.pos_embed_special_tokens is False:
             x = x + pos_embedding
 
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
             special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
@@ -778,7 +910,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         if len(special_tokens) > 0:
             x = torch.concat(special_tokens + [x], dim=1)
 
-        if self.pos_embed_special_tokens is True:
+        if pos_embedding is not None and self.pos_embed_special_tokens is True:
             x = x + pos_embedding
 
         aux_losses: Optional[AuxLossesType] = None
@@ -799,7 +931,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             result["features"] = features
 
         if return_keys in ("all", "embedding"):
-            result["embedding"] = self._pool(x)
+            result["embedding"] = self.embedding_from_features(x)
 
         if aux_losses is not None:
             result["auxiliary_losses"] = aux_losses
@@ -815,9 +947,10 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         patch_embedding = x
         pos_embedding = self._get_pos_embed(H, W)
 
-        if self.pos_embed_special_tokens is False:
+        if pos_embedding is not None and self.pos_embed_special_tokens is False:
             x = x + pos_embedding
 
+        # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
             special_tokens.append(self.reg_tokens.expand(x.size(0), -1, -1))
@@ -834,7 +967,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         else:
             input_embedding = None  # For TorchScript compatibility
 
-        if self.pos_embed_special_tokens is True:
+        if pos_embedding is not None and self.pos_embed_special_tokens is True:
             x = x + pos_embedding
 
         rope = self._get_rope_embed(H, W)
@@ -860,7 +993,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         return features
 
     def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
-        return self._pool(features)
+        return self.embedding_norm(self._pool(features))
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.forward_features(x)
@@ -907,20 +1040,13 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
 
         old_size = self.size
         super().adjust_size(new_size)
-
         if self.pos_embedding is not None:
-            if self.pos_embed_special_tokens is True:
-                num_prefix_tokens = self.num_special_tokens
-            else:
-                num_prefix_tokens = 0
-
-            # Add back class tokens
             with torch.no_grad():
                 pos_embedding = adjust_position_embedding(
                     self.pos_embedding,
                     (old_size[0] // self.patch_size, old_size[1] // self.patch_size),
                     (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
-                    num_prefix_tokens,
+                    self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
                     interpolation_mode=self.pos_embed_interpolation_mode,
                 )
 
@@ -987,5 +1113,20 @@ registry.register_model_config(
         "moe_top_k": 2,
         "moe_last_n_layers": 2,
         "mlp_head": True,
+    },
+)
+registry.register_model_config(
+    "rope_cs_vit_vmoe_reg4_b16_8e_2k_every2_nape_ls",
+    RoPE_ViT_MoE,
+    config={
+        "patch_size": 16,
+        **BASE,
+        "abs_pos_embed": False,
+        "layer_scale_init_value": 1e-5,
+        "num_reg_tokens": 4,
+        "rope_style": "centered_separate",
+        "moe_num_experts": 8,
+        "moe_top_k": 2,
+        "moe_every_n_layers": 2,
     },
 )

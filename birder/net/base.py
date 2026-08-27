@@ -360,7 +360,7 @@ class MaskedTokenRetentionMixin:
         mask_token: Optional[torch.Tensor] = None,
         return_keys: Literal["all", "features", "embedding"] = "features",
     ) -> TokenRetentionResultType:
-        # Returned features size (B, C, H, W), embedding (B, D)
+        # Returned features size (B, C, H, W) or (B, C, L) for padded token sequences, embedding (B, D)
         raise NotImplementedError
 
 

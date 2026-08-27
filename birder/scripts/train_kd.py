@@ -18,6 +18,7 @@ from collections.abc import Callable
 from collections.abc import Iterator
 from contextlib import nullcontext
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 from typing import Literal
@@ -44,16 +45,23 @@ from birder.common import training_utils
 from birder.common.lib import format_duration
 from birder.common.lib import get_network_name
 from birder.conf import settings
+from birder.data.collators.naflex import NaFlexBatchProcessor
+from birder.data.collators.naflex import NaFlexMixupTrainingCollator
+from birder.data.collators.naflex import NaFlexTrainingCollator
+from birder.data.collators.naflex import resolve_naflex_batch_specs
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import HierarchicalImageFolder
 from birder.data.datasets.directory import get_image_loader
+from birder.data.datasets.naflex import NaFlexMultiScaleDataset
 from birder.data.datasets.webdataset import WDSImageDecoder
+from birder.data.datasets.webdataset import get_wds_num_shards
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_mixup_cutmix
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import inference_preset
+from birder.data.transforms.naflex import inference_preset as naflex_inference_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
@@ -82,15 +90,22 @@ class EmbeddingDistillWrapper(torch.nn.Module):
         self.moe_aux_loss = moe_aux_loss
 
     def forward(
-        self, x: torch.Tensor
+        self,
+        x: torch.Tensor,
+        grid_sizes: Optional[torch.Tensor] = None,
+        valid_mask: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor] | tuple[tuple[torch.Tensor, torch.Tensor], dict[str, torch.Tensor]]:
         if self.moe_aux_loss is True:
-            features, aux_losses = typing.cast(
-                tuple[torch.Tensor, dict[str, torch.Tensor]], self.model.forward_features(x)
-            )
-            embedding = self.model.embedding_from_features(features)
-        else:
+            if grid_sizes is None:
+                features, aux_losses = self.model.forward_features(x)
+                embedding = self.model.embedding_from_features(features)
+            else:
+                features, aux_losses = self.model.forward_features(x, grid_sizes=grid_sizes, valid_mask=valid_mask)
+                embedding = self.model.embedding_from_features(features, valid_mask)
+        elif grid_sizes is None:
             embedding = self.model.embedding(x)
+        else:
+            embedding = self.model.embedding(x, grid_sizes=grid_sizes, valid_mask=valid_mask)
 
         outputs = self.model.classify(embedding)
         if self.moe_aux_loss is True:
@@ -128,6 +143,15 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
     logger.info(f"Using size={args.size}")
 
+    if args.use_fake_data is True:
+        class_to_idx = {str(i): i for i in range(10)}
+
+    num_outputs = len(class_to_idx)
+    batch_size: int = args.batch_size
+    grad_accum_steps: int = args.grad_accum_steps
+    model_ema_steps: int = args.model_ema_steps
+    logger.debug(f"Effective batch size = {batch_size * grad_accum_steps * args.world_size}")
+
     #
     # Data
     #
@@ -135,21 +159,77 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     if training_rgb_stats != rgb_stats:
         logger.warning(f"Training RGB stats {training_rgb_stats}, but teacher was saved with {rgb_stats}")
 
-    if overrides.training_transform is not None:
+    collate_fn: Optional[Callable[[Any], Any]] = None
+    validation_collate_fn: Optional[Callable[[Any], Any]] = None
+    naflex_batch_processor: Optional[NaFlexBatchProcessor] = None
+    wds_num_shards: Optional[int] = None
+    if args.naflex is True:
+        patch_size = teacher.stem_stride
+        validation_max_seq_len = resolve_naflex_batch_specs(args.size, patch_size)[0].max_seq_len
+        naflex_specs = resolve_naflex_batch_specs(args.size, patch_size, args.naflex_sizes, args.naflex_patch_sizes)
+    else:
+        naflex_specs = ()
+
+    if len(set(naflex_specs)) > 1:
+        if overrides.training_transform is not None:
+            raise ValueError("NaFlex batch scheduling does not support a custom training transform")
+
+        naflex_transforms = {spec: training_utils.get_naflex_training_transform(args, spec) for spec in naflex_specs}
+        logger.debug(f"Using NaFlex batch specifications: {list(naflex_specs)}")
+
+        training_transform = None
+        if args.mixup_alpha is None:
+            naflex_collator = NaFlexTrainingCollator()
+        else:
+            logger.debug("NaFlex Mixup collate activated")
+            naflex_collator = NaFlexMixupTrainingCollator(
+                patch_size=None, num_classes=num_outputs, alpha=args.mixup_alpha
+            )
+
+        naflex_batch_processor = NaFlexBatchProcessor(
+            naflex_collator, naflex_specs, naflex_transforms, seed=args.seed or 0
+        )
+
+    elif overrides.training_transform is not None:
         training_transform = overrides.training_transform(args)
+    elif args.naflex is True:
+        spec = naflex_specs[0]
+        training_transform = training_utils.get_naflex_training_transform(args, spec)
     else:
         training_transform = training_utils.get_training_transform(args)
 
     if overrides.validation_transform is not None:
         val_transform = overrides.validation_transform(args)
+    elif args.naflex is True:
+        val_transform = naflex_inference_preset(patch_size, validation_max_seq_len, rgb_stats)
     else:
         val_transform = inference_preset(args.size, rgb_stats, 1.0)
+
+    if args.naflex is True:
+        validation_collate_fn = NaFlexTrainingCollator(patch_size)
+        if naflex_batch_processor is None:
+            spec = naflex_specs[0]
+            if args.mixup_alpha is not None:
+                logger.debug("NaFlex Mixup collate activated")
+                collate_fn = NaFlexMixupTrainingCollator(
+                    patch_size=spec.patch_size, num_classes=num_outputs, alpha=args.mixup_alpha
+                )
+            else:
+                collate_fn = NaFlexTrainingCollator(spec.patch_size)
+
+    elif args.mixup_alpha is not None or args.cutmix is True:
+        logger.debug("Mixup / cutmix collate activated")
+        t = get_mixup_cutmix(args.mixup_alpha, num_outputs, args.cutmix)
+
+        def mixup_cutmix_collate_fn(batch: Any) -> Any:
+            return t(*default_collate(batch))
+
+        collate_fn = mixup_cutmix_collate_fn
 
     if args.use_fake_data is True:
         logger.warning("Using fake data")
         training_dataset = FakeData(10000, (args.channels, *args.size), num_classes=10, transform=training_transform)
         validation_dataset = FakeData(1000, (args.channels, *args.size), num_classes=10, transform=val_transform)
-        class_to_idx = {str(i): i for i in range(10)}
 
     elif args.wds is True:
         if overrides.wds_image_decoder is not None:
@@ -193,6 +273,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         ds_class_to_idx = fs_ops.read_class_file(args.wds_class_file)
         assert class_to_idx == ds_class_to_idx
+        if naflex_batch_processor is not None:
+            wds_num_shards = get_wds_num_shards(training_dataset)
 
     else:
         if args.hierarchical is True:
@@ -221,26 +303,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         ds_class_to_idx = training_dataset.class_to_idx
         assert class_to_idx == ds_class_to_idx
 
+    if args.wds is False and naflex_batch_processor is not None:
+        training_dataset = NaFlexMultiScaleDataset(training_dataset, naflex_batch_processor)
+        collate_fn = naflex_batch_processor.base_collator
+
     logger.info(f"Using device {device}:{device_id}")
     logger.info(f"Training dataset has {len(training_dataset):,} samples")
     logger.info(f"Validation dataset has {len(validation_dataset):,} samples")
-
-    num_outputs = len(class_to_idx)
-    batch_size: int = args.batch_size
-    grad_accum_steps: int = args.grad_accum_steps
-    model_ema_steps: int = args.model_ema_steps
-    logger.debug(f"Effective batch size = {batch_size * grad_accum_steps * args.world_size}")
-
-    # Set data iterators
-    if args.mixup_alpha is not None or args.cutmix is True:
-        logger.debug("Mixup / cutmix collate activated")
-        t = get_mixup_cutmix(args.mixup_alpha, num_outputs, args.cutmix)
-
-        def collate_fn(batch: Any) -> Any:
-            return t(*default_collate(batch))
-
-    else:
-        collate_fn = None  # type: ignore
 
     # Data loaders and samplers
     virtual_epoch_mode = args.steps_per_epoch is not None
@@ -249,18 +318,28 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     )
 
     if args.wds is True:
+        wds_batcher: Optional[Callable[..., Iterator[tuple[Any, ...]]]] = None
+        if naflex_batch_processor is not None:
+            wds_batcher = partial(
+                naflex_batch_processor.iter_batches,
+                batch_size=batch_size,
+                drop_last=args.drop_last,
+            )
+
         training_loader = make_wds_loader(
             training_dataset,
             batch_size,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            collate_fn=collate_fn,
+            collate_fn=None if naflex_batch_processor is not None else collate_fn,
             world_size=args.world_size,
             pin_memory=args.pin_memory,
             drop_last=args.drop_last,
             persistent_workers=args.persistent_workers,
             shuffle=args.wds_extra_shuffle,
             infinite=virtual_epoch_mode,
+            batcher=wds_batcher,
+            num_shards=wds_num_shards,
         )
 
         validation_loader = make_wds_loader(
@@ -268,7 +347,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             batch_size,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            collate_fn=None,
+            collate_fn=validation_collate_fn,
             world_size=args.world_size,
             pin_memory=args.pin_memory,
             persistent_workers=args.persistent_workers,
@@ -292,6 +371,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             sampler=validation_sampler,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
+            collate_fn=validation_collate_fn,
             pin_memory=args.pin_memory,
             persistent_workers=args.persistent_workers,
         )
@@ -357,6 +437,16 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             size=args.size,
         )
         training_states = fs_ops.TrainingStates.empty()
+
+    if args.naflex is True:
+        if student.stem_stride != teacher.stem_stride:
+            raise RuntimeError(
+                f"NaFlex KD requires student and teacher token grids to match, got student stride "
+                f"{student.stem_stride} and teacher stride {teacher.stem_stride}"
+            )
+        if args.naflex_patch_sizes is not None:
+            student.set_naflex_patch_resampling()
+            teacher.set_naflex_patch_resampling()
 
     teacher.to(device, dtype=model_dtype)
     student.to(device, dtype=model_dtype)
@@ -663,6 +753,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     #
     optimizer_step = (begin_epoch - 1) * optimizer_steps_per_epoch
     if virtual_epoch_mode is True:
+        # Virtual epochs share one continuous loader iterator, so initialize the NaFlex schedule before creating it
+        if naflex_batch_processor is not None:
+            naflex_batch_processor.set_epoch(begin_epoch)
+
         train_iter = iter(training_loader)
 
     top_k = args.top_k
@@ -686,6 +780,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         train_student.train()
         if embedding_projection is not None:
             embedding_projection.train()
+
+        if naflex_batch_processor is not None and virtual_epoch_mode is False:
+            naflex_batch_processor.set_epoch(epoch)
 
         # Clear metrics
         running_loss.clear()
@@ -725,6 +822,14 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             batch_iter = enumerate(training_loader)
 
         for i, (inputs, targets) in batch_iter:
+            batch_kwargs: dict[str, torch.Tensor] = {}
+            if args.naflex is True:
+                inputs, grid_sizes, valid_mask = inputs
+                batch_kwargs = {
+                    "grid_sizes": grid_sizes.to(device, non_blocking=True),
+                    "valid_mask": valid_mask.to(device, non_blocking=True),
+                }
+
             if args.channels_last is True:
                 inputs = inputs.to(device, dtype=model_dtype, non_blocking=True, memory_format=torch.channels_last)
             else:
@@ -745,10 +850,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
                     if distillation_type == "embedding":
                         with torch.no_grad():
-                            teacher_embedding = teacher.embedding(inputs)
+                            teacher_embedding = teacher.embedding(inputs, **batch_kwargs)
                             teacher_embedding = F.normalize(teacher_embedding, dim=-1)
 
-                        student_output = train_student(inputs)
+                        student_output = train_student(inputs, **batch_kwargs)
                         if args.moe_aux_loss is True:
                             student_output, aux_losses = student_output
                             moe_aux_loss = aux_losses["auxiliary_loss"]
@@ -762,13 +867,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
                     else:
                         with torch.no_grad():
-                            teacher_outputs = teacher(inputs)
+                            teacher_outputs = teacher(inputs, **batch_kwargs)
                             if distillation_type == "soft":
                                 teacher_targets = F.log_softmax(teacher_outputs / args.temperature, dim=-1)
                             else:
                                 teacher_targets = teacher_outputs.argmax(dim=-1)
 
-                        student_output = train_student(inputs)
+                        student_output = train_student(inputs, **batch_kwargs)
                         if args.moe_aux_loss is True:
                             student_output, aux_losses = student_output
                             moe_aux_loss = aux_losses["auxiliary_loss"]
@@ -953,6 +1058,14 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         epoch_start = time.time()
         with torch.inference_mode():
             for inputs, targets in validation_loader:
+                batch_kwargs = {}
+                if args.naflex is True:
+                    inputs, grid_sizes, valid_mask = inputs
+                    batch_kwargs = {
+                        "grid_sizes": grid_sizes.to(device, non_blocking=True),
+                        "valid_mask": valid_mask.to(device, non_blocking=True),
+                    }
+
                 if args.channels_last is True:
                     inputs = inputs.to(device, dtype=model_dtype, non_blocking=True, memory_format=torch.channels_last)
                 else:
@@ -960,7 +1073,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
                 targets = targets.to(device, non_blocking=True)
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
-                    outputs = eval_model(inputs)
+                    outputs = eval_model(inputs, **batch_kwargs)
                     val_loss = criterion(outputs, targets)
 
                 # Statistics
@@ -1065,6 +1178,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             args.teacher_model_config = json.dumps(args.teacher_model_config)
         if args.size is not None:
             args.size = json.dumps(args.size)
+        if args.naflex_sizes is not None:
+            args.naflex_sizes = json.dumps(args.naflex_sizes)
+        if args.naflex_patch_sizes is not None:
+            args.naflex_patch_sizes = json.dumps(args.naflex_patch_sizes)
 
         # Save all args
         summary_writer.add_hparams(
@@ -1193,7 +1310,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_ema_args(parser)
     training_cli.add_batch_norm_args(parser)
     training_cli.add_input_args(
-        parser, size_help="image size (defaults to teacher network size) shared by both networks"
+        parser, size_help="image size (defaults to teacher network size) shared by both networks", naflex=True
     )
     training_cli.add_data_aug_args(parser, smoothing_alpha=True, mixup_cutmix=True)
     training_cli.add_dataloader_args(parser, ra_sampler=True)

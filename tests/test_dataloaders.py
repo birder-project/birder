@@ -8,6 +8,7 @@ import torch
 import webdataset as wds
 
 from birder.data.collators.naflex import NaFlexBatchProcessor
+from birder.data.collators.naflex import NaFlexBatchSpec
 from birder.data.collators.naflex import NaFlexTrainingCollator
 from birder.data.dataloader.webdataset import make_wds_loader
 
@@ -100,9 +101,11 @@ class TestWdsLoader(unittest.TestCase):
         batch_size = 5
         sample = (torch.ones((1, 4, 4)), torch.tensor(1))
         mock_ds = _WorkerSplitMockDataset(sample, n_samples)
+        spec = NaFlexBatchSpec(2, 4)
         processor = NaFlexBatchProcessor(
-            NaFlexTrainingCollator(2),
-            {4: torch.nn.Identity()},
+            NaFlexTrainingCollator(),
+            (spec,),
+            {spec: torch.nn.Identity()},
             seed=0,
         )
         dataset = wds.DataPipeline(mock_ds).with_length(n_samples, silent=True)

@@ -19,6 +19,7 @@ from typing import Optional
 import torch
 from torch import nn
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net._vit_configs import BASE
 from birder.net._vit_configs import GIANT
@@ -28,8 +29,10 @@ from birder.net._vit_configs import MEDIUM
 from birder.net._vit_configs import SMALL
 from birder.net.base import DetectorBackbone
 from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import TokenOmissionResultType
+from birder.net.base import TokenRetentionResultType
 from birder.net.base import normalize_out_indices
 from birder.net.base import pos_embedding_sin_cos_2d
 from birder.net.base import stochastic_depth_rates
@@ -38,7 +41,7 @@ from birder.net.vit import EncoderBlock
 from birder.net.vit import PatchEmbed
 
 
-class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
+class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
     block_group_regex = r"encoder\.block\.(\d+)"
 
     def __init__(
@@ -269,7 +272,39 @@ class Simple_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
             if return_all_features is True:
                 x = x[..., -1]
 
-            result["embedding"] = x.mean(dim=1)
+            result["embedding"] = self.embedding_from_features(x)
+
+        return result
+
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        H, W = x.shape[-2:]
+
+        x = self.conv_proj(x)
+        x = mask_tensor(x, mask, mask_token=mask_token, patch_factor=self.max_stride // self.stem_stride)
+
+        # Reshape and permute the input tensor
+        x = self.patch_embed(x)
+        x = x + self._get_pos_embed(H, W)
+
+        x = self.encoder(x)
+        x = self.norm(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            features = x[:, self.num_special_tokens :]
+            features = features.permute(0, 2, 1)
+            B, C, _ = features.size()
+            features = features.reshape(B, C, H // self.patch_size, W // self.patch_size)
+            result["features"] = features
+
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.embedding_from_features(x)
 
         return result
 

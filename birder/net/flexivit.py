@@ -41,16 +41,17 @@ def _get_resize_matrix_pinv(
     new_size: tuple[int, int],
     device: torch.device,
 ) -> torch.Tensor:
-    old_h, old_w = old_size
-    old_numel = old_h * old_w
+    with torch.amp.autocast(device.type, enabled=False):
+        old_h, old_w = old_size
+        old_numel = old_h * old_w
 
-    # Resize the identity basis to construct the bilinear interpolation matrix
-    basis_vectors = torch.eye(old_numel, dtype=torch.float32, device=device).reshape(old_numel, 1, old_h, old_w)
-    resized_basis_vectors = F.interpolate(basis_vectors, size=new_size, mode="bilinear", align_corners=False)
-    resize_matrix = resized_basis_vectors.squeeze(1).permute(1, 2, 0).reshape(new_size[0] * new_size[1], old_numel)
+        # Resize the identity basis to construct the bilinear interpolation matrix
+        basis_vectors = torch.eye(old_numel, dtype=torch.float32, device=device).reshape(old_numel, 1, old_h, old_w)
+        resized_basis_vectors = F.interpolate(basis_vectors, size=new_size, mode="bilinear", align_corners=False)
+        resize_matrix = resized_basis_vectors.squeeze(1).permute(1, 2, 0).reshape(new_size[0] * new_size[1], old_numel)
 
-    # Its pseudoinverse (Moore-Penrose inverse) maps flattened kernels from old_size to new_size
-    return torch.linalg.pinv(resize_matrix)  # pylint: disable=not-callable
+        # Its pseudoinverse (Moore-Penrose inverse) maps flattened kernels from old_size to new_size
+        return torch.linalg.pinv(resize_matrix)  # pylint: disable=not-callable
 
 
 def interpolate_proj(proj_weight: torch.Tensor, patch_size: int) -> torch.Tensor:
@@ -205,8 +206,14 @@ class FlexiViT(ViT):
         if self.patch_size == patch_size:
             return
 
+        assert self.size[0] % patch_size == 0, "Input shape indivisible by patch size!"
+        assert self.size[1] % patch_size == 0, "Input shape indivisible by patch size!"
+
         logger.debug(f"Setting patch size to: {patch_size}")
-        self.conv_proj.weight = nn.Parameter(interpolate_proj(self.conv_proj.weight, patch_size))
+        with torch.no_grad():
+            conv_proj_weight = interpolate_proj(self.conv_proj.weight, patch_size)
+
+        self.conv_proj.weight = nn.Parameter(conv_proj_weight)
         self.conv_proj.kernel_size = (patch_size, patch_size)
         self.conv_proj.stride = (patch_size, patch_size)
         if self.pos_embedding is not None:
@@ -216,15 +223,16 @@ class FlexiViT(ViT):
             else:
                 num_prefix_tokens = 0
 
-            self.pos_embedding = nn.Parameter(
-                adjust_position_embedding(
+            with torch.no_grad():
+                pos_embedding = adjust_position_embedding(
                     self.pos_embedding,
                     (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
                     (self.size[0] // patch_size, self.size[1] // patch_size),
                     num_prefix_tokens,
                     interpolation_mode=self.pos_embed_interpolation_mode,
                 )
-            )
+
+            self.pos_embedding = nn.Parameter(pos_embedding)
 
         self.patch_size = patch_size
         self.max_stride = patch_size

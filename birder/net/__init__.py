@@ -71,6 +71,7 @@ from birder.net.mobilevit_v2 import MobileViT_v2
 from birder.net.moganet import MogaNet
 from birder.net.mvit_v1 import MViT_v1
 from birder.net.mvit_v2 import MViT_v2
+from birder.net.naflex_rope_vit import NaFlex_RoPE_ViT
 from birder.net.naflex_vit import NaFlex_ViT
 from birder.net.nextvit import NextViT
 from birder.net.nfnet import NFNet
@@ -202,6 +203,7 @@ __all__ = [
     "MogaNet",
     "MViT_v1",
     "MViT_v2",
+    "NaFlex_RoPE_ViT",
     "NaFlex_ViT",
     "NextViT",
     "NFNet",

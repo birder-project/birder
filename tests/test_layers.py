@@ -159,3 +159,25 @@ class TestLayers(unittest.TestCase):
         self.assertTrue(torch.equal(first_q, first_k))
         self.assertTrue(torch.equal(first_q, second_q))
         self.assertTrue(torch.equal(first_k, second_k))
+
+    def test_rope_batched_pos_embed(self) -> None:
+        ropes = (
+            RoPE(8, 100.0, (2, 3), grid_indexing="ij", grid_offset=0),
+            RoPE(8, 100.0, (2, 3), grid_indexing="ij", grid_offset=1, pt_grid_size=(5, 7)),
+            RoPE(8, 100.0, (2, 3), grid_indexing="xy", grid_offset=1, pt_grid_size=(5, 7)),
+            RoPE(8, 100.0, (2, 3), grid_indexing="ij", grid_offset=0, rope_style="axial", rope_rot_type="interleaved"),
+            RoPE(8, 100.0, (2, 3), grid_indexing="ij", grid_offset=0, rope_style="centered_separate"),
+        )
+        grid_sizes = torch.tensor([[2, 3], [3, 2], [1, 4]])
+        max_seq_len = 6
+
+        for rope in ropes:
+            with self.subTest(rope_style=rope.rope_style, grid_indexing=rope.grid_indexing):
+                batched_pos_embed = rope.get_batched_pos_embed(grid_sizes, max_seq_len)
+                self.assertEqual(batched_pos_embed.size(), (3, max_seq_len, 16))
+
+                for batch_idx, grid_size_list in enumerate(grid_sizes.tolist()):
+                    grid_size = (grid_size_list[0], grid_size_list[1])
+                    seq_len = grid_size[0] * grid_size[1]
+                    expected = rope.get_pos_embed(grid_size)
+                    torch.testing.assert_close(batched_pos_embed[batch_idx, :seq_len], expected)

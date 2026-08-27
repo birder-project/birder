@@ -44,8 +44,26 @@ class EVA(MIMBaseNet):
         nn.init.trunc_normal_(self.predictor.weight, mean=0.0, std=0.02)
         nn.init.zeros_(self.predictor.bias)
 
-    def forward_features(self, x: torch.Tensor, mask: torch.Tensor) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
-        latent = self.encoder.masked_encoding_retention(x, mask, mask_token=self.mask_token, return_keys="features")
+    def forward_features(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        *,
+        grid_sizes: Optional[torch.Tensor] = None,
+        valid_mask: Optional[torch.Tensor] = None,
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+        if grid_sizes is None:
+            latent = self.encoder.masked_encoding_retention(x, mask, mask_token=self.mask_token, return_keys="features")
+        else:
+            latent = self.encoder.masked_encoding_retention(
+                x,
+                mask,
+                mask_token=self.mask_token,
+                return_keys="features",
+                grid_sizes=grid_sizes,
+                valid_mask=valid_mask,
+            )
+
         features = latent["features"].flatten(2).permute(0, 2, 1)
         pred = self.predictor(features)
 
@@ -55,21 +73,37 @@ class EVA(MIMBaseNet):
 
         return (pred, moe_auxiliary_loss)
 
-    def forward_loss(self, pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        mask = mask.to(torch.bool)
-        pred_masked = pred[mask]
-        target_masked = target[mask]
+    def forward_loss(
+        self,
+        pred: torch.Tensor,
+        target: torch.Tensor,
+        mask: torch.Tensor,
+        *,
+        valid_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        loss_mask = mask.to(torch.bool)
+        if valid_mask is not None:
+            loss_mask = loss_mask & valid_mask
+
+        pred_masked = pred[loss_mask]
+        target_masked = target[loss_mask]
         loss = F.cosine_similarity(pred_masked.float(), target_masked.float(), dim=-1)  # pylint: disable=not-callable
 
         return -loss.mean()
 
     def forward(  # type: ignore[override]
-        self, x: torch.Tensor, target_tokens: torch.Tensor, mask: torch.Tensor
+        self,
+        x: torch.Tensor,
+        target_tokens: torch.Tensor,
+        mask: torch.Tensor,
+        *,
+        grid_sizes: Optional[torch.Tensor] = None,
+        valid_mask: Optional[torch.Tensor] = None,
     ) -> dict[str, torch.Tensor]:
         # pylint: disable=arguments-differ
 
-        pred, moe_auxiliary_loss = self.forward_features(x, mask)
-        loss = self.forward_loss(pred, target_tokens, mask)
+        pred, moe_auxiliary_loss = self.forward_features(x, mask, grid_sizes=grid_sizes, valid_mask=valid_mask)
+        loss = self.forward_loss(pred, target_tokens, mask, valid_mask=valid_mask)
 
         result = {"loss": loss, "pred": pred, "mask": mask}
         if moe_auxiliary_loss is not None:

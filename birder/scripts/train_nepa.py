@@ -45,6 +45,7 @@ from birder.common.lib import get_network_name
 from birder.conf import settings
 from birder.data.collators.naflex import NaFlexBatchProcessor
 from birder.data.collators.naflex import NaFlexPathCollator
+from birder.data.collators.naflex import resolve_naflex_batch_specs
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.directory import make_image_dataset
@@ -56,7 +57,6 @@ from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_rgb_stats
-from birder.data.transforms.naflex import get_sequence_lengths as get_naflex_sequence_lengths
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import MaskedTokenOmissionMixin
@@ -127,6 +127,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         training_states = fs_ops.TrainingStates.empty()
 
     patch_size = net.backbone.stem_stride
+    if args.naflex is True and args.naflex_patch_sizes is not None:
+        net.backbone.set_naflex_patch_resampling()
+
     net.to(device, dtype=model_dtype)
 
     if args.freeze_bn is True:
@@ -158,36 +161,33 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     collate_fn: Optional[Callable[[Any], Any]] = None
     naflex_batch_processor: Optional[NaFlexBatchProcessor] = None
     wds_num_shards: Optional[int] = None
-    naflex_sizes = args.naflex_sizes
     if args.naflex is True:
-        naflex_seq_lens = get_naflex_sequence_lengths(args.size, patch_size, naflex_sizes)
+        naflex_specs = resolve_naflex_batch_specs(args.size, patch_size, args.naflex_sizes, args.naflex_patch_sizes)
     else:
-        naflex_seq_lens = ()
+        naflex_specs = ()
 
-    if len(naflex_seq_lens) > 1:
+    if len(set(naflex_specs)) > 1:
         if overrides.training_transform is not None:
-            raise ValueError("NaFlex multi-scale training does not support a custom training transform")
+            raise ValueError("NaFlex batch scheduling does not support a custom training transform")
 
-        naflex_transforms = {
-            seq_len: training_utils.get_naflex_training_transform(args, patch_size, seq_len)
-            for seq_len in naflex_seq_lens
-        }
-        logger.info(f"Using NaFlex sizes: {list(naflex_sizes)} (maximum sequence lengths: {list(naflex_transforms)})")
+        naflex_transforms = {spec: training_utils.get_naflex_training_transform(args, spec) for spec in naflex_specs}
+        logger.debug(f"Using NaFlex batch specifications: {list(naflex_specs)}")
 
         training_transform = None
         naflex_batch_processor = NaFlexBatchProcessor(
-            NaFlexPathCollator(patch_size), naflex_transforms, seed=args.seed or 0
+            NaFlexPathCollator(), naflex_specs, naflex_transforms, seed=args.seed or 0
         )
 
     elif overrides.training_transform is not None:
         training_transform = overrides.training_transform(args)
     elif args.naflex is True:
-        training_transform = training_utils.get_naflex_training_transform(args, patch_size, naflex_seq_lens[0])
+        spec = naflex_specs[0]
+        training_transform = training_utils.get_naflex_training_transform(args, spec)
     else:
         training_transform = training_utils.get_training_transform(args)
 
     if args.naflex is True and naflex_batch_processor is None:
-        collate_fn = NaFlexPathCollator(patch_size)
+        collate_fn = NaFlexPathCollator(naflex_specs[0].patch_size)
     elif args.naflex is False:
         collate_fn = None
 

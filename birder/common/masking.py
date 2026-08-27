@@ -1,5 +1,6 @@
 import math
 import random
+from collections.abc import Callable
 from typing import Optional
 
 import numpy as np
@@ -89,8 +90,8 @@ def mask_tensor(
     shaped_mask = shaped_mask.unsqueeze(3).type_as(x)
 
     if mask_token is not None:
-        mask_tokens = mask_token.expand(B, H, W, -1)
-        x_masked = x * (1.0 - shaped_mask) + (mask_tokens * shaped_mask)
+        expanded_mask_token = mask_token.expand(B, H, W, -1)
+        x_masked = x * (1.0 - shaped_mask) + (expanded_mask_token * shaped_mask)
     else:
         x_masked = x * (1.0 - shaped_mask)
 
@@ -98,6 +99,15 @@ def mask_tensor(
         x_masked = x_masked.permute(0, 3, 1, 2)
 
     return x_masked
+
+
+def mask_tokens(x: torch.Tensor, mask: torch.Tensor, mask_token: Optional[torch.Tensor] = None) -> torch.Tensor:
+    shaped_mask = mask.unsqueeze(-1).type_as(x)
+    if mask_token is not None:
+        expanded_mask_token = mask_token.reshape(1, 1, -1).expand_as(x)
+        return x * (1.0 - shaped_mask) + (expanded_mask_token * shaped_mask)
+
+    return x * (1.0 - shaped_mask)
 
 
 def uniform_mask(
@@ -281,6 +291,33 @@ def fixed_size_block_mask(
     return mask
 
 
+def generate_naflex_masks(
+    batch_size: int, grid_sizes: torch.Tensor, mask_generator: Callable[[int, int, int], torch.Tensor]
+) -> torch.Tensor:
+    """
+    Generate and right-pad masks after grouping samples with identical patch grids
+    """
+
+    if grid_sizes.ndim != 2 or grid_sizes.size(1) != 2:
+        raise ValueError(f"Grid sizes must have shape (batch_size, 2), got {tuple(grid_sizes.size())}")
+    if grid_sizes.size(0) != batch_size:
+        raise ValueError(f"Grid sizes batch dimension must match batch size {batch_size}, got {grid_sizes.size(0)}")
+
+    seq_lens = grid_sizes.prod(dim=1)
+    max_seq_len = int(seq_lens.max().item())
+    unique_grid_sizes, group_indices = torch.unique(grid_sizes, dim=0, return_inverse=True)
+    masks: Optional[torch.Tensor] = None
+    for group_idx, (grid_h, grid_w) in enumerate(unique_grid_sizes.tolist()):
+        batch_indices = (group_indices == group_idx).nonzero(as_tuple=True)[0]
+        group_masks = mask_generator(batch_indices.numel(), grid_h, grid_w)
+        if masks is None:
+            masks = group_masks.new_zeros((batch_size, max_seq_len))
+
+        masks[batch_indices.to(device=masks.device), : grid_h * grid_w] = group_masks
+
+    return masks
+
+
 def get_ids_keep(mask: torch.Tensor) -> torch.Tensor:
     B = mask.size(0)
     return (1 - mask).nonzero(as_tuple=True)[1].reshape(B, -1)
@@ -310,7 +347,16 @@ def mask_from_indices(indices: torch.Tensor, seq_len: int) -> torch.Tensor:
 
 
 class Masking:
-    def __call__(self, batch_size: int) -> torch.Tensor:
+    def __call__(self, batch_size: int, *, grid_sizes: Optional[torch.Tensor] = None) -> torch.Tensor:
+        if grid_sizes is None:
+            return self._generate(batch_size)
+
+        return self._generate_naflex(batch_size, grid_sizes)
+
+    def _generate(self, batch_size: int) -> torch.Tensor:
+        raise NotImplementedError
+
+    def _generate_naflex(self, batch_size: int, grid_sizes: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
 
 
@@ -328,10 +374,22 @@ class UniformMasking(Masking):
         self.min_mask_size = min_mask_size
         self.device = device
 
-    def __call__(self, batch_size: int) -> torch.Tensor:
-        return uniform_mask(
-            batch_size, self.h, self.w, self.mask_ratio, min_mask_size=self.min_mask_size, device=self.device
+    def _generate_for_grid(self, batch_size: int, grid_h: int, grid_w: int) -> torch.Tensor:
+        padded_h = math.ceil(grid_h / self.min_mask_size) * self.min_mask_size
+        padded_w = math.ceil(grid_w / self.min_mask_size) * self.min_mask_size
+        mask = uniform_mask(
+            batch_size, padded_h, padded_w, self.mask_ratio, min_mask_size=self.min_mask_size, device=self.device
         )[0]
+        if (padded_h, padded_w) == (grid_h, grid_w):
+            return mask
+
+        return mask.reshape(batch_size, padded_h, padded_w)[:, :grid_h, :grid_w].reshape(batch_size, -1)
+
+    def _generate(self, batch_size: int) -> torch.Tensor:
+        return self._generate_for_grid(batch_size, self.h, self.w)
+
+    def _generate_naflex(self, batch_size: int, grid_sizes: torch.Tensor) -> torch.Tensor:
+        return generate_naflex_masks(batch_size, grid_sizes, self._generate_for_grid)
 
 
 class BlockMasking(Masking):
@@ -340,7 +398,8 @@ class BlockMasking(Masking):
 
     Samples a total number of masked patches between min_masking_patches and max_num_patches,
     then fills that budget with one or more rectangular blocks. min_num_patches controls the
-    minimum area of an individual sampled block.
+    minimum area of an individual sampled block. For NaFlex grids, these patch counts are
+    scaled by the grid area relative to input_size.
 
     Parameters
     ----------
@@ -380,48 +439,60 @@ class BlockMasking(Masking):
             min_masking_patches = min_num_patches
 
         self.min_masking_patches = min_masking_patches
-        self.log_aspect_ratio = (math.log(min_aspect), math.log(max_aspect))
+        self.min_aspect = min_aspect
+        self.max_aspect = max_aspect
 
     def get_shape(self) -> tuple[int, int]:
         return (self.height, self.width)
 
     def _mask(self, mask: torch.Tensor, max_mask_patches: int) -> int:
         # 0 is keep, 1 is remove
-        delta = 0
+        height, width = mask.shape
+        max_target_area = min(
+            max_mask_patches,
+            mask.numel(),
+            width**2 * self.max_aspect,
+            height**2 / self.min_aspect,
+        )
+        if max_target_area < 1:
+            return 0
+
+        min_num_patches = self.min_num_patches * mask.numel() // self.num_patches
+        min_target_area = min(max(min_num_patches, 1), max_target_area)
         for _ in range(10):
-            target_area = random.uniform(self.min_num_patches, max_mask_patches)
-            aspect_ratio = math.exp(random.uniform(*self.log_aspect_ratio))
-            h = int(round(math.sqrt(target_area * aspect_ratio)))
-            w = int(round(math.sqrt(target_area / aspect_ratio)))
-            if w < self.width and h < self.height:
-                top = random.randint(0, self.height - h)
-                left = random.randint(0, self.width - w)
+            target_area = random.uniform(min_target_area, max_target_area)
+            min_aspect = max(self.min_aspect, target_area / (width**2))
+            max_aspect = min(self.max_aspect, height**2 / target_area)
+            aspect_ratio = math.exp(random.uniform(math.log(min_aspect), math.log(max_aspect)))
+            h = max(1, int(round(math.sqrt(target_area * aspect_ratio))))
+            w = max(1, int(round(math.sqrt(target_area / aspect_ratio))))
+            if w <= width and h <= height:
+                top = random.randint(0, height - h)
+                left = random.randint(0, width - w)
+                block = mask[top : top + h, left : left + w]
+                delta = int((block == 0).sum().item())
+                if 0 < delta <= max_mask_patches:
+                    block.fill_(1)
+                    return delta
 
-                num_masked = mask[top : top + h, left : left + w].sum()
+        return 0
 
-                # Overlap
-                if 0 < h * w - num_masked <= max_mask_patches:
-                    for i in range(top, top + h):
-                        for j in range(left, left + w):
-                            if mask[i, j] == 0:
-                                mask[i, j] = 1
-                                delta += 1
+    def _generate_for_grid(self, batch_size: int, grid_h: int, grid_w: int) -> torch.Tensor:
+        grid_num_patches = grid_h * grid_w
+        max_num_patches, min_masking_patches = (
+            0 if num_patches == 0 else max(1, num_patches * grid_num_patches // self.num_patches)
+            for num_patches in (self.max_num_patches, self.min_masking_patches)
+        )
+        max_num_patches = min(grid_num_patches, max_num_patches)
+        min_masking_patches = min(max_num_patches, min_masking_patches)
+        num_masking_patches = random.randint(min_masking_patches, max_num_patches)
 
-                if delta > 0:
-                    break
-
-        return delta
-
-    def __call__(self, batch_size: int) -> torch.Tensor:
-        num_masking_patches = random.randint(self.min_masking_patches, self.max_num_patches)
         masks = []
         for _ in range(batch_size):
-            mask = torch.zeros(*self.get_shape())
+            mask = torch.zeros(grid_h, grid_w)
             mask_count = 0
             while mask_count < num_masking_patches:
                 max_mask_patches = num_masking_patches - mask_count
-                max_mask_patches = min(max_mask_patches, self.max_num_patches)
-
                 delta = self._mask(mask, max_mask_patches)
                 if delta == 0:
                     break
@@ -431,6 +502,12 @@ class BlockMasking(Masking):
             masks.append(mask.flatten())
 
         return torch.stack(masks, dim=0)
+
+    def _generate(self, batch_size: int) -> torch.Tensor:
+        return self._generate_for_grid(batch_size, self.height, self.width)
+
+    def _generate_naflex(self, batch_size: int, grid_sizes: torch.Tensor) -> torch.Tensor:
+        return generate_naflex_masks(batch_size, grid_sizes, self._generate_for_grid)
 
 
 class FixedSizeBlockMasking(Masking):
@@ -451,17 +528,23 @@ class FixedSizeBlockMasking(Masking):
         self.inverse_mask = inverse_mask
         self.device = device
 
-    def __call__(self, batch_size: int) -> torch.Tensor:
+    def _generate_for_grid(self, batch_size: int, grid_h: int, grid_w: int) -> torch.Tensor:
         return fixed_size_block_mask(
             batch_size,
-            self.h,
-            self.w,
+            grid_h,
+            grid_w,
             self.mask_ratio,
             self.block_size,
             mask_ratio_adjust=self.mask_ratio_adjust,
             inverse_mask=self.inverse_mask,
             device=self.device,
         )
+
+    def _generate(self, batch_size: int) -> torch.Tensor:
+        return self._generate_for_grid(batch_size, self.h, self.w)
+
+    def _generate_naflex(self, batch_size: int, grid_sizes: torch.Tensor) -> torch.Tensor:
+        return generate_naflex_masks(batch_size, grid_sizes, self._generate_for_grid)
 
 
 class RollBlockMasking(Masking):
@@ -472,37 +555,52 @@ class RollBlockMasking(Masking):
     ) -> None:
         self.height = input_size[0]
         self.width = input_size[1]
+        self.num_patches = self.height * self.width
         self.num_masking_patches = num_masking_patches
         self.log_aspect_ratio = (math.log(min_aspect), math.log(max_aspect))
 
-    def __call__(self, batch_size: int) -> torch.Tensor:
+    def _scale_patch_count(self, patch_count: int, grid_num_patches: int) -> int:
+        if patch_count == 0:
+            return 0
+
+        return min(grid_num_patches, max(1, patch_count * grid_num_patches // self.num_patches))
+
+    def _generate_block_masks(self, batch_size: int, grid_h: int, grid_w: int, num_block_patches: int) -> torch.Tensor:
+        grid_num_patches = grid_h * grid_w
         masks = []
         for _ in range(batch_size):
-            if self.num_masking_patches == 0:
-                masks.append(torch.zeros(self.height * self.width))
+            if num_block_patches == 0:
+                masks.append(torch.zeros(grid_num_patches))
                 continue
-            if self.num_masking_patches == self.height * self.width:
-                masks.append(torch.ones(self.height * self.width))
+            if num_block_patches == grid_num_patches:
+                masks.append(torch.ones(grid_num_patches))
                 continue
 
             # Sample aspect ratio, not too large or too small for image
-            min_lar = max(self.log_aspect_ratio[0], np.log(self.num_masking_patches / (self.width**2)))
-            max_lar = min(self.log_aspect_ratio[1], np.log(self.height**2 / (self.num_masking_patches + 1e-5)))
-            aspect_ratio = math.exp(random.uniform(min_lar, max_lar))
+            grid_min_lar = math.log(num_block_patches / (grid_w**2))
+            grid_max_lar = math.log(grid_h**2 / num_block_patches)
+            min_lar = max(self.log_aspect_ratio[0], grid_min_lar)
+            max_lar = min(self.log_aspect_ratio[1], grid_max_lar)
+            if min_lar <= max_lar:
+                aspect_ratio = math.exp(random.uniform(min_lar, max_lar))
+            elif self.log_aspect_ratio[0] > grid_max_lar:
+                aspect_ratio = math.exp(grid_max_lar)
+            else:
+                aspect_ratio = math.exp(grid_min_lar)
 
-            # Use ceil so mask is >= num_masking_patches
-            h = int(np.ceil(math.sqrt(self.num_masking_patches * aspect_ratio)))
-            w = int(np.ceil(math.sqrt(self.num_masking_patches / aspect_ratio)))
-            top = random.randint(0, self.height - h)
-            left = random.randint(0, self.width - w)
-            b_mask = np.zeros((self.height, self.width))
+            # Use ceil so mask is >= num_block_patches
+            h = min(grid_h, int(np.ceil(math.sqrt(num_block_patches * aspect_ratio))))
+            w = min(grid_w, int(np.ceil(math.sqrt(num_block_patches / aspect_ratio))))
+            top = random.randint(0, grid_h - h)
+            left = random.randint(0, grid_w - w)
+            b_mask = np.zeros((grid_h, grid_w), dtype=np.float32)
             b_mask[top : top + h, left : left + w] = 1
 
-            # truncate ids to get exactly num_masking_patches
-            ids = np.where(b_mask.flatten())[0][: self.num_masking_patches]
-            mask = np.zeros((self.height, self.width)).flatten()
+            # Truncate ids to get exactly num_block_patches
+            ids = np.where(b_mask.flatten())[0][:num_block_patches]
+            mask = np.zeros((grid_h, grid_w), dtype=np.float32).flatten()
             mask[ids] = 1
-            mask_2d = mask.reshape((self.height, self.width))
+            mask_2d = mask.reshape((grid_h, grid_w))
 
             # Roll
             shift_x = random.randint(0, mask_2d.shape[0] - 1)
@@ -512,13 +610,21 @@ class RollBlockMasking(Masking):
 
         return torch.stack(masks, dim=0)
 
+    def _generate_for_grid(self, batch_size: int, grid_h: int, grid_w: int) -> torch.Tensor:
+        grid_num_patches = grid_h * grid_w
+        num_masking_patches = self._scale_patch_count(self.num_masking_patches, grid_num_patches)
+        return self._generate_block_masks(batch_size, grid_h, grid_w, num_masking_patches)
+
+    def _generate(self, batch_size: int) -> torch.Tensor:
+        return self._generate_for_grid(batch_size, self.height, self.width)
+
+    def _generate_naflex(self, batch_size: int, grid_sizes: torch.Tensor) -> torch.Tensor:
+        return generate_naflex_masks(batch_size, grid_sizes, self._generate_for_grid)
+
 
 class InverseRollBlockMasking(RollBlockMasking):
-    def __init__(
-        self, input_size: tuple[int, int], num_masking_patches: int, min_aspect: float = 0.5, max_aspect: float = 2.0
-    ) -> None:
-        num_masking_patches = input_size[0] * input_size[1] - num_masking_patches
-        super().__init__(input_size, num_masking_patches, min_aspect, max_aspect)
-
-    def __call__(self, batch_size: int) -> torch.Tensor:
-        return 1 - super().__call__(batch_size)
+    def _generate_for_grid(self, batch_size: int, grid_h: int, grid_w: int) -> torch.Tensor:
+        grid_num_patches = grid_h * grid_w
+        num_masking_patches = self._scale_patch_count(self.num_masking_patches, grid_num_patches)
+        num_visible_patches = grid_num_patches - num_masking_patches
+        return 1 - self._generate_block_masks(batch_size, grid_h, grid_w, num_visible_patches)

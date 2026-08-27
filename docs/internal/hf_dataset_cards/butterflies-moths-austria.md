@@ -18,7 +18,7 @@ This is a repackaged version of the Austria butterflies and moths dataset in PyT
 Compared to the original release, this upload:
 
 - Converts all images to WebP
-- Resizes each image so that the total number of pixels < 589,824 (=768×768), preserving aspect ratio
+- Resizes each image so that the total number of pixels < 589,824 (=768x768), preserving aspect ratio
 - Pre-splits the dataset into train/validation/test using a 70:20:10 split
 - Packs the data in an `ImageFolder` directory layout
 

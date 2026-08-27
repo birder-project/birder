@@ -1,6 +1,7 @@
 import argparse
 import logging
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 from typing import Optional
@@ -31,6 +32,7 @@ from birder.data.transforms.classification import inference_preset
 from birder.data.transforms.naflex import inference_preset as naflex_inference_preset
 from birder.inference.classification import infer_dataloader_features_iter
 from birder.inference.classification import infer_dataloader_iter
+from birder.inference.classification import infer_dataloader_naflex_features_iter
 from birder.inference.data_parallel import InferenceDataParallel
 from birder.results.classification import Results
 from birder.results.classification import SparseResults
@@ -72,9 +74,16 @@ def _init_array_parquet_writer(
 
 
 def _init_feature_parquet_writer(
-    metadata_columns: list[str], feature_dict: dict[str, list[npt.NDArray[np.float32]]], path: Path
+    metadata_columns: list[str],
+    feature_dict: dict[str, list[npt.NDArray[np.float32]]],
+    path: Path,
+    *,
+    naflex: bool = False,
 ) -> pq.ParquetWriter:
     schema_fields = _metadata_pa_fields(metadata_columns)
+    if naflex is True:
+        schema_fields.extend([pa.field("grid_height", pa.int32()), pa.field("grid_width", pa.int32())])
+
     for name, feature_list in feature_dict.items():
         _, seq_len, features_dim = feature_list[0].shape
         schema_fields.append(
@@ -121,11 +130,15 @@ def save_features_parquet(
     sample_paths: list[str],
     feature_dict: dict[str, list[npt.NDArray[np.float32]]],
     labels: Optional[npt.NDArray[np.int64]] = None,
+    grid_sizes: Optional[npt.NDArray[np.int32]] = None,
 ) -> None:
     logger.info(f"Writing features at {writer.where}")
     data = {"sample": pa.array(sample_paths, type=pa.string())}
     if labels is not None:
         data["label"] = pa.array(labels, type=pa.int64())
+    if grid_sizes is not None:
+        data["grid_height"] = pa.array(grid_sizes[:, 0], type=pa.int32())
+        data["grid_width"] = pa.array(grid_sizes[:, 1], type=pa.int32())
 
     for name, feature_list in feature_dict.items():
         features = np.concatenate(feature_list, axis=0)
@@ -503,28 +516,58 @@ def predict(args: argparse.Namespace) -> None:
         # Features export bypasses the regular classification/results flow and returns after writing the parquet file
         feature_suffix = "_detection_features.parquet" if args.save_detection_features is True else "_features.parquet"
         features_path = settings.RESULTS_DIR.joinpath(f"{base_output_path}{feature_suffix}")
-        feature_method = "detection_features" if args.save_detection_features is True else "forward_features"
-        feature_iter = infer_dataloader_features_iter(
-            device,
-            net,
-            inference_loader,
-            feature_method=feature_method,  # type: ignore[arg-type]
-            channels_last=args.channels_last,
-            model_dtype=model_dtype,
-            amp=args.amp,
-            amp_dtype=amp_dtype,
-            num_samples=num_samples,
-            chunk_size=args.chunk_size,
-            **args.forward_kwargs,
-        )
+        feature_iter: Iterator[
+            tuple[
+                list[str],
+                npt.NDArray[np.int64],
+                dict[str, list[npt.NDArray[np.float32]]],
+                Optional[npt.NDArray[np.int32]],
+            ]
+        ]
+        if args.naflex is True:
+            feature_iter = infer_dataloader_naflex_features_iter(
+                device,
+                net,
+                inference_loader,
+                max_seq_len,
+                model_dtype=model_dtype,
+                amp=args.amp,
+                amp_dtype=amp_dtype,
+                num_samples=num_samples,
+                chunk_size=args.chunk_size,
+                **args.forward_kwargs,
+            )
+        else:
+            feature_method = "detection_features" if args.save_detection_features is True else "forward_features"
+            standard_feature_iter = infer_dataloader_features_iter(
+                device,
+                net,
+                inference_loader,
+                feature_method=feature_method,  # type: ignore[arg-type]
+                channels_last=args.channels_last,
+                model_dtype=model_dtype,
+                amp=args.amp,
+                amp_dtype=amp_dtype,
+                num_samples=num_samples,
+                chunk_size=args.chunk_size,
+                **args.forward_kwargs,
+            )
+            feature_iter = (
+                (sample_paths, labels, feature_dict, None)
+                for sample_paths, labels, feature_dict in standard_feature_iter
+            )
 
         with torch.inference_mode():
-            for sample_paths, labels, feature_dict in feature_iter:
+            for sample_paths, labels, feature_dict, grid_sizes in feature_iter:
                 labels_to_save = labels if args.save_labels is True else None
                 if features_writer is None:
-                    features_writer = _init_feature_parquet_writer(metadata_columns, feature_dict, features_path)
+                    features_writer = _init_feature_parquet_writer(
+                        metadata_columns, feature_dict, features_path, naflex=args.naflex
+                    )
 
-                save_features_parquet(features_writer, sample_paths, feature_dict, labels=labels_to_save)
+                save_features_parquet(
+                    features_writer, sample_paths, feature_dict, labels=labels_to_save, grid_sizes=grid_sizes
+                )
 
         if features_writer is not None:
             features_writer.close()
@@ -863,8 +906,8 @@ def validate_args(args: argparse.Namespace) -> None:
             raise cli.ValidationError("--naflex cannot be used with --tta")
         if args.channels_last is True:
             raise cli.ValidationError("--naflex cannot be used with --channels-last")
-        if saving_features is True:
-            raise cli.ValidationError("--naflex cannot be used with --save-features/--save-detection-features")
+        if args.save_detection_features is True:
+            raise cli.ValidationError("--naflex cannot be used with --save-detection-features")
         if args.pts is True:
             raise cli.ValidationError("--naflex cannot be used with --pts")
         if args.pt2 is True:

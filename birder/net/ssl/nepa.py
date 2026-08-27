@@ -62,7 +62,7 @@ class NEPA(SSLBaseNet):
         self.backbone.set_causal_attention(True)
 
     def forward(
-        self, x: torch.Tensor, grid_sizes: Optional[torch.Tensor] = None, valid_mask: Optional[torch.Tensor] = None
+        self, x: torch.Tensor, *, grid_sizes: Optional[torch.Tensor] = None, valid_mask: Optional[torch.Tensor] = None
     ) -> dict[str, torch.Tensor]:
         if grid_sizes is None:
             features = self.backbone.forward_features(x, return_input_embedding=True)  # type: ignore[call-arg]

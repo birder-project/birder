@@ -67,7 +67,6 @@ logger = logging.getLogger(__name__)
 ImageLoader = Callable[[str], Any]
 ImageTransform = Callable[[Any], dict[str, list[torch.Tensor]]]
 TransformFactory = Callable[[argparse.Namespace], ImageTransform]
-MaskGenerator = Callable[[int], torch.Tensor]
 
 
 @dataclass(frozen=True)
@@ -78,7 +77,7 @@ class TrainOverrides:
 
 
 class DINOv2BlockMasking(BlockMasking):
-    def __call__(self, num_masking_patches: int) -> torch.Tensor:
+    def _generate(self, num_masking_patches: int) -> torch.Tensor:  # pylint: disable=arguments-renamed
         mask = torch.zeros(*self.get_shape(), dtype=torch.bool)
         mask_count = 0
         while mask_count < num_masking_patches:
@@ -92,6 +91,9 @@ class DINOv2BlockMasking(BlockMasking):
             mask_count += delta
 
         return mask
+
+    def _generate_naflex(self, batch_size: int, grid_sizes: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
 
 
 class TrainTransform:
@@ -136,7 +138,7 @@ class TrainTransform:
 class TrainCollator:
     def __init__(
         self,
-        mask_generator: MaskGenerator,
+        mask_generator: DINOv2BlockMasking,
         seq_len: int,
         mask_probability: float,
         mask_ratio_tuple: tuple[float, float],

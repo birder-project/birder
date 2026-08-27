@@ -17,6 +17,7 @@ from collections.abc import Callable
 from collections.abc import Iterator
 from contextlib import nullcontext
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 from typing import Optional
@@ -42,11 +43,16 @@ from birder.common.masking import BlockMasking
 from birder.common.masking import Masking
 from birder.common.masking import UniformMasking
 from birder.conf import settings
+from birder.data.collators.naflex import NaFlexBatchProcessor
+from birder.data.collators.naflex import NaFlexPathCollator
+from birder.data.collators.naflex import resolve_naflex_batch_specs
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.directory import make_image_dataset
 from birder.data.datasets.fake import FakeDataWithPaths
+from birder.data.datasets.naflex import NaFlexMultiScaleDataset
 from birder.data.datasets.webdataset import WDSImageDecoder
+from birder.data.datasets.webdataset import get_wds_num_shards
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
@@ -75,7 +81,7 @@ class TrainOverrides:
 
 
 class TrainCollator:
-    def __init__(self, mask_generator: Callable[[int], torch.Tensor]) -> None:
+    def __init__(self, mask_generator: Masking) -> None:
         self.collator = torch.utils.data.default_collate
         self.mask_generator = mask_generator
 
@@ -83,6 +89,20 @@ class TrainCollator:
         B = len(batch)
         collated_batch = self.collator(batch)
         masks = self.mask_generator(B)
+
+        return (collated_batch, masks)
+
+
+class NaFlexTrainCollator(NaFlexPathCollator):
+    def __init__(self, patch_size: Optional[int], mask_generator: Masking) -> None:
+        super().__init__(patch_size)
+        self.mask_generator = mask_generator
+
+    def __call__(self, batch: list[tuple[Any, ...]]) -> tuple[Any, torch.Tensor]:
+        B = len(batch)
+        collated_batch = super().__call__(batch)
+        _, grid_sizes, _ = collated_batch[self.input_offset]
+        masks = self.mask_generator(B, grid_sizes=grid_sizes)
 
         return (collated_batch, masks)
 
@@ -108,8 +128,19 @@ def get_mask_generator(masking: str, mask_size: tuple[int, int], mask_ratio: flo
     raise ValueError(f"Unsupported masking strategy: {masking}")
 
 
-def teacher_tokens(teacher: BaseNet, x: torch.Tensor) -> torch.Tensor:
-    return teacher.flatten_features(teacher.forward_features(x), include_special_tokens=False)
+def teacher_tokens(
+    teacher: BaseNet,
+    x: torch.Tensor,
+    *,
+    grid_sizes: Optional[torch.Tensor] = None,
+    valid_mask: Optional[torch.Tensor] = None,
+) -> torch.Tensor:
+    if grid_sizes is None:
+        features = teacher.forward_features(x)
+    else:
+        features = teacher.forward_features(x, grid_sizes=grid_sizes, valid_mask=valid_mask)  # type: ignore[call-arg]
+
+    return teacher.flatten_features(features, include_special_tokens=False)
 
 
 def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) -> None:
@@ -170,6 +201,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         mask_ratio=args.mask_ratio,
         min_mask_size=args.min_mask_size,
     )
+    patch_size = net.encoder.stem_stride
+    if args.naflex is True and args.naflex_patch_sizes is not None:
+        net.encoder.set_naflex_patch_resampling()
+        teacher.set_naflex_patch_resampling()
 
     #
     # Data
@@ -181,11 +216,41 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
     mask_size = (args.size[0] // net.encoder.max_stride, args.size[1] // net.encoder.max_stride)
     mask_generator = get_mask_generator(args.masking, mask_size, net.mask_ratio, args.min_mask_size)
-    mask_collator = TrainCollator(mask_generator)
-    if overrides.training_transform is not None:
+    collate_fn: Optional[Callable[[Any], Any]] = None
+    naflex_batch_processor: Optional[NaFlexBatchProcessor] = None
+    wds_num_shards: Optional[int] = None
+    if args.naflex is True:
+        naflex_specs = resolve_naflex_batch_specs(args.size, patch_size, args.naflex_sizes, args.naflex_patch_sizes)
+    else:
+        naflex_specs = ()
+
+    if len(set(naflex_specs)) > 1:
+        if overrides.training_transform is not None:
+            raise ValueError("NaFlex batch scheduling does not support a custom training transform")
+
+        naflex_transforms = {spec: training_utils.get_naflex_training_transform(args, spec) for spec in naflex_specs}
+        logger.debug(f"Using NaFlex batch specifications: {list(naflex_specs)}")
+
+        training_transform = None
+        naflex_batch_processor = NaFlexBatchProcessor(
+            NaFlexTrainCollator(patch_size=None, mask_generator=mask_generator),
+            naflex_specs,
+            naflex_transforms,
+            seed=args.seed or 0,
+        )
+
+    elif overrides.training_transform is not None:
         training_transform = overrides.training_transform(args)
+    elif args.naflex is True:
+        spec = naflex_specs[0]
+        training_transform = training_utils.get_naflex_training_transform(args, spec)
     else:
         training_transform = training_utils.get_training_transform(args)
+
+    if args.naflex is True and naflex_batch_processor is None:
+        collate_fn = NaFlexTrainCollator(patch_size=naflex_specs[0].patch_size, mask_generator=mask_generator)
+    elif args.naflex is False:
+        collate_fn = TrainCollator(mask_generator)
 
     if args.use_fake_data is True:
         logger.warning("Using fake data")
@@ -218,6 +283,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             cls_key=None,
             cache_dir=args.wds_cache_dir,
         )
+        if naflex_batch_processor is not None:
+            wds_num_shards = get_wds_num_shards(training_dataset)
 
     else:
         if overrides.image_loader is not None:
@@ -232,6 +299,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             loader=image_loader,
         )
 
+    if args.wds is False and naflex_batch_processor is not None:
+        training_dataset = NaFlexMultiScaleDataset(training_dataset, naflex_batch_processor)
+        collate_fn = naflex_batch_processor.base_collator
+
     logger.info(f"Using device {device}:{device_id}")
     logger.info(f"Training dataset has {len(training_dataset):,} samples")
 
@@ -242,18 +313,28 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     )
 
     if args.wds is True:
+        wds_batcher: Optional[Callable[..., Iterator[tuple[Any, ...]]]] = None
+        if naflex_batch_processor is not None:
+            wds_batcher = partial(
+                naflex_batch_processor.iter_batches,
+                batch_size=batch_size,
+                drop_last=args.drop_last,
+            )
+
         training_loader = make_wds_loader(
             training_dataset,
             batch_size,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            collate_fn=mask_collator,
+            collate_fn=None if naflex_batch_processor is not None else collate_fn,
             world_size=args.world_size,
             pin_memory=args.pin_memory,
             drop_last=args.drop_last,
             persistent_workers=args.persistent_workers,
             shuffle=False,
             infinite=virtual_epoch_mode,
+            batcher=wds_batcher,
+            num_shards=wds_num_shards,
         )
 
     else:
@@ -263,7 +344,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             sampler=train_sampler,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            collate_fn=mask_collator,
+            collate_fn=collate_fn,
             pin_memory=args.pin_memory,
             drop_last=args.drop_last,
             persistent_workers=args.persistent_workers,
@@ -482,6 +563,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     # Training loop
     #
     if virtual_epoch_mode is True:
+        # Virtual epochs share one continuous loader iterator, so initialize the NaFlex schedule before creating it
+        if naflex_batch_processor is not None:
+            naflex_batch_processor.set_epoch(begin_epoch)
+
         train_iter = iter(training_loader)
 
     running_loss = training_utils.SmoothedValue(window_size=64)
@@ -494,6 +579,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         tic = time.time()
         net.train()
         teacher.eval()
+
+        if naflex_batch_processor is not None and virtual_epoch_mode is False:
+            naflex_batch_processor.set_epoch(epoch)
 
         # Clear metrics
         running_loss.clear()
@@ -525,6 +613,14 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             batch_iter = enumerate(training_loader)
 
         for i, ((_, images, _), masks) in batch_iter:
+            batch_kwargs: dict[str, torch.Tensor] = {}
+            if args.naflex is True:
+                images, grid_sizes, valid_mask = images
+                batch_kwargs = {
+                    "grid_sizes": grid_sizes.to(device, non_blocking=True),
+                    "valid_mask": valid_mask.to(device, non_blocking=True),
+                }
+
             images = images.to(device, dtype=model_dtype, non_blocking=True)
             masks = masks.to(device, dtype=model_dtype, non_blocking=True)
 
@@ -539,9 +635,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             with sync_context():
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
                     with torch.no_grad():
-                        target_tokens = teacher_tokens(teacher, images)
+                        target_tokens = teacher_tokens(teacher, images, **batch_kwargs)
 
-                    outputs: dict[str, torch.Tensor] = net(images, target_tokens, masks)
+                    outputs: dict[str, torch.Tensor] = net(images, target_tokens, masks, **batch_kwargs)
                     eva_loss = outputs["loss"]
                     moe_aux_loss = outputs.get("moe_auxiliary_loss")
                     if args.moe_aux_loss is True:
@@ -771,7 +867,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_training_schedule_args(parser, default_epochs=300)
     training_cli.add_batch_norm_args(parser)
     training_cli.add_input_args(
-        parser, size_help="image size (defaults to teacher network size) shared by both networks"
+        parser, size_help="image size (defaults to teacher network size) shared by both networks", naflex=True
     )
     training_cli.add_data_aug_args(parser, default_level=1, default_min_scale=0.25, default_re_prob=0.0)
     training_cli.add_dataloader_args(parser, default_drop_last=True)

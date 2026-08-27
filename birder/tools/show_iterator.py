@@ -1,5 +1,6 @@
 import argparse
 import logging
+import math
 import random
 from collections.abc import Callable
 from collections.abc import Iterator
@@ -23,8 +24,10 @@ from birder.common import masking
 from birder.common import training_cli
 from birder.conf import settings
 from birder.data.collators.naflex import NaFlexBatchProcessor
+from birder.data.collators.naflex import NaFlexBatchSpec
 from birder.data.collators.naflex import NaFlexMixupTrainingCollator
 from birder.data.collators.naflex import NaFlexTrainingCollator
+from birder.data.collators.naflex import resolve_naflex_batch_specs
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import ImageLoaderName
 from birder.data.datasets.directory import get_image_loader
@@ -44,11 +47,11 @@ logger = logging.getLogger(__name__)
 
 
 def _unpatchify_naflex(
-    patches: torch.Tensor, grid_size: torch.Tensor, valid_mask: torch.Tensor, patch_size: int
+    patches: torch.Tensor, grid_size: torch.Tensor, valid_mask: torch.Tensor, channels: int
 ) -> torch.Tensor:
     grid_h, grid_w = grid_size.tolist()
     patches = patches[valid_mask]
-    channels = patches.size(1) // (patch_size * patch_size)
+    patch_size = math.isqrt(patches.size(1) // channels)
     image = patches.reshape(grid_h, grid_w, channels, patch_size, patch_size)
 
     return image.permute(2, 0, 3, 1, 4).reshape(channels, grid_h * patch_size, grid_w * patch_size)
@@ -77,15 +80,17 @@ def _get_mask_generator(args: argparse.Namespace, mask_size: tuple[int, int]) ->
 def show_iterator(args: argparse.Namespace) -> None:
     rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
     reverse_transform = reverse_preset(rgb_stats)
-    naflex_transforms: Optional[dict[int, Callable[..., torch.Tensor]]] = None
+    naflex_specs: tuple[NaFlexBatchSpec, ...] = ()
+    naflex_transforms: Optional[dict[NaFlexBatchSpec, Callable[..., torch.Tensor]]] = None
     if args.naflex is True:
-        inference_max_seq_len = naflex.get_sequence_lengths(args.size, args.patch_size)[0]
+        fixed_naflex_patch_size = args.patch_size
+        inference_spec = resolve_naflex_batch_specs(args.size, args.patch_size)[0]
         if args.mode == "training":
 
-            def make_naflex_transform(seq_len: int) -> Callable[..., torch.Tensor]:
+            def make_naflex_transform(spec: NaFlexBatchSpec) -> Callable[..., torch.Tensor]:
                 return naflex.training_preset(
-                    args.patch_size,
-                    seq_len,
+                    spec.patch_size,
+                    spec.max_seq_len,
                     args.aug_type,
                     args.aug_level,
                     rgb_stats,
@@ -99,14 +104,19 @@ def show_iterator(args: argparse.Namespace) -> None:
                     clip_gray_prob=args.clip_gray_prob,
                 )
 
-            naflex_seq_lens = naflex.get_sequence_lengths(args.size, args.patch_size, args.naflex_sizes)
-            if len(naflex_seq_lens) > 1:
-                naflex_transforms = {seq_len: make_naflex_transform(seq_len) for seq_len in naflex_seq_lens}
-                transform = None if args.batch is True else naflex_transforms[naflex_seq_lens[0]]
+            naflex_specs = resolve_naflex_batch_specs(
+                args.size, args.patch_size, args.naflex_sizes, args.naflex_patch_sizes
+            )
+            logger.info(f"Resolved NaFlex batch specifications: {list(naflex_specs)}")
+            if len(set(naflex_specs)) > 1:
+                naflex_transforms = {spec: make_naflex_transform(spec) for spec in naflex_specs}
+                transform = None if args.batch is True else naflex_transforms[naflex_specs[0]]
             else:
-                transform = make_naflex_transform(naflex_seq_lens[0])
+                spec = naflex_specs[0]
+                fixed_naflex_patch_size = spec.patch_size
+                transform = make_naflex_transform(spec)
         elif args.mode == "inference":
-            transform = naflex.inference_preset(args.patch_size, inference_max_seq_len, rgb_stats)
+            transform = naflex.inference_preset(inference_spec.patch_size, inference_spec.max_seq_len, rgb_stats)
         else:
             raise ValueError(f"Unknown mode={args.mode}")
     elif args.mode == "training":
@@ -203,13 +213,16 @@ def show_iterator(args: argparse.Namespace) -> None:
         num_outputs = len(class_to_idx)
         collate_fn: Callable[[Any], Any]
         if args.naflex is True:
+            collator_patch_size = None if naflex_transforms is not None else fixed_naflex_patch_size
             if args.mixup_alpha is None:
-                naflex_collator = NaFlexTrainingCollator(args.patch_size)
+                naflex_collator = NaFlexTrainingCollator(collator_patch_size)
             else:
-                naflex_collator = NaFlexMixupTrainingCollator(args.patch_size, num_outputs, args.mixup_alpha)
+                naflex_collator = NaFlexMixupTrainingCollator(
+                    patch_size=collator_patch_size, num_classes=num_outputs, alpha=args.mixup_alpha
+                )
 
             if naflex_transforms is not None:
-                naflex_batch_processor = NaFlexBatchProcessor(naflex_collator, naflex_transforms, seed=0)
+                naflex_batch_processor = NaFlexBatchProcessor(naflex_collator, naflex_specs, naflex_transforms, seed=0)
                 if args.wds is False:
                     dataset = NaFlexMultiScaleDataset(dataset, naflex_batch_processor)
 
@@ -266,17 +279,25 @@ def show_iterator(args: argparse.Namespace) -> None:
 
             fig = plt.figure(constrained_layout=True)
             grid_spec = fig.add_gridspec(ncols=cols, nrows=rows)
+            batch_patch_size = args.patch_size
 
             if args.naflex is True:
                 patches, grid_sizes, valid_mask = inputs
+                batch_patch_size = math.isqrt(patches.size(2) // args.channels)
+                if mask_generator is not None:
+                    masks = mask_generator(patches.size(0), grid_sizes=grid_sizes)
+                    patches = masking.mask_tokens(patches, masks)
+
                 images = []
                 for idx, grid_size in enumerate(grid_sizes):
                     image_patches = patches[idx]
                     image_valid_mask = valid_mask[idx]
-                    images.append(_unpatchify_naflex(image_patches, grid_size, image_valid_mask, args.patch_size))
+                    images.append(
+                        _unpatchify_naflex(image_patches, grid_size, image_valid_mask, channels=args.channels)
+                    )
 
             elif mask_generator is not None:
-                masks = mask_generator(batch_size)
+                masks = mask_generator(inputs.size(0))
                 inputs = masking.mask_tensor(inputs, masks, patch_factor=args.patch_size)
                 images = inputs
             else:
@@ -292,7 +313,9 @@ def show_iterator(args: argparse.Namespace) -> None:
                     ax = fig.add_subplot(grid_spec[j, i])
                     ax.imshow(np.asarray(transformed_img))
                     if args.naflex is True:
-                        ax.set_title(f"#{counter}, {transformed_img.height}x{transformed_img.width}")
+                        ax.set_title(
+                            f"#{counter}, {transformed_img.height}x{transformed_img.width}, p{batch_patch_size}"
+                        )
                     else:
                         ax.set_title(f"#{counter}")
                     counter += 1
@@ -313,7 +336,8 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools show-iterator --mode training --size 256 --patch-size 16 --naflex --batch "
             "--mixup-alpha 0.2\n"
             "python -m birder.tools show-iterator --mode training --size 256 --patch-size 16 --re-prob 0 --naflex "
-            "--naflex-sizes 256 384 --batch\n"
+            "--naflex-sizes 192 256 384 --naflex-patch-sizes 12 16 20 --batch --masking uniform "
+            "--min-mask-size 2\n"
             "python -m birder.tools show-iterator --mode training --size 224 --aug-level 2 --batch\n"
             "python -m birder.tools show-iterator --mode inference --size 320\n"
             "python -m birder.tools show-iterator --mode training --size 224 --batch --wds "
@@ -346,6 +370,13 @@ def set_parser(subparsers: Any) -> None:
             "square-equivalent image sizes in pixels to sample once per training batch, actual image "
             "dimensions preserve aspect ratio (values must be divisible by --patch-size)"
         ),
+    )
+    subparser.add_argument(
+        "--naflex-patch-sizes",
+        type=int,
+        nargs="+",
+        metavar="PATCH_SIZE",
+        help="patch sizes to sample once per training batch (values do not need to divide the image sizes)",
     )
     subparser.add_argument("--mixup-alpha", type=float, help="mixup alpha")
     subparser.add_argument("--cutmix", default=False, action="store_true", help="enable cutmix")
@@ -398,8 +429,6 @@ def main(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--masking requires --batch to be set")
     if args.naflex is True and args.cutmix is True:
         raise cli.ValidationError("--naflex cannot be used with --cutmix")
-    if args.naflex is True and args.masking is not None:
-        raise cli.ValidationError("--naflex cannot be used with --masking")
     if args.naflex is True and args.simple_crop is True:
         raise cli.ValidationError("--naflex does not support --simple-crop")
     if args.naflex is True and args.wds is True and args.wds_extra_shuffle is True:
@@ -408,6 +437,13 @@ def main(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--naflex-sizes requires --naflex")
     if args.naflex_sizes is not None and args.mode != "training":
         raise cli.ValidationError("--naflex-sizes is only supported in training mode")
+    if args.naflex_patch_sizes is not None:
+        if args.naflex is False:
+            raise cli.ValidationError("--naflex-patch-sizes requires --naflex")
+        if args.mode != "training":
+            raise cli.ValidationError("--naflex-patch-sizes is only supported in training mode")
+        if len(set(args.naflex_patch_sizes)) != len(args.naflex_patch_sizes):
+            raise cli.ValidationError(f"--naflex-patch-sizes values must be unique, got {args.naflex_patch_sizes}")
     if args.rgb_mean is not None and len(args.rgb_mean) != args.channels:
         raise cli.ValidationError(f"--rgb-mean must have {args.channels} values, got {len(args.rgb_mean)}")
     if args.rgb_std is not None and len(args.rgb_std) != args.channels:

@@ -318,6 +318,13 @@ def add_input_args(parser: argparse.ArgumentParser, size_help: Optional[str] = N
                 "dimensions preserve aspect ratio (values must be divisible by the model patch size)"
             ),
         )
+        group.add_argument(
+            "--naflex-patch-sizes",
+            type=int,
+            nargs="+",
+            metavar="PATCH_SIZE",
+            help="patch sizes to sample once per training batch (values do not need to divide the image sizes)",
+        )
 
 
 def add_detection_input_args(parser: argparse.ArgumentParser) -> None:
@@ -1077,6 +1084,12 @@ def common_args_validation(args: argparse.Namespace) -> None:
             raise ValidationError(f"--naflex-sizes values must be positive, got {args.naflex_sizes}")
         if len(set(args.naflex_sizes)) != len(args.naflex_sizes):
             raise ValidationError(f"--naflex-sizes values must be unique, got {args.naflex_sizes}")
+
+    if hasattr(args, "naflex_patch_sizes") is True and args.naflex_patch_sizes is not None:
+        if args.naflex is False:
+            raise ValidationError("--naflex-patch-sizes requires --naflex")
+        if len(set(args.naflex_patch_sizes)) != len(args.naflex_patch_sizes):
+            raise ValidationError(f"--naflex-patch-sizes values must be unique, got {args.naflex_patch_sizes}")
 
     # Data augmentation args have standard and detection version. Apply only to standard
     if hasattr(args, "rgb_mean") is True and args.rgb_mean is not None and len(args.rgb_mean) != args.channels:

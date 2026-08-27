@@ -33,6 +33,7 @@ from birder.common.lib import format_duration
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.common.masking import FixedSizeBlockMasking
+from birder.common.masking import Masking
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import get_image_loader
@@ -65,9 +66,7 @@ class TrainOverrides:
 
 
 class TrainTransform:
-    def __init__(
-        self, transform: Callable[..., torch.Tensor], mask_generator: Callable[[int], torch.Tensor], clone_batch: int
-    ) -> None:
+    def __init__(self, transform: Callable[..., torch.Tensor], mask_generator: Masking, clone_batch: int) -> None:
         self.transform = transform
         self.mask_generator = mask_generator
         self.clone_batch = clone_batch

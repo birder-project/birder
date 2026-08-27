@@ -932,7 +932,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             if return_all_features is True:
                 x = x[..., -1]
 
-            result["embedding"] = self.embedding_norm(self._pool(x))
+            result["embedding"] = self.embedding_from_features(x)
 
         return result
 
@@ -979,7 +979,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             result["features"] = features
 
         if return_keys in ("all", "embedding"):
-            result["embedding"] = self.embedding_norm(self._pool(x))
+            result["embedding"] = self.embedding_from_features(x)
 
         return result
 
@@ -1224,6 +1224,24 @@ registry.register_weights(
             }
         },
         "net": {"network": "rope_vit_reg4_b14", "tag": "capi-intermediate-eu-common"},
+    },
+)
+registry.register_weights(
+    "rope_vit_reg8_b14_nps_avg_capi-dino-bio",
+    {
+        "url": "https://huggingface.co/birder-project/rope_vit_reg8_b14_nps_avg_capi-dino-bio/resolve/main",
+        "description": (
+            "RoPE ViT Reg8 B/14 image encoder with average pooling, pretrained using CAPI-DINO on natural "
+            "biological images. It has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (224, 224),
+        "formats": {
+            "pt": {
+                "file_size": 327.0,
+                "sha256": "69f3055c05133061bfd12ade1dccf0bccb9947bd583c6f979c3c2c0662b8cf0e",
+            }
+        },
+        "net": {"network": "rope_vit_reg8_b14_nps_avg", "tag": "capi-dino-bio"},
     },
 )
 registry.register_weights(

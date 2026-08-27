@@ -3,7 +3,6 @@ from collections.abc import Callable
 from typing import Any
 from typing import Literal
 from typing import Optional
-from typing import cast
 
 import numpy as np
 import torch
@@ -203,7 +202,7 @@ class HierarchicalImageFolder(DatasetFolder):
             def is_valid_file(x: str) -> bool:  # pylint: disable=function-redefined
                 return has_file_allowed_extension(x, extensions)  # type: ignore[no-any-return]
 
-        is_valid_file = cast(Callable[[str], bool], is_valid_file)
+        assert is_valid_file is not None
 
         instances = []
         available_classes = set()

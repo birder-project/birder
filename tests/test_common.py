@@ -2,6 +2,7 @@ import argparse
 import itertools
 import logging
 import math
+import random
 import tempfile
 import typing
 import unittest
@@ -1450,68 +1451,18 @@ class TestMasking(unittest.TestCase):
         for masked_token in x_masked:
             torch.testing.assert_close(masked_token, mask_token)
 
-    def test_block_masking(self) -> None:
-        generator = masking.BlockMasking((8, 8), 0, 0, 0.66, 1.5)
-        mask = generator(1)
-        self.assertEqual((mask == 0).sum().item(), 64)
+    def test_mask_tokens(self) -> None:
+        x = torch.rand(2, 8, 80)
+        mask = masking.uniform_mask(2, 2, 4, mask_ratio=0.5, device=x.device)[0]
+        x_masked = masking.mask_tokens(x, mask)
 
-        mask = generator(4)
-        self.assertEqual((mask == 0).sum().item(), 4 * 64)
+        torch.testing.assert_close(x_masked[mask == 0], x[mask == 0])
+        torch.testing.assert_close(x_masked[mask == 1], torch.zeros_like(x_masked[mask == 1]))
 
-        generator = masking.BlockMasking((8, 8), 0, 32, 0.66, 1.5)
-        mask = generator(1)
-        self.assertGreaterEqual((mask == 0).sum().item(), 32)
-
-    def test_fixed_size_block_masking(self) -> None:
-        generator = masking.FixedSizeBlockMasking(
-            (8, 12), mask_ratio=0.75, block_size=3, mask_ratio_adjust=0.1, inverse_mask=True
-        )
-        mask = generator(4)
-        self.assertEqual(mask.size(), (4, 96))
-        self.assertEqual((mask == 1).sum().item(), 4 * 72)
-        self.assertEqual((mask == 0).sum().item(), 4 * 24)
-
-    def test_roll_block_masking(self) -> None:
-        generator = masking.RollBlockMasking((8, 8), 64)
-        mask = generator(1)
-        self.assertEqual((mask == 1).sum().item(), 64)
-
-        mask = generator(4)
-        self.assertEqual((mask == 1).sum().item(), 4 * 64)
-
-        generator = masking.RollBlockMasking((8, 8), 32)
-        mask = generator(1)
-        self.assertGreaterEqual((mask == 0).sum().item(), 32)
-
-        generator = masking.RollBlockMasking((8, 8), 0)
-        mask = generator(1)
-        self.assertGreaterEqual((mask == 0).sum().item(), 64)
-
-    def test_inverse_roll_block_masking(self) -> None:
-        generator = masking.InverseRollBlockMasking((8, 8), 64)
-        mask = generator(1)
-        self.assertEqual((mask == 1).sum().item(), 64)
-
-        mask = generator(4)
-        self.assertEqual((mask == 1).sum().item(), 4 * 64)
-
-        generator = masking.InverseRollBlockMasking((8, 8), 32)
-        mask = generator(1)
-        self.assertGreaterEqual((mask == 0).sum().item(), 32)
-
-        generator = masking.InverseRollBlockMasking((8, 8), 0)
-        mask = generator(1)
-        self.assertGreaterEqual((mask == 0).sum().item(), 64)
-
-    def test_uniform_masking(self) -> None:
-        generator = masking.UniformMasking((8, 8), mask_ratio=0.25)
-        mask = generator(2)
-        self.assertEqual((mask == 0).sum().item(), 96)
-        self.assertNotEqual(mask.dtype, torch.bool)
-
-        mask = generator(8)
-        self.assertEqual((mask == 0).sum().item(), 384)
-        self.assertNotEqual(mask.dtype, torch.bool)
+        mask_token = torch.rand(1, 1, 1, 80)
+        x_masked = masking.mask_tokens(x, mask, mask_token=mask_token)
+        expected_mask_tokens = mask_token.reshape(1, 80).expand((mask == 1).sum(), -1)
+        torch.testing.assert_close(x_masked[mask == 1], expected_mask_tokens)
 
     def test_uniform_mask_block(self) -> None:
         batch_size = 2
@@ -1548,6 +1499,30 @@ class TestMasking(unittest.TestCase):
         # Test number of kept tokens
         self.assertEqual((mask == 0).sum().item(), batch_size * len_keep)
 
+    def test_generate_naflex_masks(self) -> None:
+        calls: list[tuple[int, int, int]] = []
+
+        def mask_generator(batch_size: int, grid_h: int, grid_w: int) -> torch.Tensor:
+            calls.append((batch_size, grid_h, grid_w))
+            mask = torch.zeros((batch_size, grid_h, grid_w))
+            mask[:, :, -1] = 1
+
+            return mask.flatten(1)
+
+        grid_sizes = torch.tensor([[2, 3], [1, 4], [2, 3]])
+        masks = masking.generate_naflex_masks(3, grid_sizes, mask_generator)
+
+        expected_masks = torch.tensor(
+            [
+                [0, 0, 1, 0, 0, 1],
+                [0, 0, 0, 1, 0, 0],
+                [0, 0, 1, 0, 0, 1],
+            ],
+            dtype=masks.dtype,
+        )
+        torch.testing.assert_close(masks, expected_masks)
+        self.assertCountEqual(calls, [(2, 2, 3), (1, 1, 4)])
+
     def test_get_ids_keep(self) -> None:
         mask = torch.tensor(
             [
@@ -1557,3 +1532,123 @@ class TestMasking(unittest.TestCase):
         )
         ids_keep = masking.get_ids_keep(mask)
         torch.testing.assert_close(ids_keep, torch.tensor([[0, 3], [1, 2]]))
+
+    def test_uniform_masking(self) -> None:
+        generator = masking.UniformMasking((8, 8), mask_ratio=0.25)
+        mask = generator(2)
+        self.assertEqual((mask == 0).sum().item(), 96)
+        self.assertNotEqual(mask.dtype, torch.bool)
+
+        mask = generator(8)
+        self.assertEqual((mask == 0).sum().item(), 384)
+        self.assertNotEqual(mask.dtype, torch.bool)
+
+    def test_uniform_masking_naflex(self) -> None:
+        batch_size = 4
+        mask_ratio = 0.5
+        min_mask_size = 2
+        grid_sizes = torch.tensor([[12, 12], [14, 10], [8, 18], [14, 10]])
+        generator = masking.UniformMasking((12, 12), mask_ratio, min_mask_size=min_mask_size)
+        masks = generator(batch_size, grid_sizes=grid_sizes)
+
+        self.assertEqual(masks.size(), (batch_size, 144))
+        self.assertNotEqual(masks.dtype, torch.bool)
+        for sample_idx, (grid_h, grid_w) in enumerate(grid_sizes.tolist()):
+            seq_len = grid_h * grid_w
+            sample_mask = masks[sample_idx, :seq_len]
+            coarse_seq_len = (grid_h // min_mask_size) * (grid_w // min_mask_size)
+            expected_kept = int(coarse_seq_len * (1 - mask_ratio)) * (min_mask_size**2)
+
+            self.assertEqual((sample_mask == 0).sum().item(), expected_kept)
+            self.assertEqual(masks[sample_idx, seq_len:].count_nonzero().item(), 0)
+
+            mask_2d = sample_mask.reshape(grid_h, grid_w)
+            for i in range(0, grid_h, min_mask_size):
+                for j in range(0, grid_w, min_mask_size):
+                    block = mask_2d[i : i + min_mask_size, j : j + min_mask_size]
+                    self.assertTrue(torch.all(block == block[0, 0]))
+
+    def test_block_masking(self) -> None:
+        generator = masking.BlockMasking((8, 8), 0, 0, 0.66, 1.5)
+        mask = generator(1)
+        self.assertEqual((mask == 0).sum().item(), 64)
+
+        mask = generator(4)
+        self.assertEqual((mask == 0).sum().item(), 4 * 64)
+
+        generator = masking.BlockMasking((8, 8), 0, 32, 0.66, 1.5)
+        mask = generator(1)
+        self.assertGreaterEqual((mask == 0).sum().item(), 32)
+
+    def test_block_masking_naflex(self) -> None:
+        self.addCleanup(random.setstate, random.getstate())
+        random.seed(0)
+
+        grid_sizes = torch.tensor([[8, 8], [4, 8], [1, 16], [8, 8]])
+        generator = masking.BlockMasking((8, 8), 1, 4, 0.33, 3.33, min_masking_patches=4)
+        masks = generator(4, grid_sizes=grid_sizes)
+
+        self.assertEqual(masks.size(), (4, 64))
+        self.assertNotEqual(masks.dtype, torch.bool)
+        for sample_mask, (grid_h, grid_w), expected_masked in zip(masks, grid_sizes.tolist(), [4, 2, 1, 4]):
+            seq_len = grid_h * grid_w
+            self.assertEqual(sample_mask[:seq_len].count_nonzero().item(), expected_masked)
+            self.assertEqual(sample_mask[seq_len:].count_nonzero().item(), 0)
+
+    def test_fixed_size_block_masking(self) -> None:
+        generator = masking.FixedSizeBlockMasking(
+            (8, 12), mask_ratio=0.75, block_size=3, mask_ratio_adjust=0.1, inverse_mask=True
+        )
+        mask = generator(4)
+        self.assertEqual(mask.size(), (4, 96))
+        self.assertEqual((mask == 1).sum().item(), 4 * 72)
+        self.assertEqual((mask == 0).sum().item(), 4 * 24)
+
+    def test_roll_block_masking(self) -> None:
+        generator = masking.RollBlockMasking((8, 8), 64)
+        mask = generator(1)
+        self.assertEqual((mask == 1).sum().item(), 64)
+
+        mask = generator(4)
+        self.assertEqual((mask == 1).sum().item(), 4 * 64)
+
+        generator = masking.RollBlockMasking((8, 8), 32)
+        mask = generator(1)
+        self.assertGreaterEqual((mask == 0).sum().item(), 32)
+
+        generator = masking.RollBlockMasking((8, 8), 0)
+        mask = generator(1)
+        self.assertGreaterEqual((mask == 0).sum().item(), 64)
+
+    def test_inverse_roll_block_masking(self) -> None:
+        generator = masking.InverseRollBlockMasking((8, 8), 64)
+        mask = generator(1)
+        self.assertEqual((mask == 1).sum().item(), 64)
+
+        mask = generator(4)
+        self.assertEqual((mask == 1).sum().item(), 4 * 64)
+
+        generator = masking.InverseRollBlockMasking((8, 8), 32)
+        mask = generator(1)
+        self.assertEqual((mask == 1).sum().item(), 32)
+        self.assertEqual((mask == 0).sum().item(), 32)
+
+        generator = masking.InverseRollBlockMasking((8, 8), 0)
+        mask = generator(1)
+        self.assertEqual((mask == 0).sum().item(), 64)
+
+    def test_inverse_roll_block_masking_naflex(self) -> None:
+        grid_sizes = torch.tensor([[1, 1], [3, 5], [4, 4], [1, 7], [8, 8]])
+        generator = masking.InverseRollBlockMasking((8, 8), 32)
+        masks = generator(5, grid_sizes=grid_sizes)
+
+        self.assertEqual(masks.size(), (5, 64))
+        for sample_mask, (grid_h, grid_w), expected_masked in zip(masks, grid_sizes.tolist(), [1, 7, 8, 3, 32]):
+            seq_len = grid_h * grid_w
+            self.assertEqual(sample_mask[:seq_len].count_nonzero().item(), expected_masked)
+            self.assertEqual(sample_mask[seq_len:].count_nonzero().item(), 0)
+
+        for num_masking_patches, expected_masked in [(0, 0), (64, 15)]:
+            generator = masking.InverseRollBlockMasking((8, 8), num_masking_patches)
+            mask = generator(1, grid_sizes=torch.tensor([[3, 5]]))
+            self.assertEqual(mask.count_nonzero().item(), expected_masked)

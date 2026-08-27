@@ -1,78 +1,93 @@
-# NaFlex Multi-Scale Training
+# NaFlex Training Decisions
 
-`--naflex-sizes` configures one or more square-equivalent resolution budgets while keeping the image batch size fixed. With multiple budgets, one is selected uniformly for each batch and applied to every image in that batch.
+This document records the NaFlex training decisions that are not obvious from the implementation.
 
-Without this option, NaFlex uses one budget derived from the resolved `--size`, whether that size was supplied explicitly or came from the model signature. A single `--naflex-sizes` value also uses the normal static pipeline; the coordinated multi-scale pipeline is activated only when more than one budget is configured.
+## Batch Specifications and Sampling
 
-The option affects training only. Validation always uses the budget derived from `--size`.
-
-## Pixel Sizes and Token Budgets
-
-A configured `--naflex-sizes` value is a square-equivalent area budget, not an output height or width. It is converted once the model patch size is known:
+A batch specification is `(patch_size, max_seq_len)`. Let `P0` be the model's canonical patch size and `A` one of the
+configured resolution-area budgets (`R^2` for a square-equivalent resolution, or `height * width` for a rectangular
+budget). The natural-patch sequence ceiling is:
 
 ```text
-max_seq_len = (size / patch_size)²
+L_cap = max(floor(A / P0^2))
 ```
 
-For example, size 192 with 16-pixel patches allows at most 144 patch tokens. Each image still gets a patch grid matching its source aspect ratio as closely as possible, with `grid_h * grid_w <= max_seq_len`.
-
-When `--naflex-sizes` is omitted, a resolved image size `(height, width)` produces one budget:
+For every candidate patch size `P` and resolution budget `A`, we form:
 
 ```text
-max_seq_len = (height / patch_size) * (width / patch_size)
+L(A, P) = floor(A / P^2)
 ```
 
-Internally, training works with the derived sequence lengths.
-
-## Multi-Scale Data Flow
-
-The following processing applies only when multiple sequence lengths are configured:
+The pair is admissible exactly when:
 
 ```text
-       training seed + epoch + worker batch
-                        |
-                        v
-          NaFlexSequenceLengthSchedule
-                 one max_seq_len
-                        |
-             +----------+----------+
-             |                     |
-      map-style dataset        WebDataset stream
-       batch of indices        decoded samples
-             |                     |
-       __getitems__             iter_batches
-      load + transform        group + transform
-       one at a time           one at a time
-             |                     |
-             +----------+----------+
-                        |
-                  base_collator
-    patchify / pad / mask / targets / optional MixUp
-                        |
-                      model
+0 < L(A, P) <= L_cap
 ```
 
-`NaFlexSequenceLengthSchedule` selects the budget. `NaFlexBatchProcessor` tracks batch position, applies the corresponding transform and delegates final collation to `base_collator`. With one sequence length, the dataset applies the single transform normally and the standard DataLoader batching path remains unchanged.
+This excludes the expensive small-patch/large-resolution corner without allowing the choice of patch size to increase
+the maximum natural-patch workload. Every requested patch size and every requested resolution must participate in at
+least one admissible pair, otherwise configuration fails.
 
-Map-style datasets are wrapped by `NaFlexMultiScaleDataset`. PyTorch passes the wrapper a complete batch of indices through `__getitems__`; the wrapper lazily calls the underlying dataset and transforms each image before loading the next one.
+Sampling is hierarchical rather than uniform over pairs:
 
-WebDataset has no indices, so `NaFlexBatchProcessor.iter_batches` owns the batch boundary. Normal WebLoader batching is disabled for this path.
+1. Select a patch size uniformly.
+2. Select uniformly from its admissible resolution entries.
+3. Apply the resulting specification to the entire batch.
 
-Both paths transform immediately to avoid retaining a complete batch of decoded, full-resolution images.
+Resolution entries are retained when two resolutions quantize to the same specification. The transform is shared, but
+the duplicate schedule entries preserve the resolutions' sampling weight. Coordinated scheduling is needed only when
+more than one distinct specification remains.
 
-## Distributed Multi-Scale Schedule
+`max_seq_len` is a ceiling used by the image transform, not the padded sequence length. Each transformed image has an
+aspect-ratio-preserving patch grid with `grid_h * grid_w <= max_seq_len`, and the collator pads only to the longest
+actual sequence in the local batch. Consequently, padded sequence lengths can be smaller than the selected ceiling and
+can differ across distributed ranks.
 
-No collective communication is used to synchronize sizes. Corresponding batches independently make the same deterministic selection:
+## Fixed Image Batch Size
+
+The image batch size does not grow when a specification produces a shorter sequence. Consequently, every uniformly
+sampled patch size has the same expected number of images contributing to training. Adapting batch size to sequence
+length would give short-sequence choices more training contribution. The resulting underutilization on short sequences
+is intentional.
+
+## Regional MixUp
+
+NaFlex MixUp operates on patch grids before padding. It is eligible only for batches with more than one sample and is
+applied with probability `p`, which defaults to `0.5`. When it is applied:
+
+- Draw one `lambda ~ Beta(alpha, alpha)` for the batch.
+- Pair sample `i` with the original sample `(i - 1) mod batch_size`.
+- Take the largest axis-aligned rectangle shared by their grid shapes, and independently sample its source and
+  destination offsets.
+- Replace the destination region with `lambda * destination + (1 - lambda) * source`.
+
+The recipient grid is not resized. Its effective target weight accounts for the fraction of recipient patches touched:
+
+```text
+overlap_fraction = overlap_area / recipient_area
+effective_lambda = 1 - (1 - lambda) * overlap_fraction
+target_i = effective_lambda * target_i + (1 - effective_lambda) * target_(i-1)
+```
+
+The mixed sequences are padded only after this operation.
+
+## Deterministic Distributed Schedule
+
+Each batch selection uses a fresh generator seeded with:
 
 ```text
 global_batch_idx = worker_batch_idx * num_workers + worker_id
-batch_seed = training_seed + epoch * EPOCH_SEED_STRIDE + global_batch_idx
+batch_seed = training_seed + epoch * 1_000_003 + global_batch_idx
 ```
 
-`EPOCH_SEED_STRIDE` is 1,000,003, so its epoch seed ranges remain distinct while an epoch has fewer than that many global batches.
+Despite its name, `global_batch_idx` is global only across the DataLoader workers within one rank, it is not a
+world-global batch index. Corresponding ranks independently reconstruct the same logical index.
 
-This requires every rank to use the same training seed, active worker count and ordered batch delivery. For WebDataset, the loader limits workers to the available shards per rank and rejects configurations with fewer shards than ranks.
+`1_000_003` serves as the epoch seed stride. For ordinary epochs, seed ranges do not overlap provided every used
+`global_batch_idx` is less than `1_000_003`. An index at or beyond that stride can produce the same seed as a batch in a
+later epoch.
 
-Persistent workers observe the epoch through shared state. A WebDataset iterator snapshots its epoch so stale prefetched work cannot switch schedules. Virtual epochs keep one continuous iterator and do not reset the schedule.
-
-Synchronization aligns only the selected maximum budget. Different source aspect ratios can still produce different local sequence lengths and padding.
+This avoids collective communication: ranks select the same specification when they use the same seed, epoch, worker
+count, and ordered batch delivery. It synchronizes the specification only, different image aspect ratios can still
+produce different local sequence lengths and padding. Virtual epochs keep one continuous iterator and therefore do not
+reset this schedule.

@@ -904,7 +904,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             if return_all_features is True:
                 x = x[..., -1]
 
-            result["embedding"] = self._pool(x)
+            result["embedding"] = self.embedding_from_features(x)
 
         return result
 
@@ -948,7 +948,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             result["features"] = features
 
         if return_keys in ("all", "embedding"):
-            result["embedding"] = self._pool(x)
+            result["embedding"] = self.embedding_from_features(x)
 
         return result
 

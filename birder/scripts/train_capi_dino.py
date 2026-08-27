@@ -55,7 +55,6 @@ logger = logging.getLogger(__name__)
 ImageLoader = Callable[[str], Any]
 ImageTransform = Callable[[Any], torch.Tensor]
 TransformFactory = Callable[[argparse.Namespace], ImageTransform]
-MaskGenerator = Callable[[int], torch.Tensor]
 TrainCollateFn = Callable[[Any], tuple[Any, torch.Tensor, torch.Tensor]]
 
 
@@ -68,7 +67,7 @@ class TrainOverrides:
 
 
 class TrainCollator:
-    def __init__(self, mask_generator: MaskGenerator, n_predict: int) -> None:
+    def __init__(self, mask_generator: masking.Masking, n_predict: int) -> None:
         self.mask_generator = mask_generator
         self.n_predict = n_predict
 

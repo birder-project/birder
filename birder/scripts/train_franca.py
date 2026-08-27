@@ -68,7 +68,6 @@ logger = logging.getLogger(__name__)
 ImageLoader = Callable[[str], Any]
 ImageTransform = Callable[[Any], dict[str, list[torch.Tensor]]]
 TransformFactory = Callable[[argparse.Namespace], ImageTransform]
-MaskGenerator = Callable[[int], torch.Tensor]
 
 
 @dataclass(frozen=True)
@@ -79,7 +78,7 @@ class TrainOverrides:
 
 
 class FrancaInverseRollBlockMasking(RollBlockMasking):
-    def __call__(self, num_masking_patches: int) -> torch.Tensor:
+    def _generate(self, num_masking_patches: int) -> torch.Tensor:  # pylint: disable=arguments-renamed
         total_patches = self.height * self.width
         if num_masking_patches == 0:
             return torch.zeros(self.height, self.width, dtype=torch.bool)
@@ -119,6 +118,9 @@ class FrancaInverseRollBlockMasking(RollBlockMasking):
 
         # Inverse
         return torch.from_numpy(np.logical_not(mask))
+
+    def _generate_naflex(self, batch_size: int, grid_sizes: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
 
 
 class TrainTransform:
@@ -163,7 +165,7 @@ class TrainTransform:
 class TrainCollator:
     def __init__(
         self,
-        mask_generator: MaskGenerator,
+        mask_generator: FrancaInverseRollBlockMasking,
         seq_len: int,
         mask_probability: float,
         mask_ratio_tuple: tuple[float, float],

@@ -32,9 +32,11 @@ class TestDatasets(unittest.TestCase):
             events.append(("transform", index))
             return image[:, :2, :2]
 
+        spec = naflex_collators.NaFlexBatchSpec(2, 1)
         batch_processor = naflex_collators.NaFlexBatchProcessor(
-            naflex_collators.NaFlexTrainingCollator(2),
-            {1: transform},
+            naflex_collators.NaFlexTrainingCollator(),
+            (spec,),
+            {spec: transform},
             seed=0,
         )
         dataset = naflex_datasets.NaFlexMultiScaleDataset(TestDataset(), batch_processor)

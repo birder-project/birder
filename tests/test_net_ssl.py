@@ -35,7 +35,7 @@ logging.disable(logging.CRITICAL)
 class TestNetSSL(unittest.TestCase):
     def test_barlow_twins(self) -> None:
         batch_size = 4
-        backbone = registry.net_factory("resnet_v1_50", 0)
+        backbone = registry.net_factory("resnet_v1_18", 0)
         backbone_state = copy.deepcopy(backbone.state_dict())
         net = barlow_twins.BarlowTwins(backbone, config={"projector_sizes": [512, 512, 512], "off_lambda": 0.005})
 
@@ -65,6 +65,60 @@ class TestNetSSL(unittest.TestCase):
         )
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
+
+    def test_barlow_twins_naflex(self) -> None:
+        batch_size = 4
+        patch_size = 4
+        backbone = registry.net_factory(
+            "naflex_vit_t16",
+            0,
+            config={
+                "patch_size": patch_size,
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+            },
+            size=(16, 16),
+        )
+        net = barlow_twins.BarlowTwins(backbone, config={"projector_sizes": [32, 32, 32], "off_lambda": 0.005})
+        net.eval()
+
+        patch_dim = DEFAULT_NUM_CHANNELS * patch_size**2
+        patches1 = torch.rand((batch_size, 6, patch_dim))
+        grid_sizes1 = torch.tensor([[2, 2], [2, 3], [3, 2], [1, 4]])
+        valid_mask1 = torch.arange(6).unsqueeze(0) < grid_sizes1.prod(dim=1, keepdim=True)
+        patches2 = torch.rand((batch_size, 8, patch_dim))
+        grid_sizes2 = torch.tensor([[2, 4], [4, 2], [3, 2], [2, 2]])
+        valid_mask2 = torch.arange(8).unsqueeze(0) < grid_sizes2.prod(dim=1, keepdim=True)
+
+        with torch.inference_mode():
+            out = net(
+                patches1,
+                patches2,
+                grid_sizes1=grid_sizes1,
+                valid_mask1=valid_mask1,
+                grid_sizes2=grid_sizes2,
+                valid_mask2=valid_mask2,
+            )
+
+            changed_patches1 = patches1.clone()
+            changed_patches1[~valid_mask1] = torch.rand_like(changed_patches1[~valid_mask1])
+            changed_patches2 = patches2.clone()
+            changed_patches2[~valid_mask2] = torch.rand_like(changed_patches2[~valid_mask2])
+            changed_out = net(
+                changed_patches1,
+                changed_patches2,
+                grid_sizes1=grid_sizes1,
+                valid_mask1=valid_mask1,
+                grid_sizes2=grid_sizes2,
+                valid_mask2=valid_mask2,
+            )
+
+        self.assertTrue(torch.isfinite(out).all().item())
+        self.assertEqual(out.ndim, 0)
+        torch.testing.assert_close(changed_out, out)
 
     def test_byol(self) -> None:
         batch_size = 2

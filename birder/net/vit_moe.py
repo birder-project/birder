@@ -24,8 +24,10 @@ from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
 from birder.layers import FFN
+from birder.layers import EfficientProbing
 from birder.layers import LayerNorm2d
 from birder.layers import LayerScale
+from birder.layers import MultiHeadAttentionPool
 from birder.layers.activations import get_activation_module
 from birder.model_registry import registry
 from birder.net._vit_configs import BASE
@@ -94,6 +96,14 @@ def _cv_squared(x: torch.Tensor) -> torch.Tensor:
     return x.std(dim=-1, correction=0).square() / x.mean(dim=-1).clamp_min(eps).square()
 
 
+def _masked_mean(x: torch.Tensor, token_mask: Optional[torch.Tensor]) -> torch.Tensor:
+    if token_mask is None:
+        return x.mean(dim=1)
+
+    token_mask = token_mask.unsqueeze(-1)
+    return (x * token_mask).sum(dim=1) / token_mask.sum(dim=1).clamp_min(1)
+
+
 class NoisyTopKRouter(nn.Module):
     def __init__(
         self,
@@ -137,40 +147,57 @@ class NoisyTopKRouter(nn.Module):
 
         return capacity
 
-    def _g_shard_auxiliary_loss(self, gates: torch.Tensor) -> torch.Tensor:
-        mean_gates_per_expert = gates.mean(dim=1)
+    def _g_shard_auxiliary_loss(self, gates: torch.Tensor, token_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        mean_gates_per_expert = _masked_mean(gates, token_mask)
         top1 = F.one_hot(gates.argmax(dim=-1), num_classes=self.num_experts).to(  # pylint: disable=not-callable
             dtype=gates.dtype
         )
-        mean_top1_per_expert = top1.mean(dim=1)
+        mean_top1_per_expert = _masked_mean(top1, token_mask)
         return (mean_top1_per_expert * mean_gates_per_expert).mean(dim=-1) * (self.num_experts**2)
 
-    def _importance_auxiliary_loss(self, gates: torch.Tensor) -> torch.Tensor:
+    def _importance_auxiliary_loss(
+        self, gates: torch.Tensor, token_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        if token_mask is not None:
+            gates = gates * token_mask.unsqueeze(-1)
+
         importance_per_expert = gates.sum(dim=1)
         return _cv_squared(importance_per_expert)
 
-    def _load_auxiliary_loss(self, logits: torch.Tensor, logits_noisy: torch.Tensor, noise_std: float) -> torch.Tensor:
-        threshold_index = logits_noisy.topk(self.top_k, dim=-1).indices[..., -1]
+    def _load_auxiliary_loss(
+        self,
+        logits: torch.Tensor,
+        logits_noisy: torch.Tensor,
+        noise_std: float,
+        threshold_index: torch.Tensor,
+        token_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         threshold = logits_noisy.gather(-1, threshold_index.unsqueeze(-1)).squeeze(-1)
         noise_required_to_win = (threshold.unsqueeze(-1) - logits) / noise_std
         p = 0.5 * (1.0 - torch.erf(noise_required_to_win / math.sqrt(2.0)))
 
-        return _cv_squared(p.mean(dim=1))
+        return _cv_squared(_masked_mean(p, token_mask))
 
     def _make_aux_losses(
-        self, logits: torch.Tensor, logits_noisy: torch.Tensor, gates: torch.Tensor, noise_std: Optional[float]
+        self,
+        logits: torch.Tensor,
+        logits_noisy: torch.Tensor,
+        gates: torch.Tensor,
+        noise_std: Optional[float],
+        threshold_index: torch.Tensor,
+        token_mask: Optional[torch.Tensor] = None,
     ) -> AuxLossesType:
         g_shard_loss = logits.new_zeros(())
         if self.g_shard_loss_weight > 0.0:
-            g_shard_loss = self._g_shard_auxiliary_loss(gates).mean()
+            g_shard_loss = self._g_shard_auxiliary_loss(gates, token_mask).mean()
 
         importance_loss = logits.new_zeros(())
         if self.importance_loss_weight > 0.0:
-            importance_loss = self._importance_auxiliary_loss(logits.softmax(dim=-1)).mean()
+            importance_loss = self._importance_auxiliary_loss(logits.softmax(dim=-1), token_mask).mean()
 
         load_loss = logits.new_zeros(())
         if self.load_loss_weight > 0.0 and noise_std is not None:
-            load_loss = self._load_auxiliary_loss(logits, logits_noisy, noise_std).mean()
+            load_loss = self._load_auxiliary_loss(logits, logits_noisy, noise_std, threshold_index, token_mask).mean()
 
         auxiliary_loss = (
             self.g_shard_loss_weight * g_shard_loss
@@ -184,7 +211,9 @@ class NoisyTopKRouter(nn.Module):
             "load_loss": load_loss,
         }
 
-    def _route(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, Optional[AuxLossesType]]:
+    def _route(
+        self, x: torch.Tensor, token_mask: Optional[torch.Tensor] = None
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, Optional[AuxLossesType]]:
         """
         Route grouped tokens
 
@@ -192,6 +221,8 @@ class NoisyTopKRouter(nn.Module):
         ----------
         x
             Tensor of shape (G, S, C).
+        token_mask
+            Boolean tensor of shape (G, S), where True marks tokens to route.
         """
 
         G, S, _ = x.size()
@@ -204,37 +235,46 @@ class NoisyTopKRouter(nn.Module):
             logits_noisy = logits
 
         gates = logits_noisy.softmax(dim=-1)
-        combine_weights, expert_index = gates.topk(self.top_k, dim=-1)
+        expert_index = logits_noisy.topk(self.top_k, dim=-1).indices
+        combine_weights = gates.gather(-1, expert_index)
 
         # Match the V-MoE "vanilla" priority rule: all top-1 choices get
         # capacity before top-2 choices, and so on.
         expert_index_flat = expert_index.permute(0, 2, 1).reshape(G, S * self.top_k)
-        expert_one_hot = F.one_hot(expert_index_flat, num_classes=self.num_experts).to(  # pylint: disable=not-callable
-            dtype=torch.int64
-        )
-        buffer_index = torch.cumsum(expert_one_hot, dim=1) * expert_one_hot - 1
+        expert_one_hot = F.one_hot(expert_index_flat, num_classes=self.num_experts)  # pylint: disable=not-callable
+        if token_mask is not None:
+            expert_one_hot = expert_one_hot.reshape(G, self.top_k, S, self.num_experts)
+            expert_one_hot.mul_(token_mask[:, None, :, None])
+            expert_one_hot = expert_one_hot.reshape(G, S * self.top_k, self.num_experts)
+
+        buffer_index = torch.cumsum(expert_one_hot, dim=1)
+        buffer_index.mul_(expert_one_hot).sub_(1)
         buffer_index = buffer_index.reshape(G, self.top_k, S, self.num_experts).permute(0, 2, 1, 3)
         buffer_index = buffer_index.gather(-1, expert_index.unsqueeze(-1)).squeeze(-1)
 
         capacity = self._capacity(S)
         valid_mask = buffer_index < capacity
+        if token_mask is not None:
+            valid_mask = valid_mask & token_mask.unsqueeze(-1)
 
         if self.training is True and self.moe_loss_output is True:
-            aux_losses = self._make_aux_losses(logits, logits_noisy, gates, scaled_noise_std)
+            aux_losses = self._make_aux_losses(
+                logits, logits_noisy, gates, scaled_noise_std, expert_index[..., -1], token_mask
+            )
         else:
             aux_losses = None
 
-        return (expert_index, buffer_index, combine_weights * valid_mask.to(combine_weights.dtype), aux_losses)
+        return (expert_index, buffer_index, combine_weights * valid_mask, aux_losses)
 
     def set_moe_loss_output(self, enable: bool = True) -> None:
         self.moe_loss_output = enable
 
     def forward(
-        self, x: torch.Tensor
+        self, x: torch.Tensor, token_mask: Optional[torch.Tensor] = None
     ) -> (
         tuple[torch.Tensor, torch.Tensor, torch.Tensor] | tuple[torch.Tensor, torch.Tensor, torch.Tensor, AuxLossesType]
     ):
-        expert_index, buffer_index, combine_weights, aux_losses = self._route(x)
+        expert_index, buffer_index, combine_weights, aux_losses = self._route(x, token_mask)
         if aux_losses is not None:
             return (expert_index, buffer_index, combine_weights, aux_losses)
 
@@ -307,27 +347,36 @@ class SparseMoE_FFN(nn.Module):
         self.moe_loss_output = enable
         self.router.set_moe_loss_output(enable)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor | tuple[torch.Tensor, AuxLossesType]:
+    def forward(
+        self, x: torch.Tensor, token_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor | tuple[torch.Tensor, AuxLossesType]:
         B, N, C = x.size()
         grouped_x, pad_tokens = self._group_tokens(x)
         G, S, _ = grouped_x.size()
         capacity = self.router._capacity(S)
 
+        grouped_token_mask = None
+        if token_mask is not None:
+            grouped_token_mask = token_mask.to(dtype=torch.bool).reshape(B * N)
+            if pad_tokens > 0:
+                grouped_token_mask = F.pad(grouped_token_mask, (0, pad_tokens))
+
+            grouped_token_mask = grouped_token_mask.reshape(G, S)
+
         if self.training is True and self.moe_loss_output is True:
-            expert_index, buffer_index, combine_weights, aux_losses = self.router(grouped_x)
+            expert_index, buffer_index, combine_weights, aux_losses = self.router(grouped_x, grouped_token_mask)
         else:
-            expert_index, buffer_index, combine_weights = self.router(grouped_x)
+            expert_index, buffer_index, combine_weights = self.router(grouped_x, grouped_token_mask)
             aux_losses = None
 
         valid_mask = combine_weights > 0
         expert_slot = torch.arange(G, device=x.device).view(G, 1, 1) * capacity + buffer_index
-        linear_index = expert_index * (G * capacity) + expert_slot
-        linear_index = torch.where(valid_mask, linear_index, torch.zeros_like(linear_index))
+        linear_index = expert_index * (G * capacity)
+        linear_index.add_(expert_slot).mul_(valid_mask)
 
         flat_index = linear_index.reshape(-1)
         if self.training is True:
-            assignment_x = grouped_x.unsqueeze(2).expand(-1, -1, self.top_k, -1)
-            flat_values = assignment_x.reshape(-1, C) * valid_mask.reshape(-1, 1).to(dtype=x.dtype)
+            flat_values = (grouped_x.unsqueeze(2) * valid_mask.unsqueeze(-1)).reshape(-1, C)
             expert_inputs = grouped_x.new_zeros((self.num_experts * G * capacity, C))
             expert_inputs.scatter_add_(0, flat_index.unsqueeze(-1).expand(-1, C), flat_values)
             expert_inputs = expert_inputs.reshape(self.num_experts, G * capacity, C)
@@ -353,7 +402,7 @@ class SparseMoE_FFN(nn.Module):
                 expert_output = expert(expert_input)
                 expert_outputs.index_copy_(0, flat_index[expert_mask], expert_output)
 
-        combined = expert_outputs[flat_index].reshape(G, S, self.top_k, C)
+        combined = expert_outputs.index_select(0, flat_index).reshape(G, S, self.top_k, C)
         combined = combined * combine_weights.unsqueeze(-1)
         x = combined.sum(dim=2).reshape(-1, C)
         if pad_tokens > 0:
@@ -382,6 +431,8 @@ class EncoderBlock(nn.Module):
         norm_layer_eps: float = 1e-6,
         mlp_layer: Callable[..., nn.Module] = FFN,
         qkv_bias: bool = True,
+        qk_norm: bool = False,
+        attn_norm: bool = False,
     ) -> None:
         super().__init__()
         self.is_causal = False
@@ -392,6 +443,8 @@ class EncoderBlock(nn.Module):
             attn_drop=attention_dropout,
             proj_drop=projection_dropout,
             qkv_bias=qkv_bias,
+            qk_norm=qk_norm,
+            attn_norm=attn_norm,
             norm_layer=norm_layer,
             norm_layer_eps=norm_layer_eps,
         )
@@ -403,6 +456,7 @@ class EncoderBlock(nn.Module):
 
         self.norm2 = norm_layer(hidden_dim, eps=norm_layer_eps)
         self.mlp = mlp_layer(hidden_dim, mlp_dim, act_layer=activation_layer, dropout=dropout)
+        self.is_sparse_moe = isinstance(self.mlp, SparseMoE_FFN)
         self.moe_loss_output = False
         if layer_scale_init_value is not None:
             self.layer_scale_2 = LayerScale(hidden_dim, layer_scale_init_value)
@@ -425,21 +479,27 @@ class EncoderBlock(nn.Module):
                         nn.init.normal_(m.bias, std=1e-6)
 
     def forward(
-        self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None
+        self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None, token_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor | tuple[torch.Tensor, AuxLossesType]:
         attn_out, _ = self.attn(self.norm1(x), is_causal=self.is_causal, attn_mask=attn_mask)
         x = x + self.drop_path(self.layer_scale_1(attn_out))
-        if self.training is True and self.moe_loss_output is True:
-            y, aux_losses = self.mlp(self.norm2(x))
-            x = x + self.drop_path(self.layer_scale_2(y))
-            return (x, aux_losses)
+        y = self.norm2(x)
+        if self.is_sparse_moe is True:
+            if self.training is True and self.moe_loss_output is True:
+                y, aux_losses = self.mlp(y, token_mask=token_mask)
+                x = x + self.drop_path(self.layer_scale_2(y))
+                return (x, aux_losses)
 
-        x = x + self.drop_path(self.layer_scale_2(self.mlp(self.norm2(x))))
+            y = self.mlp(y, token_mask=token_mask)
+        else:
+            y = self.mlp(y)
+
+        x = x + self.drop_path(self.layer_scale_2(y))
 
         return x
 
     def set_moe_loss_output(self, enable: bool = True) -> None:
-        if isinstance(self.mlp, SparseMoE_FFN):
+        if self.is_sparse_moe is True:
             self.moe_loss_output = enable
             self.mlp.set_moe_loss_output(enable)
         else:
@@ -461,7 +521,10 @@ class Encoder(nn.Module):
         attention_dropout: float,
         projection_dropout: float,
         dpr: list[float],
+        pre_norm: bool = False,
         qkv_bias: bool = True,
+        qk_norm: bool = False,
+        attn_norm: bool = False,
         activation_layer: Callable[..., nn.Module] = nn.GELU,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
@@ -487,6 +550,8 @@ class Encoder(nn.Module):
         pre_layers = []
         if dropout > 0.0:
             pre_layers.append(nn.Dropout(dropout))
+        if pre_norm is True:
+            pre_layers.append(norm_layer(hidden_dim, eps=norm_layer_eps))
 
         self.pre_block = nn.Sequential(*pre_layers)
         layers = []
@@ -524,21 +589,28 @@ class Encoder(nn.Module):
                     norm_layer_eps=norm_layer_eps,
                     mlp_layer=mlp_layer,
                     qkv_bias=qkv_bias,
+                    qk_norm=qk_norm,
+                    attn_norm=attn_norm,
                 )
             )
 
         self.block = nn.ModuleList(layers)
 
     def _checkpoint_block_range(
-        self, x: torch.Tensor, start: int, end: int, attn_mask: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        start: int,
+        end: int,
+        attn_mask: Optional[torch.Tensor] = None,
+        token_mask: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         aux_loss_list: list[AuxLossesType] = []
         for blk in self.block[start:end]:
             if self.training is True and blk.moe_loss_output is True:
-                x, aux_losses = blk(x, attn_mask=attn_mask)
+                x, aux_losses = blk(x, attn_mask=attn_mask, token_mask=token_mask)
                 aux_loss_list.append(aux_losses)
             else:
-                x = blk(x, attn_mask=attn_mask)
+                x = blk(x, attn_mask=attn_mask, token_mask=token_mask)
 
         aux_losses = _sum_aux_losses(aux_loss_list, x)
         return (
@@ -550,7 +622,7 @@ class Encoder(nn.Module):
         )
 
     def _checkpoint_blocks_with_aux_losses(
-        self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None
+        self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None, token_mask: Optional[torch.Tensor] = None
     ) -> tuple[torch.Tensor, AuxLossesType]:
         if self.grad_checkpointing_segments is None:
             segments = len(self.block)
@@ -562,7 +634,9 @@ class Encoder(nn.Module):
         start = 0
         for segment_idx in range(segments):
             end = start + segment_size if segment_idx < segments - 1 else len(self.block)
-            block_range = partial(self._checkpoint_block_range, start=start, end=end, attn_mask=attn_mask)
+            block_range = partial(
+                self._checkpoint_block_range, start=start, end=end, attn_mask=attn_mask, token_mask=token_mask
+            )
             if segment_idx < segments - 1:
                 x, auxiliary_loss, g_shard_loss, importance_loss, load_loss = checkpoint(
                     block_range,
@@ -586,18 +660,18 @@ class Encoder(nn.Module):
         return (x, _sum_aux_losses(aux_loss_list, x))
 
     def _checkpoint_blocks(
-        self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None
+        self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None, token_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor | tuple[torch.Tensor, AuxLossesType]:
         if self.training is True and self.moe_loss_output is True:
-            return self._checkpoint_blocks_with_aux_losses(x, attn_mask=attn_mask)
+            return self._checkpoint_blocks_with_aux_losses(x, attn_mask=attn_mask, token_mask=token_mask)
 
         if self.grad_checkpointing_segments is None:
             segments = len(self.block)
         else:
             segments = min(self.grad_checkpointing_segments, len(self.block))
 
-        if attn_mask is not None:
-            blocks = tuple(partial(block, attn_mask=attn_mask) for block in self.block)
+        if attn_mask is not None or token_mask is not None:
+            blocks = tuple(partial(block, attn_mask=attn_mask, token_mask=token_mask) for block in self.block)
         else:
             blocks = self.block
 
@@ -636,19 +710,19 @@ class Encoder(nn.Module):
         self.grad_checkpointing_use_reentrant = use_reentrant
 
     def forward(
-        self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None
+        self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None, token_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor | tuple[torch.Tensor, AuxLossesType]:
         x = self.pre_block(x)
         if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
-            return self._checkpoint_blocks(x, attn_mask=attn_mask)
+            return self._checkpoint_blocks(x, attn_mask=attn_mask, token_mask=token_mask)
 
         aux_loss_list: list[AuxLossesType] = []
         for blk in self.block:
             if self.training is True and blk.moe_loss_output is True:
-                x, aux_losses = blk(x, attn_mask=attn_mask)
+                x, aux_losses = blk(x, attn_mask=attn_mask, token_mask=token_mask)
                 aux_loss_list.append(aux_losses)
             else:
-                x = blk(x, attn_mask=attn_mask)
+                x = blk(x, attn_mask=attn_mask, token_mask=token_mask)
 
         if self.training is True and self.moe_loss_output is True:
             return (x, _sum_aux_losses(aux_loss_list, x))
@@ -660,6 +734,7 @@ class Encoder(nn.Module):
         x: torch.Tensor,
         out_indices: Optional[list[int]] = None,
         attn_mask: Optional[torch.Tensor] = None,
+        token_mask: Optional[torch.Tensor] = None,
     ) -> list[torch.Tensor] | tuple[list[torch.Tensor], AuxLossesType]:
         x = self.pre_block(x)
 
@@ -668,10 +743,10 @@ class Encoder(nn.Module):
         aux_loss_list: list[AuxLossesType] = []
         for idx, blk in enumerate(self.block):
             if self.training is True and blk.moe_loss_output is True:
-                x, aux_losses = blk(x, attn_mask=attn_mask)
+                x, aux_losses = blk(x, attn_mask=attn_mask, token_mask=token_mask)
                 aux_loss_list.append(aux_losses)
             else:
-                x = blk(x, attn_mask=attn_mask)
+                x = blk(x, attn_mask=attn_mask, token_mask=token_mask)
 
             if out_indices_set is None or idx in out_indices_set:
                 xs.append(x)
@@ -702,6 +777,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         assert self.config is not None, "must set config"
 
         image_size = self.size
+        abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
         pos_embed_special_tokens: bool = self.config.get("pos_embed_special_tokens", True)
         pos_embed_interpolation_mode: Literal["bilinear", "bicubic"] = self.config.get(
             "pos_embed_interpolation_mode", "bicubic"
@@ -716,9 +792,20 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         hidden_dim: int = self.config["hidden_dim"]
         mlp_dim: int = self.config["mlp_dim"]
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
+        pre_norm: bool = self.config.get("pre_norm", False)
+        post_norm: bool = self.config.get("post_norm", True)
+        norm_after_pool: bool = self.config.get("norm_after_pool", False)
         qkv_bias: bool = self.config.get("qkv_bias", True)
+        qk_norm: bool = self.config.get("qk_norm", False)
+        attn_norm: bool = self.config.get("attn_norm", False)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
+        attn_pool_head: bool = self.config.get("attn_pool_head", False)
+        attn_pool_type: str = self.config.get("attn_pool_type", "MultiHeadAttentionPool")
+        attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
+        attn_pool_special_tokens: bool = self.config.get("attn_pool_special_tokens", False)
+        attn_pool_norm_eps: float = self.config.get("attn_pool_norm_eps", 1e-5)
+        attn_pool_act_layer_type: str = self.config.get("attn_pool_act_layer_type", "gelu")
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         mlp_head = self.config.get("mlp_head", False)
@@ -758,6 +845,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
                 kernel_size=(patch_size, patch_size),
                 stride=(patch_size, patch_size),
                 padding=(0, 0),
+                bias=not pre_norm,
             )
         elif stem_type == "hmlp":
             assert patch_size == 16, "The hMLP stem requires patch_size=16"
@@ -785,12 +873,14 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
+        self.abs_pos_embed = abs_pos_embed
         self.pos_embed_special_tokens = pos_embed_special_tokens
         self.pos_embed_interpolation_mode = pos_embed_interpolation_mode
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.num_reg_tokens = num_reg_tokens
+        self.attn_pool_special_tokens = attn_pool_special_tokens
         self.mlp_head = mlp_head
         dpr = stochastic_depth_rates(drop_path_rate, num_layers)
 
@@ -815,7 +905,12 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         else:
             self.reg_tokens = None
 
-        self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))
+        # Add positional embedding
+        if self.abs_pos_embed is True:
+            self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))
+        else:
+            self.pos_embedding = None
+
         self.encoder = Encoder(
             num_layers,
             num_heads,
@@ -826,7 +921,10 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
             attention_dropout,
             projection_dropout,
             dpr,
+            pre_norm=pre_norm,
             qkv_bias=qkv_bias,
+            qk_norm=qk_norm,
+            attn_norm=attn_norm,
             activation_layer=act_layer,
             layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
@@ -842,7 +940,39 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
             router_importance_loss_weight=router_importance_loss_weight,
             router_load_loss_weight=router_load_loss_weight,
         )
-        self.norm = norm_layer(hidden_dim, eps=norm_layer_eps)
+
+        if post_norm is True and norm_after_pool is False:
+            self.norm = norm_layer(hidden_dim, eps=norm_layer_eps)
+        else:
+            self.norm = nn.Identity()
+
+        if post_norm is True and norm_after_pool is True:
+            self.embedding_norm = norm_layer(hidden_dim, eps=norm_layer_eps)
+        else:
+            self.embedding_norm = nn.Identity()
+
+        if attn_pool_head is False:
+            self.attn_pool = None
+        else:
+            if attn_pool_type == "MultiHeadAttentionPool":
+                attn_pool = MultiHeadAttentionPool
+                if attn_pool_num_heads is None:
+                    attn_pool_num_heads = num_heads
+            elif attn_pool_type == "EfficientProbing":
+                attn_pool = EfficientProbing
+                if attn_pool_num_heads is None:
+                    attn_pool_num_heads = 1
+            else:
+                raise ValueError(f"Unknown attn_pool_type '{attn_pool_type}'")
+
+            self.attn_pool = attn_pool(
+                hidden_dim,
+                attn_pool_num_heads,
+                mlp_dim,
+                qkv_bias=True,
+                norm_eps=attn_pool_norm_eps,
+                activation_layer=get_activation_module(attn_pool_act_layer_type),
+            )
 
         self.embedding_size = hidden_dim
         self.classifier = self.create_classifier()
@@ -882,7 +1012,10 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
             if self.classifier[-1].bias is not None:
                 nn.init.constant_(self.classifier[-1].bias, head_bias_init)
 
-    def _get_pos_embed(self, H: int, W: int) -> torch.Tensor:
+    def _get_pos_embed(self, H: int, W: int) -> Optional[torch.Tensor]:
+        if self.pos_embedding is None:
+            return None
+
         if self.dynamic_size is False:
             return self.pos_embedding
 
@@ -909,6 +1042,11 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         if unfreeze_features is True:
             for param in self.norm.parameters():
                 param.requires_grad_(True)
+            for param in self.embedding_norm.parameters():
+                param.requires_grad_(True)
+            if self.attn_pool is not None:
+                for param in self.attn_pool.parameters():
+                    param.requires_grad_(True)
 
     def set_grad_checkpointing(
         self,
@@ -932,10 +1070,24 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
     def set_causal_attention(self, is_causal: bool = True) -> None:
         self.encoder.set_causal_attention(is_causal)
 
-    def _pool(self, x: torch.Tensor) -> torch.Tensor:
-        if self.class_token is None:
-            return x[:, self.num_special_tokens :].mean(dim=1)
+    def strip_for_forward_features(self) -> None:
+        super().strip_for_forward_features()
+        self.embedding_norm = nn.Identity()
+        self.attn_pool = None
 
+    def _pool(self, x: torch.Tensor) -> torch.Tensor:
+        if self.attn_pool is not None:
+            if self.attn_pool_special_tokens is False:
+                x = x[:, self.num_special_tokens :]
+
+            x = self.attn_pool(x)
+            return x[:, 0]
+
+        if self.class_token is None:
+            x = x[:, self.num_special_tokens :]
+            return x.mean(dim=1)
+
+        # Classifier "token" as used by standard language architectures
         return x[:, self.num_reg_tokens]
 
     def masked_encoding_omission(
@@ -951,10 +1103,11 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         x = self.patch_embed(x)
 
         pos_embedding = self._get_pos_embed(H, W)
-        if self.pos_embed_special_tokens is True:
-            x = x + pos_embedding[:, self.num_special_tokens :, :]
-        else:
-            x = x + pos_embedding
+        if pos_embedding is not None:
+            if self.pos_embed_special_tokens is True:
+                x = x + pos_embedding[:, self.num_special_tokens :, :]
+            else:
+                x = x + pos_embedding
 
         # Mask tokens
         if ids_keep is not None:
@@ -963,7 +1116,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
         special_tokens: list[torch.Tensor] = []
         if self.reg_tokens is not None:
-            if self.pos_embed_special_tokens is True:
+            if pos_embedding is not None and self.pos_embed_special_tokens is True:
                 reg_tokens = self.reg_tokens + pos_embedding[:, 0 : self.num_reg_tokens, :]
             else:
                 reg_tokens = self.reg_tokens
@@ -971,7 +1124,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
             special_tokens.append(reg_tokens.expand(x.size(0), -1, -1))
 
         if self.class_token is not None:
-            if self.pos_embed_special_tokens is True:
+            if pos_embedding is not None and self.pos_embed_special_tokens is True:
                 cls_token = self.class_token + pos_embedding[:, self.num_reg_tokens : self.num_reg_tokens + 1, :]
             else:
                 cls_token = self.class_token
@@ -1006,7 +1159,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
             if return_all_features is True:
                 x = x[..., -1]
 
-            result["embedding"] = self._pool(x)
+            result["embedding"] = self.embedding_from_features(x)
 
         if aux_losses is not None:
             result["auxiliary_losses"] = aux_losses
@@ -1028,7 +1181,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         x = self.patch_embed(x)
         pos_embedding = self._get_pos_embed(H, W)
 
-        if self.pos_embed_special_tokens is False:
+        if pos_embedding is not None and self.pos_embed_special_tokens is False:
             x = x + pos_embedding
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
@@ -1040,7 +1193,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         if len(special_tokens) > 0:
             x = torch.concat(special_tokens + [x], dim=1)
 
-        if self.pos_embed_special_tokens is True:
+        if pos_embedding is not None and self.pos_embed_special_tokens is True:
             x = x + pos_embedding
 
         aux_losses: Optional[AuxLossesType] = None
@@ -1060,7 +1213,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
             result["features"] = features
 
         if return_keys in ("all", "embedding"):
-            result["embedding"] = self._pool(x)
+            result["embedding"] = self.embedding_from_features(x)
 
         if aux_losses is not None:
             result["auxiliary_losses"] = aux_losses
@@ -1076,7 +1229,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         patch_embedding = x
         pos_embedding = self._get_pos_embed(H, W)
 
-        if self.pos_embed_special_tokens is False:
+        if pos_embedding is not None and self.pos_embed_special_tokens is False:
             x = x + pos_embedding
 
         # Expand special tokens to batch size and prepend in order [REG..., CLS, PATCH...]
@@ -1096,7 +1249,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         else:
             input_embedding = None  # For TorchScript compatibility
 
-        if self.pos_embed_special_tokens is True:
+        if pos_embedding is not None and self.pos_embed_special_tokens is True:
             x = x + pos_embedding
 
         if self.training is True and self.moe_loss_output is True:
@@ -1121,7 +1274,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         return features
 
     def embedding_from_features(self, features: torch.Tensor) -> torch.Tensor:
-        return self._pool(features)
+        return self.embedding_norm(self._pool(features))
 
     def embedding(self, x: torch.Tensor) -> torch.Tensor:
         x = self.forward_features(x)
@@ -1168,6 +1321,9 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
 
         old_size = self.size
         super().adjust_size(new_size)
+        if self.pos_embedding is None:
+            return
+
         with torch.no_grad():
             pos_embedding = adjust_position_embedding(
                 self.pos_embedding,

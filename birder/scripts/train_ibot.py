@@ -41,6 +41,7 @@ from birder.common.lib import format_duration
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.common.masking import BlockMasking
+from birder.common.masking import Masking
 from birder.conf import settings
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import get_image_loader
@@ -81,7 +82,7 @@ class TrainTransform:
         crop_size: tuple[int, int],
         rgv_values: RGBType,
         local_crops_number: int,
-        mask_generator: Callable[[int], torch.Tensor],
+        mask_generator: Masking,
     ) -> None:
         self.global_transform = global_transform
         self.local_crops_number = local_crops_number

@@ -100,6 +100,20 @@ DataloaderInferenceResult = tuple[
 ]
 FeatureDict = dict[str, list[npt.NDArray[np.float32]]]
 FeaturesInferenceResult = tuple[list[str], npt.NDArray[np.int64], FeatureDict]
+NaFlexFeaturesInferenceResult = tuple[list[str], npt.NDArray[np.int64], FeatureDict, npt.NDArray[np.int32]]
+
+
+def _pad_naflex_features(features: torch.Tensor, valid_mask: torch.Tensor, max_seq_len: int) -> torch.Tensor:
+    num_special_tokens = features.size(1) - valid_mask.size(1)
+    padded_features = features.new_full(
+        (features.size(0), num_special_tokens + max_seq_len, features.size(2)),
+        float("nan"),
+    )
+    padded_features[:, :num_special_tokens] = features[:, :num_special_tokens]
+    padded_patch_features = padded_features[:, num_special_tokens : num_special_tokens + valid_mask.size(1)]
+    padded_patch_features[valid_mask] = features[:, num_special_tokens:][valid_mask]
+
+    return padded_features
 
 
 def infer_dataloader_iter(
@@ -262,6 +276,86 @@ def infer_dataloader_features_iter(
 
     if len(feature_dict) > 0:
         yield (sample_paths, np.concatenate(labels_list), feature_dict)
+
+
+def infer_dataloader_naflex_features_iter(
+    device: torch.device,
+    net: torch.nn.Module,
+    dataloader: DataLoader,
+    max_seq_len: int,
+    model_dtype: torch.dtype = torch.float32,
+    amp: bool = False,
+    amp_dtype: Optional[torch.dtype] = None,
+    num_samples: Optional[int] = None,
+    chunk_size: Optional[float] = None,
+    **kwargs: Any,
+) -> Iterator[NaFlexFeaturesInferenceResult]:
+    if chunk_size is None:
+        chunk_size = float("inf")
+
+    net.to(device, dtype=model_dtype)
+    feature_dict: FeatureDict = {}
+    grid_sizes_list: list[npt.NDArray[np.int32]] = []
+    labels_list: list[npt.NDArray[np.int64]] = []
+    sample_paths: list[str] = []
+    sample_count = 0
+    with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
+        for file_paths, inputs, targets in dataloader:
+            patches, grid_sizes, valid_mask = inputs
+            batch_size = patches.size(0)
+
+            # Inference
+            patches = patches.to(device, dtype=model_dtype)
+            grid_sizes = grid_sizes.to(device)
+            valid_mask = valid_mask.to(device)
+            batch_kwargs = {
+                **kwargs,
+                "grid_sizes": grid_sizes,
+                "valid_mask": valid_mask,
+            }
+
+            with torch.amp.autocast(device.type, enabled=amp, dtype=amp_dtype):
+                features = net.forward_features(patches, **batch_kwargs)
+                features = net.flatten_features(features)
+
+            padded_features = _pad_naflex_features(features, valid_mask.to(features.device), max_seq_len)
+            value = padded_features.cpu().float().numpy()
+            feature_dict.setdefault("features", []).append(value)
+
+            # Set labels, grid sizes and sample list
+            batch_labels = targets.cpu().numpy()
+            labels_list.append(batch_labels)
+            grid_sizes_list.append(grid_sizes.cpu().numpy().astype(np.int32, copy=False))
+            sample_paths.extend(file_paths)
+
+            # Update progress bar
+            progress.update(n=batch_size)
+
+            # Yield results when we reach chunk_size
+            sample_count += batch_size
+            if sample_count >= chunk_size:
+                with tqdm.external_write_mode(file=sys.stderr):
+                    yield (
+                        sample_paths,
+                        np.concatenate(labels_list),
+                        feature_dict,
+                        np.concatenate(grid_sizes_list, axis=0),
+                    )
+
+                # Reset for next chunk
+                feature_dict = {}
+                grid_sizes_list = []
+                labels_list = []
+                sample_paths = []
+                sample_count = 0
+
+    if len(feature_dict) > 0:
+        yield (
+            sample_paths,
+            np.concatenate(labels_list),
+            feature_dict,
+            np.concatenate(grid_sizes_list, axis=0),
+        )
 
 
 @overload

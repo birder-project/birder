@@ -53,12 +53,35 @@ class BarlowTwins(SSLBaseNet):
 
         self.bn = nn.BatchNorm1d(sizes[-1], affine=False)
 
-    # pylint: disable=arguments-differ
-    def forward(self, x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+    def _project(
+        self,
+        x: torch.Tensor,
+        grid_sizes: Optional[torch.Tensor] = None,
+        valid_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        if grid_sizes is None:
+            embedding = self.backbone.embedding(x)
+        else:
+            embedding = self.backbone.embedding(  # type: ignore[call-arg]
+                x, grid_sizes=grid_sizes, valid_mask=valid_mask
+            )
+
+        return self.projector(embedding)
+
+    # pylint: disable-next=arguments-differ
+    def forward(  # type: ignore[override]
+        self,
+        x1: torch.Tensor,
+        x2: torch.Tensor,
+        grid_sizes1: Optional[torch.Tensor] = None,
+        valid_mask1: Optional[torch.Tensor] = None,
+        grid_sizes2: Optional[torch.Tensor] = None,
+        valid_mask2: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         world_size = training_utils.get_world_size()
 
-        z1 = self.projector(self.backbone.embedding(x1))
-        z2 = self.projector(self.backbone.embedding(x2))
+        z1 = self._project(x1, grid_sizes=grid_sizes1, valid_mask=valid_mask1)
+        z2 = self._project(x2, grid_sizes=grid_sizes2, valid_mask=valid_mask2)
 
         # Cross-correlation matrix
         c = self.bn(z1).T @ self.bn(z2)

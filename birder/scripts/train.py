@@ -36,6 +36,7 @@ from birder.conf import settings
 from birder.data.collators.naflex import NaFlexBatchProcessor
 from birder.data.collators.naflex import NaFlexMixupTrainingCollator
 from birder.data.collators.naflex import NaFlexTrainingCollator
+from birder.data.collators.naflex import resolve_naflex_batch_specs
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import CustomImageFolder
 from birder.data.datasets.directory import HierarchicalImageFolder
@@ -50,7 +51,6 @@ from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_mixup_cutmix
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import inference_preset
-from birder.data.transforms.naflex import get_sequence_lengths as get_naflex_sequence_lengths
 from birder.data.transforms.naflex import inference_preset as naflex_inference_preset
 from birder.model_registry import Task
 from birder.model_registry import registry
@@ -163,7 +163,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
     if args.naflex is True:
         patch_size = net.stem_stride
-        validation_max_seq_len = get_naflex_sequence_lengths(args.size, patch_size)[0]
+        if args.naflex_patch_sizes is not None:
+            net.set_naflex_patch_resampling()
+
+        validation_max_seq_len = resolve_naflex_batch_specs(args.size, patch_size)[0].max_seq_len
 
     net.to(device, dtype=model_dtype)
     if args.channels_last is True:
@@ -207,35 +210,36 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     validation_collate_fn: Optional[Callable[[Any], Any]] = None
     naflex_batch_processor: Optional[NaFlexBatchProcessor] = None
     wds_num_shards: Optional[int] = None
-    naflex_sizes = args.naflex_sizes
     if args.naflex is True:
-        naflex_seq_lens = get_naflex_sequence_lengths(args.size, patch_size, naflex_sizes)
+        naflex_specs = resolve_naflex_batch_specs(args.size, patch_size, args.naflex_sizes, args.naflex_patch_sizes)
     else:
-        naflex_seq_lens = ()
+        naflex_specs = ()
 
-    if len(naflex_seq_lens) > 1:
+    if len(set(naflex_specs)) > 1:
         if overrides.training_transform is not None:
-            raise ValueError("NaFlex multi-scale training does not support a custom training transform")
+            raise ValueError("NaFlex batch scheduling does not support a custom training transform")
 
-        naflex_transforms = {
-            seq_len: training_utils.get_naflex_training_transform(args, patch_size, seq_len)
-            for seq_len in naflex_seq_lens
-        }
-        logger.info(f"Using NaFlex sizes: {list(naflex_sizes)} (maximum sequence lengths: {list(naflex_transforms)})")
+        naflex_transforms = {spec: training_utils.get_naflex_training_transform(args, spec) for spec in naflex_specs}
+        logger.debug(f"Using NaFlex batch specifications: {list(naflex_specs)}")
 
         training_transform = None
         if args.mixup_alpha is None:
-            naflex_collator = NaFlexTrainingCollator(patch_size)
+            naflex_collator = NaFlexTrainingCollator()
         else:
             logger.debug("NaFlex Mixup collate activated")
-            naflex_collator = NaFlexMixupTrainingCollator(patch_size, num_outputs, args.mixup_alpha)
+            naflex_collator = NaFlexMixupTrainingCollator(
+                patch_size=None, num_classes=num_outputs, alpha=args.mixup_alpha
+            )
 
-        naflex_batch_processor = NaFlexBatchProcessor(naflex_collator, naflex_transforms, seed=args.seed or 0)
+        naflex_batch_processor = NaFlexBatchProcessor(
+            naflex_collator, naflex_specs, naflex_transforms, seed=args.seed or 0
+        )
 
     elif overrides.training_transform is not None:
         training_transform = overrides.training_transform(args)
     elif args.naflex is True:
-        training_transform = training_utils.get_naflex_training_transform(args, patch_size, naflex_seq_lens[0])
+        spec = naflex_specs[0]
+        training_transform = training_utils.get_naflex_training_transform(args, spec)
     else:
         training_transform = training_utils.get_training_transform(args)
 
@@ -249,11 +253,14 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     if args.naflex is True:
         validation_collate_fn = NaFlexTrainingCollator(patch_size)
         if naflex_batch_processor is None:
+            spec = naflex_specs[0]
             if args.mixup_alpha is not None:
                 logger.debug("NaFlex Mixup collate activated")
-                collate_fn = NaFlexMixupTrainingCollator(patch_size, num_outputs, args.mixup_alpha)
+                collate_fn = NaFlexMixupTrainingCollator(
+                    patch_size=spec.patch_size, num_classes=num_outputs, alpha=args.mixup_alpha
+                )
             else:
-                collate_fn = validation_collate_fn
+                collate_fn = NaFlexTrainingCollator(spec.patch_size)
 
     elif args.mixup_alpha is not None or args.cutmix is True:
         logger.debug("Mixup / cutmix collate activated")
@@ -1008,6 +1015,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             args.size = json.dumps(args.size)
         if args.naflex_sizes is not None:
             args.naflex_sizes = json.dumps(args.naflex_sizes)
+        if args.naflex_patch_sizes is not None:
+            args.naflex_patch_sizes = json.dumps(args.naflex_patch_sizes)
 
         # Save all args
         summary_writer.add_hparams(

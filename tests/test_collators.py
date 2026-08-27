@@ -70,19 +70,106 @@ class TestCollators(unittest.TestCase):
         self.assertTrue(torch.allclose(targets[0]["boxes"], expected))
 
 
-class TestNaFlexSequenceLengthSchedule(unittest.TestCase):
-    def test_sequence_length_schedule_is_deterministic(self) -> None:
-        schedule = naflex.NaFlexSequenceLengthSchedule((4, 6, 9), seed=17)
+class TestNaFlexBatchSpec(unittest.TestCase):
+    def test_resolve_batch_specs(self) -> None:
+        specs = naflex.resolve_naflex_batch_specs((8, 12), canonical_patch_size=2)
+        self.assertSequenceEqual(specs, (naflex.NaFlexBatchSpec(2, 24),))
+
+        specs = naflex.resolve_naflex_batch_specs(
+            (384, 384),
+            canonical_patch_size=16,
+            naflex_sizes=(224, 256, 320, 384),
+            naflex_patch_sizes=(10, 14, 16, 20),
+        )
+
+        self.assertSequenceEqual(
+            specs,
+            (
+                naflex.NaFlexBatchSpec(10, 501),
+                naflex.NaFlexBatchSpec(14, 256),
+                naflex.NaFlexBatchSpec(14, 334),
+                naflex.NaFlexBatchSpec(14, 522),
+                naflex.NaFlexBatchSpec(16, 196),
+                naflex.NaFlexBatchSpec(16, 256),
+                naflex.NaFlexBatchSpec(16, 400),
+                naflex.NaFlexBatchSpec(16, 576),
+                naflex.NaFlexBatchSpec(20, 125),
+                naflex.NaFlexBatchSpec(20, 163),
+                naflex.NaFlexBatchSpec(20, 256),
+                naflex.NaFlexBatchSpec(20, 368),
+            ),
+        )
+
+        with self.assertRaisesRegex(ValueError, "unmatched patch sizes \\[10\\]"):
+            naflex.resolve_naflex_batch_specs(
+                (384, 384),
+                canonical_patch_size=16,
+                naflex_sizes=(256, 320, 384),
+                naflex_patch_sizes=(10, 16),
+            )
+
+    def test_resolve_batch_specs_preserves_resolution_multiplicity(self) -> None:
+        specs = naflex.resolve_naflex_batch_specs(
+            (80, 80),
+            canonical_patch_size=16,
+            naflex_sizes=(48, 64, 80),
+            naflex_patch_sizes=(48,),
+        )
+
+        self.assertSequenceEqual(
+            specs,
+            (
+                naflex.NaFlexBatchSpec(48, 1),
+                naflex.NaFlexBatchSpec(48, 1),
+                naflex.NaFlexBatchSpec(48, 2),
+            ),
+        )
+
+
+class TestNaFlexBatchSchedule(unittest.TestCase):
+    def test_batch_schedule_is_deterministic(self) -> None:
+        specs = (
+            naflex.NaFlexBatchSpec(2, 4),
+            naflex.NaFlexBatchSpec(2, 6),
+            naflex.NaFlexBatchSpec(2, 9),
+        )
+        schedule = naflex.NaFlexBatchSchedule(specs, seed=17)
 
         epoch_three = [schedule.select(3, batch_idx) for batch_idx in range(10)]
         epoch_four = [schedule.select(4, batch_idx) for batch_idx in range(10)]
 
-        self.assertSequenceEqual(epoch_three, [4, 6, 9, 4, 9, 4, 6, 9, 9, 9])
-        self.assertSequenceEqual(epoch_four, [6, 9, 6, 6, 9, 4, 6, 6, 9, 6])
+        self.assertSequenceEqual(epoch_three, [specs[idx] for idx in (0, 1, 2, 0, 2, 0, 1, 2, 2, 2)])
+        self.assertSequenceEqual(epoch_four, [specs[idx] for idx in (1, 2, 1, 1, 2, 0, 1, 1, 2, 1)])
         self.assertSequenceEqual(
             [schedule.select(3, batch_idx) for batch_idx in range(10)],
             epoch_three,
         )
+
+    def test_batch_schedule_selects_patch_size_first(self) -> None:
+        specs = (
+            naflex.NaFlexBatchSpec(10, 501),
+            naflex.NaFlexBatchSpec(16, 196),
+            naflex.NaFlexBatchSpec(16, 256),
+            naflex.NaFlexBatchSpec(16, 576),
+        )
+        schedule = naflex.NaFlexBatchSchedule(specs, seed=17)
+
+        with patch.object(torch, "randint", side_effect=(torch.tensor(1), torch.tensor(2))) as randint:
+            selected_spec = schedule.select(0, 0)
+
+        self.assertEqual(selected_spec, specs[3])
+        self.assertSequenceEqual([call.args[0] for call in randint.call_args_list], [2, 3])
+
+    def test_batch_schedule_preserves_spec_multiplicity(self) -> None:
+        spec_1 = naflex.NaFlexBatchSpec(48, 1)
+        spec_2 = naflex.NaFlexBatchSpec(48, 2)
+        schedule = naflex.NaFlexBatchSchedule((spec_1, spec_1, spec_2), seed=17)
+
+        with patch.object(torch, "randint", return_value=torch.tensor(1)) as randint:
+            selected_spec = schedule.select(0, 0)
+
+        self.assertEqual(selected_spec, spec_1)
+        self.assertEqual(randint.call_args.args[0], 3)
 
 
 class TestNaFlexCollator(unittest.TestCase):
@@ -161,14 +248,17 @@ class TestNaFlexCollator(unittest.TestCase):
         torch.testing.assert_close(targets, torch.tensor([[0.875, 0.125], [0.5, 0.5]]))
 
     def test_mixup_disabled(self) -> None:
-        collator = naflex.NaFlexMixupTrainingCollator(2, num_classes=3, alpha=1.0, p=0.0)
+        spec = naflex.NaFlexBatchSpec(2, 6)
+        collator = naflex.NaFlexMixupTrainingCollator(None, num_classes=3, alpha=1.0, p=0.0)
         image_a = torch.randn((2, 4, 6))
         image_b = torch.randn((2, 2, 4))
+        batch = [(image_a, 0), (image_b, 1)]
+        scheduled_batch = [(naflex.NaFlexScheduledInput(image, spec), target) for image, target in batch]
 
-        (patches, grid_sizes, valid_mask), targets = collator([(image_a, 0), (image_b, 1)])
+        (patches, grid_sizes, valid_mask), targets = collator(scheduled_batch)
         (expected_patches, expected_grid_sizes, expected_valid_mask), expected_targets = naflex.NaFlexTrainingCollator(
-            2
-        )([(image_a, 0), (image_b, 1)])
+            spec.patch_size
+        )(batch)
 
         torch.testing.assert_close(patches, expected_patches)
         torch.testing.assert_close(grid_sizes, expected_grid_sizes)
@@ -191,44 +281,87 @@ class TestNaFlexCollator(unittest.TestCase):
         torch.testing.assert_close(valid_mask.sum(dim=1), torch.tensor([6, 2]))
         torch.testing.assert_close(targets, torch.tensor([3, 7]))
 
+    def test_multi_view_batch(self) -> None:
+        spec = naflex.NaFlexBatchSpec(2, 6)
+        collator = naflex.NaFlexMultiViewPathCollator()
+        image_a_views = (torch.ones((3, 4, 6)), torch.ones((3, 2, 4)))
+        image_b_views = (torch.ones((3, 2, 4)), torch.ones((3, 6, 2)))
+
+        paths, views, targets = collator(
+            [
+                ("image_a.jpg", naflex.NaFlexScheduledInput(image_a_views, spec), 3),
+                ("image_b.jpg", naflex.NaFlexScheduledInput(image_b_views, spec), 7),
+            ]
+        )
+
+        self.assertSequenceEqual(paths, ["image_a.jpg", "image_b.jpg"])
+        self.assertEqual(len(views), 2)
+        view1_patches, view1_grid_sizes, view1_valid_mask = views[0]
+        view2_patches, view2_grid_sizes, view2_valid_mask = views[1]
+        self.assertEqual(view1_patches.size(), (2, 6, 12))
+        self.assertEqual(view2_patches.size(), (2, 3, 12))
+        torch.testing.assert_close(view1_grid_sizes, torch.tensor([[2, 3], [1, 2]]))
+        torch.testing.assert_close(view2_grid_sizes, torch.tensor([[1, 2], [3, 1]]))
+        torch.testing.assert_close(view1_valid_mask.sum(dim=1), torch.tensor([6, 2]))
+        torch.testing.assert_close(view2_valid_mask.sum(dim=1), torch.tensor([2, 3]))
+        torch.testing.assert_close(targets, torch.tensor([3, 7]))
+
 
 class TestNaFlexBatchProcessor(unittest.TestCase):
-    def test_multiscale_batch_uses_one_transform(self) -> None:
-        base_collator = naflex.NaFlexTrainingCollator(2)
+    def test_requires_scheduled_collator(self) -> None:
+        spec = naflex.NaFlexBatchSpec(2, 4)
+        with self.assertRaises(ValueError):
+            naflex.NaFlexBatchProcessor(
+                naflex.NaFlexTrainingCollator(2),
+                (spec,),
+                {spec: torch.nn.Identity()},
+                seed=0,
+            )
+
+    def test_batch_uses_selected_spec(self) -> None:
+        spec_1 = naflex.NaFlexBatchSpec(1, 6)
+        spec_2 = naflex.NaFlexBatchSpec(2, 6)
+        base_collator = naflex.NaFlexTrainingCollator()
         processor = naflex.NaFlexBatchProcessor(
             base_collator,
+            (spec_1, spec_1, spec_2),
             {
-                4: lambda image: image[:, :4, :4],
-                6: lambda image: image[:, :4, :6],
+                spec_1: lambda image: image[:, :2, :3],
+                spec_2: lambda image: image[:, :4, :6],
             },
             seed=0,
         )
+        self.assertSequenceEqual(processor.schedule.specs, (spec_1, spec_1, spec_2))
         batch = [(torch.ones((1, 8, 8)), 1), (torch.ones((1, 8, 8)), 2)]
 
         with patch.object(processor, "schedule") as schedule:
-            schedule.select.return_value = 6
-            (patches, grid_sizes, valid_mask), targets = processor(batch)
+            schedule.select.side_effect = [spec_1, spec_2]
+            batches = [processor(batch), processor(batch)]
 
-        schedule.select.assert_called_once_with(0, 0)
-        self.assertEqual(patches.size(), (2, 6, 4))
-        torch.testing.assert_close(grid_sizes, torch.tensor([[2, 3], [2, 3]]))
-        self.assertTrue(valid_mask.all().item())
-        torch.testing.assert_close(targets, torch.tensor([1, 2]))
+        self.assertSequenceEqual([call.args for call in schedule.select.call_args_list], [(0, 0), (0, 1)])
+        self.assertEqual([inputs[0].size() for inputs, _ in batches], [(2, 6, 1), (2, 6, 4)])
+        for (_, grid_sizes, valid_mask), targets in batches:
+            torch.testing.assert_close(grid_sizes, torch.tensor([[2, 3], [2, 3]]))
+            self.assertTrue(valid_mask.all().item())
+            torch.testing.assert_close(targets, torch.tensor([1, 2]))
 
     def test_multiscale_stream_preserves_batch_size(self) -> None:
-        base_collator = naflex.NaFlexTrainingCollator(2)
+        spec_4 = naflex.NaFlexBatchSpec(2, 4)
+        spec_6 = naflex.NaFlexBatchSpec(2, 6)
+        base_collator = naflex.NaFlexTrainingCollator()
         processor = naflex.NaFlexBatchProcessor(
             base_collator,
+            (spec_4, spec_6),
             {
-                4: lambda image: image[:, :4, :4],
-                6: lambda image: image[:, :4, :6],
+                spec_4: lambda image: image[:, :4, :4],
+                spec_6: lambda image: image[:, :4, :6],
             },
             seed=0,
         )
         samples = [(torch.ones((1, 8, 8)), idx) for idx in range(5)]
 
         with patch.object(processor, "schedule") as schedule:
-            schedule.select.side_effect = [4, 6, 4]
+            schedule.select.side_effect = [spec_4, spec_6, spec_4]
             batches = list(processor.iter_batches(samples, batch_size=2, drop_last=False))
 
         self.assertSequenceEqual([call.args for call in schedule.select.call_args_list], [(0, 0), (0, 1), (0, 2)])
@@ -237,20 +370,22 @@ class TestNaFlexBatchProcessor(unittest.TestCase):
         torch.testing.assert_close(torch.concat([batch[1] for batch in batches]), torch.arange(5))
 
     def test_multiscale_stream_snapshots_epoch(self) -> None:
+        spec = naflex.NaFlexBatchSpec(2, 4)
         processor = naflex.NaFlexBatchProcessor(
-            naflex.NaFlexTrainingCollator(2),
-            {4: lambda image: image[:, :4, :4]},
+            naflex.NaFlexTrainingCollator(),
+            (spec,),
+            {spec: lambda image: image[:, :4, :4]},
             seed=0,
         )
         samples = [(torch.ones((1, 4, 4)), idx) for idx in range(4)]
         calls: list[tuple[int, int]] = []
 
-        def select_max_seq_len(epoch: int, global_batch_idx: int) -> int:
+        def select_spec(epoch: int, global_batch_idx: int) -> naflex.NaFlexBatchSpec:
             calls.append((epoch, global_batch_idx))
-            return 4
+            return spec
 
         with patch.object(processor, "schedule") as schedule:
-            schedule.select.side_effect = select_max_seq_len
+            schedule.select.side_effect = select_spec
             old_iterator = processor.iter_batches(samples, batch_size=2, drop_last=False)
             next(old_iterator)
             processor.set_epoch(1)
@@ -260,9 +395,11 @@ class TestNaFlexBatchProcessor(unittest.TestCase):
         self.assertSequenceEqual(calls, [(0, 0), (0, 1), (1, 0)])
 
     def test_multiscale_stream_maps_worker_batches_to_global_schedule(self) -> None:
+        spec = naflex.NaFlexBatchSpec(2, 4)
         processor = naflex.NaFlexBatchProcessor(
-            naflex.NaFlexTrainingCollator(2),
-            {4: lambda image: image},
+            naflex.NaFlexTrainingCollator(),
+            (spec,),
+            {spec: lambda image: image},
             seed=0,
         )
         samples = [(torch.ones((1, 4, 4)), idx) for idx in range(2)]
@@ -271,7 +408,7 @@ class TestNaFlexBatchProcessor(unittest.TestCase):
             patch.object(torch.utils.data, "get_worker_info", return_value=SimpleNamespace(id=2, num_workers=4)),
             patch.object(processor, "schedule") as schedule,
         ):
-            schedule.select.return_value = 4
+            schedule.select.return_value = spec
             list(processor.iter_batches(samples, batch_size=1, drop_last=False))
 
         self.assertSequenceEqual([call.args for call in schedule.select.call_args_list], [(0, 2), (0, 6)])

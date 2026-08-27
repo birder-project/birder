@@ -433,6 +433,14 @@ BIOSCAN-5M
 torchrun --nproc_per_node=2 -m birder.scripts.train_franca --network vit_b16_ls --tag bioscan5m --dino-out-dim 65536 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 65536 --nesting-levels 4 --sinkhorn-queue-size 1280 --batch-size 32 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 16 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 200 --steps-per-epoch 2000 --warmup-epochs 32 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path ~/Datasets/BIOSCAN-5M/pretrain
 ```
 
+#### Franca: RoPEcs ViT MoE Reg4 B/16 8E 2K Every2 NAPE LS
+
+DGX A100 training
+
+```sh
+torchrun --nproc_per_node=8 -m birder.scripts.train_franca --network rope_cs_vit_vmoe_reg4_b16_8e_2k_every2_nape_ls --model-config moe_top_k=1,drop_path_rate=0.2,rope_rescale_coords=1.5 --moe-aux-loss --dino-out-dim 65536 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 65536 --nesting-levels 5 --momentum-teacher 0.994 --sinkhorn-queue-size 1536 --batch-size 64 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0007 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --epochs 400 --steps-per-epoch 2000 --warmup-epochs 32 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --wds --wds-info /mnt/data/imagenet-21k-wds/_info.json --wds-split train --wds-info /mnt/data/ssl_bio_packed/_info.json --wds-split training --wds-info /mnt/data/ssl_packed/_info.json --wds-split training
+```
+
 ### I-JEPA
 
 #### I-JEPA: Simple ViT S/14
@@ -569,6 +577,18 @@ export TORCHINDUCTOR_LOOP_REINDEXING_AFTER_FUSION=0
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network naflex_vit_b16 --model-config drop_path_rate=0.0 --batch-size 192 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.0002 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler-update step --lr-scheduler cosine --epochs 600 --warmup-epochs 40 --size 256 --naflex --naflex-sizes 192 224 256 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --data-path data/training
+```
+
+ImageNet 12K pretraining
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_nepa --network naflex_vit_b16 --tag imagenet12k --model-config drop_path_rate=0.0 --batch-size 256 --opt adamw --opt-fused --opt-betas 0.9 0.95 --clip-grad-norm 1 --lr 0.0002 --lr-scale 256 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --lr-scheduler-update step --lr-scheduler cosine --epochs 600 --warmup-epochs 40 --size 224 --naflex --naflex-sizes 192 224 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --no-broadcast-buffers --wds --wds-info ~/Datasets/imagenet-12k-wds/_info.json --wds-split train
+```
+
+ImageNet 12K, fine-tuning with a frozen patch projection and layer-wise learning rate decay
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train --network naflex_vit_b16 --tag nepa-imagenet12k --reset-head --freeze-module conv_proj --batch-size 192 --opt adamw --opt-fused --lr 0.001 --wd 0.05 --norm-wd 0 --bias-weight-decay 0 --transformer-embedding-decay 0 --layer-decay 0.65 --lr-scheduler-update step --lr-scheduler cosine --epochs 30 --warmup-epochs 5 --size 256 --naflex --naflex-sizes 192 224 256 --aug-level 8 --resize-min-scale 0.1 --smoothing-alpha 0.1 --mixup-alpha 0.8 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --no-broadcast-buffers --wds --wds-info ~/Datasets/imagenet-12k-wds/_info.json --wds-class-file public_datasets_metadata/imagenet-12k-classes.txt --wds-training-split train
 ```
 
 #### NEPA: RoPE FlexiViT Reg4 B/16 QKN LS

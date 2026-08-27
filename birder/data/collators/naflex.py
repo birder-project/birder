@@ -6,15 +6,96 @@ import multiprocessing as mp
 from collections.abc import Callable
 from collections.abc import Iterable
 from collections.abc import Iterator
+from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Any
+from typing import Optional
+from typing import TypeAlias
 
 import torch
 from torch.nn import functional as F
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data.dataloader import default_collate
 
+from birder.data.transforms.naflex import get_sequence_lengths
+
 EPOCH_SEED_STRIDE = 1_000_003
+
+MultiView: TypeAlias = Sequence[torch.Tensor]
+NaFlexTransformOutput: TypeAlias = torch.Tensor | MultiView
+
+
+@dataclass(frozen=True, slots=True)
+class NaFlexBatchSpec:
+    patch_size: int
+    max_seq_len: int
+
+    def __post_init__(self) -> None:
+        if self.patch_size <= 0:
+            raise ValueError(f"Patch size must be positive, got {self.patch_size}")
+        if self.max_seq_len <= 0:
+            raise ValueError(f"Maximum sequence length must be positive, got {self.max_seq_len}")
+
+
+@dataclass(frozen=True, slots=True)
+class NaFlexScheduledInput:
+    value: NaFlexTransformOutput
+    spec: NaFlexBatchSpec
+
+
+def resolve_naflex_batch_specs(
+    image_size: tuple[int, int],
+    canonical_patch_size: int,
+    naflex_sizes: Optional[Sequence[int]] = None,
+    naflex_patch_sizes: Optional[Sequence[int]] = None,
+) -> tuple[NaFlexBatchSpec, ...]:
+    canonical_seq_lens = get_sequence_lengths(image_size, canonical_patch_size, naflex_sizes)
+    max_seq_len = max(canonical_seq_lens)
+    resolution_areas: tuple[int, ...]
+    resolution_labels: tuple[int | tuple[int, int], ...]
+    if naflex_sizes is None:
+        resolution_areas = (image_size[0] * image_size[1],)
+        resolution_labels = (image_size,)
+    else:
+        resolution_areas = tuple(size * size for size in naflex_sizes)
+        resolution_labels = tuple(naflex_sizes)
+
+    patch_sizes = (canonical_patch_size,) if naflex_patch_sizes is None else tuple(naflex_patch_sizes)
+    if len(patch_sizes) == 0:
+        raise ValueError("At least one NaFlex patch size is required")
+    if any(patch_size <= 0 for patch_size in patch_sizes):
+        raise ValueError(f"NaFlex patch sizes must be positive, got {list(patch_sizes)}")
+    if len(set(patch_sizes)) != len(patch_sizes):
+        raise ValueError(f"NaFlex patch sizes must be unique, got {list(patch_sizes)}")
+
+    specs: list[NaFlexBatchSpec] = []
+    covered_resolution_indices: set[int] = set()
+    covered_patch_sizes: set[int] = set()
+    for patch_size in patch_sizes:
+        for resolution_idx, resolution_area in enumerate(resolution_areas):
+            candidate_seq_len = resolution_area // (patch_size * patch_size)
+            if candidate_seq_len <= 0 or candidate_seq_len > max_seq_len:
+                continue
+
+            specs.append(NaFlexBatchSpec(patch_size, candidate_seq_len))
+
+            covered_patch_sizes.add(patch_size)
+            covered_resolution_indices.add(resolution_idx)
+
+    missing_patch_sizes = [patch_size for patch_size in patch_sizes if patch_size not in covered_patch_sizes]
+    missing_resolutions = [
+        resolution for idx, resolution in enumerate(resolution_labels) if idx not in covered_resolution_indices
+    ]
+    if len(missing_patch_sizes) > 0 or len(missing_resolutions) > 0:
+        raise ValueError(
+            f"All NaFlex patch sizes and resolutions must have an admissible pairing under maximum sequence length "
+            f"{max_seq_len}, got unmatched patch sizes {missing_patch_sizes} and unmatched resolutions "
+            f"{missing_resolutions}"
+        )
+
+    return tuple(specs)
 
 
 class NaFlexCollator:
@@ -22,7 +103,7 @@ class NaFlexCollator:
     Patchify and collate variable-size images into padded patch sequences
 
     Images must be tensors of shape (C, H, W) whose height and width are divisible by the
-    configured patch size. Patch values are flattened in the same order as a
+    selected patch size. Patch values are flattened in the same order as a
     Conv2d patch projection with a square, non-overlapping kernel.
 
     The collated inputs contain the padded patch sequences, their two-dimensional
@@ -33,30 +114,44 @@ class NaFlexCollator:
     input_offset
         Position of the image in each sample.
     patch_size
-        Height and width of each square image patch.
+        Height and width of each square image patch in fixed mode. If unset, the
+        collator expects scheduled inputs from a NaFlex batch processor.
     """
 
-    def __init__(self, input_offset: int, patch_size: int) -> None:
-        if patch_size <= 0:
+    def __init__(self, input_offset: int, patch_size: Optional[int]) -> None:
+        if patch_size is not None and patch_size <= 0:
             raise ValueError(f"Patch size must be positive, got {patch_size}")
 
-        self.patch_size = patch_size
         self.input_offset = input_offset
+        self.patch_size = patch_size
 
-    def _patchify(self, image: torch.Tensor) -> tuple[torch.Tensor, tuple[int, int]]:
+    def _resolve_inputs(self, inputs: tuple[Any, ...]) -> tuple[tuple[NaFlexTransformOutput, ...], int]:
+        if self.patch_size is not None:
+            values: tuple[NaFlexTransformOutput, ...] = inputs
+            return (values, self.patch_size)
+
+        scheduled_inputs: tuple[NaFlexScheduledInput, ...] = inputs
+        spec = scheduled_inputs[0].spec
+
+        values = tuple(scheduled_input.value for scheduled_input in scheduled_inputs)
+        return (values, spec.patch_size)
+
+    def _patchify(self, image: torch.Tensor, patch_size: int) -> tuple[torch.Tensor, tuple[int, int]]:
         C, H, W = image.size()
-        grid_h = H // self.patch_size
-        grid_w = W // self.patch_size
-        patches = image.reshape(C, grid_h, self.patch_size, grid_w, self.patch_size)
+        grid_h = H // patch_size
+        grid_w = W // patch_size
+        patches = image.reshape(C, grid_h, patch_size, grid_w, patch_size)
         patches = patches.permute(1, 3, 0, 2, 4).reshape(grid_h * grid_w, -1)
 
         return (patches, (grid_h, grid_w))
 
-    def _patchify_images(self, images: tuple[torch.Tensor, ...]) -> tuple[list[torch.Tensor], list[tuple[int, int]]]:
+    def _patchify_images(
+        self, images: tuple[torch.Tensor, ...], patch_size: int
+    ) -> tuple[list[torch.Tensor], list[tuple[int, int]]]:
         patch_sequences: list[torch.Tensor] = []
         grid_sizes: list[tuple[int, int]] = []
         for image in images:
-            patches, grid_size = self._patchify(image)
+            patches, grid_size = self._patchify(image, patch_size)
             patch_sequences.append(patches)
             grid_sizes.append(grid_size)
 
@@ -76,8 +171,8 @@ class NaFlexCollator:
 
     def __call__(self, batch: list[tuple[Any, ...]]) -> tuple[Any, ...]:
         batch_fields = list(zip(*batch))
-        images = batch_fields[self.input_offset]
-        patch_sequences, grid_sizes = self._patchify_images(images)
+        images, patch_size = self._resolve_inputs(batch_fields[self.input_offset])
+        patch_sequences, grid_sizes = self._patchify_images(images, patch_size)
         collated_inputs = self._collate_inputs(patch_sequences, grid_sizes)
         collated_batch = [
             collated_inputs if idx == self.input_offset else default_collate(list(field))
@@ -90,7 +185,7 @@ class NaFlexCollator:
 class NaFlexTrainingCollator(NaFlexCollator):
     """NaFlex collator for training samples of the form (image, target)"""
 
-    def __init__(self, patch_size: int) -> None:
+    def __init__(self, patch_size: Optional[int] = None) -> None:
         super().__init__(0, patch_size)
 
 
@@ -109,7 +204,7 @@ class NaFlexMixupTrainingCollator(NaFlexTrainingCollator):
     Parameters
     ----------
     patch_size
-        Height and width of each square image patch.
+        Height and width of each square image patch in fixed mode.
     num_classes
         Number of classes used for one-hot encoding.
     alpha
@@ -118,7 +213,7 @@ class NaFlexMixupTrainingCollator(NaFlexTrainingCollator):
         Probability of applying MixUp to a batch.
     """
 
-    def __init__(self, patch_size: int, num_classes: int, alpha: float, p: float = 0.5) -> None:
+    def __init__(self, patch_size: Optional[int], num_classes: int, alpha: float, p: float = 0.5) -> None:
         super().__init__(patch_size)
         if num_classes < 1:
             raise ValueError(f"Number of classes must be positive, got {num_classes}")
@@ -188,9 +283,9 @@ class NaFlexMixupTrainingCollator(NaFlexTrainingCollator):
 
     def __call__(self, batch: list[tuple[Any, ...]]) -> tuple[Any, ...]:
         batch_fields = list(zip(*batch))
-        images = batch_fields[self.input_offset]
+        images, patch_size = self._resolve_inputs(batch_fields[self.input_offset])
         targets = default_collate(list(batch_fields[1]))
-        patch_sequences, grid_sizes = self._patchify_images(images)
+        patch_sequences, grid_sizes = self._patchify_images(images, patch_size)
 
         if len(patch_sequences) > 1 and (self.p == 1.0 or torch.rand(()).item() < self.p):
             patch_sequences, targets = self._mixup(patch_sequences, grid_sizes, targets)
@@ -201,55 +296,113 @@ class NaFlexMixupTrainingCollator(NaFlexTrainingCollator):
 class NaFlexPathCollator(NaFlexCollator):
     """NaFlex collator for samples of the form (path, image, target)"""
 
-    def __init__(self, patch_size: int) -> None:
+    def __init__(self, patch_size: Optional[int] = None) -> None:
         super().__init__(1, patch_size)
 
 
-@dataclass(frozen=True)
-class NaFlexSequenceLengthSchedule:
-    """Deterministically select a maximum sequence length for a global batch"""
+class NaFlexMultiViewPathCollator(NaFlexPathCollator):
+    """
+    NaFlex collator for SSL samples of the form (path, views, target)
 
-    max_seq_lens: tuple[int, ...]
+    Every view is patchified and padded independently across the batch. This avoids
+    padding all views to the longest sequence when their grid sizes differ.
+    """
+
+    def __call__(self, batch: list[tuple[Any, ...]]) -> tuple[Any, ...]:
+        batch_fields = list(zip(*batch))
+        image_views, patch_size = self._resolve_inputs(batch_fields[self.input_offset])
+        collated_views: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = []
+        for images in zip(*image_views, strict=True):
+            patch_sequences, grid_sizes = self._patchify_images(images, patch_size)
+            collated_views.append(self._collate_inputs(patch_sequences, grid_sizes))
+
+        collated_batch = [
+            collated_views if idx == self.input_offset else default_collate(list(field))
+            for idx, field in enumerate(batch_fields)
+        ]
+
+        return tuple(collated_batch)
+
+
+@dataclass(frozen=True)
+class NaFlexBatchSchedule:
+    """
+    Deterministically select a patch size, then a corresponding NaFlex specification
+
+    Repeated specifications retain the sampling weight of resolution choices that
+    quantize to the same maximum sequence length.
+    """
+
+    specs: tuple[NaFlexBatchSpec, ...]
     seed: int
 
     def __post_init__(self) -> None:
-        if len(self.max_seq_lens) == 0:
-            raise ValueError("At least one maximum sequence length is required")
-        if any(max_seq_len <= 0 for max_seq_len in self.max_seq_lens):
-            raise ValueError(f"Maximum sequence lengths must be positive, got {self.max_seq_lens}")
+        if len(self.specs) == 0:
+            raise ValueError("At least one NaFlex batch specification is required")
 
-    def select(self, epoch: int, global_batch_idx: int) -> int:
+    @cached_property
+    def _spec_groups(self) -> tuple[tuple[NaFlexBatchSpec, ...], ...]:
+        specs_by_patch_size: dict[int, list[NaFlexBatchSpec]] = {}
+        for spec in self.specs:
+            specs_by_patch_size.setdefault(spec.patch_size, []).append(spec)
+
+        return tuple(tuple(specs) for specs in specs_by_patch_size.values())
+
+    def select(self, epoch: int, global_batch_idx: int) -> NaFlexBatchSpec:
         generator = torch.Generator()
         generator.manual_seed(self.seed + epoch * EPOCH_SEED_STRIDE + global_batch_idx)
-        schedule_idx = int(torch.randint(len(self.max_seq_lens), (), generator=generator).item())
 
-        return self.max_seq_lens[schedule_idx]
+        if len(self._spec_groups) == 1:
+            specs = self._spec_groups[0]
+        else:
+            patch_idx = int(torch.randint(len(self._spec_groups), (), generator=generator).item())
+            specs = self._spec_groups[patch_idx]
+
+        if len(specs) == 1:
+            return specs[0]
+
+        spec_idx = int(torch.randint(len(specs), (), generator=generator).item())
+        return specs[spec_idx]
 
 
 class NaFlexBatchProcessor:
     """
-    Select one maximum sequence length and transform all images in a batch with it
+    Select one NaFlex specification and transform all images in a batch with it
 
     The image batch size remains constant.
-    Sequence-length selection is deterministic for an epoch and DataLoader batch index,
+    Specification selection is deterministic for an epoch and DataLoader batch index,
     and therefore stays aligned across distributed ranks that use the same worker count.
 
     Parameters
     ----------
     base_collator
         NaFlex collator applied after the images have been transformed.
+    specs
+        Batch specifications to schedule. Repeated specifications preserve the
+        sampling weight of their corresponding resolution choices.
     transforms
-        Mapping from maximum sequence lengths to their corresponding image transforms.
+        Mapping from NaFlex batch specifications to their corresponding image transforms.
     seed
-        Seed used for sequence-length selection.
+        Seed used for batch-specification selection.
     """
 
     def __init__(
-        self, base_collator: NaFlexCollator, transforms: dict[int, Callable[..., torch.Tensor]], seed: int
+        self,
+        base_collator: NaFlexCollator,
+        specs: Sequence[NaFlexBatchSpec],
+        transforms: Mapping[NaFlexBatchSpec, Callable[..., NaFlexTransformOutput]],
+        seed: int,
     ) -> None:
+        if base_collator.patch_size is not None:
+            raise ValueError("NaFlexBatchProcessor requires a scheduled-mode collator")
+
+        schedule = NaFlexBatchSchedule(tuple(specs), seed)
+        if set(schedule.specs) != set(transforms):
+            raise ValueError("NaFlex batch specifications and transforms must match")
+
         self.base_collator = base_collator
         self.transforms = transforms
-        self.schedule = NaFlexSequenceLengthSchedule(tuple(transforms), seed)
+        self.schedule = schedule
         self._epoch = mp.Value("q", 0)
         self._worker_epoch = -1
         self._worker_batch_idx = 0
@@ -257,7 +410,7 @@ class NaFlexBatchProcessor:
     def set_epoch(self, epoch: int) -> None:
         self._epoch.value = epoch
 
-    def _get_max_seq_len(self, epoch: int, worker_batch_idx: int) -> int:
+    def _get_batch_spec(self, epoch: int, worker_batch_idx: int) -> NaFlexBatchSpec:
         worker_info = torch.utils.data.get_worker_info()
         if worker_info is None:
             worker_id = 0
@@ -271,26 +424,30 @@ class NaFlexBatchProcessor:
 
         return self.schedule.select(epoch, global_batch_idx)
 
-    def _next_max_seq_len(self) -> int:
+    def _next_batch_spec(self) -> NaFlexBatchSpec:
         epoch = self._epoch.value
         if epoch != self._worker_epoch:
             self._worker_epoch = epoch
             self._worker_batch_idx = 0
 
-        max_seq_len = self._get_max_seq_len(epoch, self._worker_batch_idx)
+        spec = self._get_batch_spec(epoch, self._worker_batch_idx)
         self._worker_batch_idx += 1
 
-        return max_seq_len
+        return spec
 
-    def _transform_sample(self, sample: tuple[Any, ...], transform: Callable[..., torch.Tensor]) -> tuple[Any, ...]:
+    def _transform_sample(
+        self, sample: tuple[Any, ...], transform: Callable[..., NaFlexTransformOutput], spec: NaFlexBatchSpec
+    ) -> tuple[Any, ...]:
         fields = list(sample)
-        fields[self.base_collator.input_offset] = transform(fields[self.base_collator.input_offset])
+        value = transform(fields[self.base_collator.input_offset])
+        fields[self.base_collator.input_offset] = NaFlexScheduledInput(value, spec)
+
         return tuple(fields)
 
     def transform_batch(self, batch: Iterable[tuple[Any, ...]]) -> list[tuple[Any, ...]]:
-        max_seq_len = self._next_max_seq_len()
-        transform = self.transforms[max_seq_len]
-        return [self._transform_sample(sample, transform) for sample in batch]
+        spec = self._next_batch_spec()
+        transform = self.transforms[spec]
+        return [self._transform_sample(sample, transform, spec) for sample in batch]
 
     def __call__(self, batch: list[tuple[Any, ...]]) -> tuple[Any, ...]:
         return self.base_collator(self.transform_batch(batch))
@@ -310,17 +467,17 @@ class NaFlexBatchProcessor:
             except StopIteration:
                 break
 
-            max_seq_len = self._get_max_seq_len(epoch, worker_batch_idx)
+            spec = self._get_batch_spec(epoch, worker_batch_idx)
             worker_batch_idx += 1
-            transform = self.transforms[max_seq_len]
-            batch = [self._transform_sample(sample, transform)]
+            transform = self.transforms[spec]
+            batch = [self._transform_sample(sample, transform, spec)]
             for _ in range(batch_size - 1):
                 try:
                     sample = next(source_iterator)
                 except StopIteration:
                     break
 
-                batch.append(self._transform_sample(sample, transform))
+                batch.append(self._transform_sample(sample, transform, spec))
 
             if len(batch) == batch_size or (len(batch) > 0 and drop_last is False):
                 yield self.base_collator(batch)

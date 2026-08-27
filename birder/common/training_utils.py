@@ -31,6 +31,7 @@ from torchvision.ops import FrozenBatchNorm2d
 from birder.common import fs_ops
 from birder.common import fsdp_utils
 from birder.conf import settings
+from birder.data.collators.naflex import NaFlexBatchSpec
 from birder.data.transforms.classification import get_rgb_stats
 from birder.data.transforms.classification import training_preset
 from birder.data.transforms.naflex import training_preset as naflex_training_preset
@@ -1058,12 +1059,10 @@ def get_training_transform(args: argparse.Namespace) -> Callable[..., torch.Tens
     )
 
 
-def get_naflex_training_transform(
-    args: argparse.Namespace, patch_size: int, max_seq_len: int
-) -> Callable[..., torch.Tensor]:
+def get_naflex_training_transform(args: argparse.Namespace, spec: NaFlexBatchSpec) -> Callable[..., torch.Tensor]:
     return naflex_training_preset(
-        patch_size,
-        max_seq_len,
+        spec.patch_size,
+        spec.max_seq_len,
         args.aug_type,
         args.aug_level,
         get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std),

@@ -63,6 +63,22 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_eva --network rope_vit_m16_a
 torchrun --nproc_per_node=2 -m birder.scripts.train_eva --network rope_vit_b14_swiglu_avg --teacher rope_i_vit_l14_pn_aps_c1 --teacher-tag pe-core --batch-size 256 --opt adamw --opt-fused --opt-eps 1e-6 --opt-betas 0.9 0.98 --clip-grad-norm 3 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --warmup-epochs 5 --size 224 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --data-path data/training data/raw_data data/detection_data/training ~/Datasets
 ```
 
+#### EVA: NaFlex ViT S/16 with a SigLIP 2 NaFlex ViT B/16 teacher
+
+NaFlex EVA requires both the student and teacher to be NaFlex models with the same patch size.
+
+PyTorch 2.13.0 can fail to compile dynamic NaFlex sequence lengths with an internal Inductor `CantSplit` error.
+Until the upstream issue is fixed, set the following variables before using `--naflex` with `--compile`:
+
+```sh
+export TORCHINDUCTOR_LOOP_ORDERING_AFTER_FUSION=0
+export TORCHINDUCTOR_LOOP_REINDEXING_AFTER_FUSION=0
+```
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_eva --network naflex_vit_s16 --teacher naflex_i_vit_so400m_p16_ap_c1 --teacher-tag siglip-v2-webli --batch-size 256 --opt adamw --opt-fused --opt-eps 1e-6 --opt-betas 0.9 0.98 --clip-grad-norm 3 --lr 0.0005 --wd 0.05 --lr-scheduler cosine --epochs 300 --warmup-epochs 5 --size 256 --naflex --naflex-sizes 192 256 320 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json --wds-split training --wds-info ~/Datasets/imagenet-12k-wds/_info.json --wds-split train
+```
+
 ### FCMAE
 
 #### FCMAE: ConvNeXt v2 Atto

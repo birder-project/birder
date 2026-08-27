@@ -954,7 +954,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             if return_all_features is True:
                 x = x[..., -1]
 
-            result["embedding"] = self.embedding_norm(self._pool(x))
+            result["embedding"] = self.embedding_from_features(x)
 
         return result
 
@@ -1001,7 +1001,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             result["features"] = features
 
         if return_keys in ("all", "embedding"):
-            result["embedding"] = self.embedding_norm(self._pool(x))
+            result["embedding"] = self.embedding_from_features(x)
 
         return result
 

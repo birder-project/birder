@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.3 - 2026-08-27
+
+### Added
+
+- **Simple ViT Masked Token Retention**: Added masked token retention support to Simple ViT encoders.
+- **NaFlex Masked Token Retention**: Added padding-aware masked token retention to NaFlex ViT and NaFlex RoPE ViT for mixed variable-size patch sequences while preserving dense image-input compatibility.
+- **NaFlex Masking**: Added NaFlex-aware mask generation for mixed variable-size patch grids.
+- **NaFlex Patch-Size Sampling**: Added opt-in `--naflex-patch-sizes` support with batch-level patch-size and resolution scheduling, patch-projection resampling.
+- **NaFlex Knowledge Distillation**: Added native-aspect-ratio knowledge distillation.
+- **NaFlex Barlow Twins**: Added native-aspect-ratio Barlow Twins pretraining with independently padded augmented views and end-to-end `--naflex` and multi-scale `--naflex-sizes` training support.
+- **NaFlex EVA**: Added native-aspect-ratio EVA pretraining for NaFlex teacher and student encoders with matching patch sizes, grid-aware masking, padding-aware loss and end-to-end `--naflex` and multi-scale `--naflex-sizes` training support.
+- **NaFlex RoPE ViT**: Added NaFlex RoPE ViT image classification variants with efficient batched rotary position embeddings for mixed variable-size patch grids.
+- **V-MoE Token Masks**: Added optional token-mask support to the V-MoE router, `SparseMoE_FFN`, and both ViT and RoPE encoder paths, excluding masked tokens from expert capacity allocation and auxiliary routing losses and zeroing their sparse FFN contribution.
+- **Pretrained Models**:
+    - `rope_vit_reg8_b14_nps_avg_capi-dino-bio`: Added CAPI-DINO RoPE ViT Reg8 B/14 NPS AVG image encoder pretrained weights on natural biological images.
+
+### Changed
+
+- **V-MoE ViT Feature Parity**: Aligned ViT-MoE and RoPE-ViT-MoE with their dense counterparts across applicable positional-embedding, transformer-normalization and attention-pooling configuration options.
+
 ## 0.7.2 - 2026-08-17
 
 ### Added
@@ -94,7 +114,7 @@
 - **CSWin Transformer**: Preserved stage-specific stripe widths when adjusting input size.
 - **Swin Transformer Rectangular Attention and Resizing**: Corrected height/width shift suppression for rectangular windows in v1 and v2. Made v2 track padded stage resolutions and restore shifted-window offsets when resizing to non-multiple-of-32 inputs.
 - **Detection Result Loading**: Restored canonical bounding-box shapes and field dtypes when loading JSON detection results.
-- **EfficientDet Upstream Fidelity (Breaking)**: Restored half-stride floating-point anchors, canonical matching thresholds and BatchNorm settings, and the batch-normalized focal/Huber training objective with the upstream localization weight.
+- **EfficientDet Upstream Fidelity (Breaking)**: Restored half-stride floating-point anchors, canonical matching thresholds and BatchNorm settings and the batch-normalized focal/Huber training objective with the upstream localization weight.
 - **Faster R-CNN Anchor Schedule**: Derived RPN anchor sizes from backbone pyramid strides so nonstandard and stride-64 backbones use the correct per-level scales.
 - **RetinaNet Upstream Fidelity (Breaking)**: Derived anchor sizes from regular and Simple-FPN strides for nonstandard backbones, removed unintended regular-FPN BatchNorm and restored Simple-FPN LayerNorm.
 - **DETR Positional-Embedding Dtypes**: Cast DETR and Deformable DETR positional embeddings to the corresponding feature dtype for mixed-precision compatibility.
@@ -104,7 +124,7 @@
 - **LW-DETR Positional-Embedding Dtype**: Cast sine position embeddings to the decoder dtype for reduced-precision compatibility.
 - **LW-DETR and RF-DETR Upstream Fidelity**: Corrected Group-DETR loss normalization for all-negative and sparse distributed batches.
 - **LeJEPA Global-View Target**: Corrected the invariance target to average only global-crop projections while retaining all global and local crops as predictions.
-- **Plain DETR Upstream Fidelity**: Corrected all-negative one-to-many loss normalization, restored decoder self-attention initialization and finite attention-logit clamping, and made positional and BoxRPB computations reduced-precision compatible.
+- **Plain DETR Upstream Fidelity**: Corrected all-negative one-to-many loss normalization, restored decoder self-attention initialization and finite attention-logit clamping and made positional and BoxRPB computations reduced-precision compatible.
 - **Download Cleanup**: Ensured download responses and temporary files are closed safely.
 - **FlexiViT PI-Resize**: Corrected FlexiViT and RoPE FlexiViT patch projection resizing to use the reference bilinear pseudoinverse transform instead of direct bicubic interpolation.
 - **LAMB Gradient Handling**: Made gradient-free optimizer steps no-ops and tracked bias-correction steps per parameter so intermittently active parameters use correct moment correction.

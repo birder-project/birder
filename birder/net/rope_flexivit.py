@@ -160,8 +160,14 @@ class RoPE_FlexiViT(RoPE_ViT):
         if self.patch_size == patch_size:
             return
 
+        assert self.size[0] % patch_size == 0, "Input shape indivisible by patch size!"
+        assert self.size[1] % patch_size == 0, "Input shape indivisible by patch size!"
+
         logger.debug(f"Setting patch size to: {patch_size}")
-        self.conv_proj.weight = nn.Parameter(interpolate_proj(self.conv_proj.weight, patch_size))
+        with torch.no_grad():
+            conv_proj_weight = interpolate_proj(self.conv_proj.weight, patch_size)
+
+        self.conv_proj.weight = nn.Parameter(conv_proj_weight)
         self.conv_proj.kernel_size = (patch_size, patch_size)
         self.conv_proj.stride = (patch_size, patch_size)
         if self.pos_embedding is not None:
@@ -171,15 +177,16 @@ class RoPE_FlexiViT(RoPE_ViT):
             else:
                 num_prefix_tokens = 0
 
-            self.pos_embedding = nn.Parameter(
-                adjust_position_embedding(
+            with torch.no_grad():
+                pos_embedding = adjust_position_embedding(
                     self.pos_embedding,
                     (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
                     (self.size[0] // patch_size, self.size[1] // patch_size),
                     num_prefix_tokens,
                     interpolation_mode=self.pos_embed_interpolation_mode,
                 )
-            )
+
+            self.pos_embedding = nn.Parameter(pos_embedding)
 
         grid_size = (self.size[0] // patch_size, self.size[1] // patch_size)
         self.rope.set_grid_size(grid_size)

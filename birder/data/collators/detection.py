@@ -39,7 +39,7 @@ def batch_images(
     B, _, H, W = batch_shape
     batched_imgs = images[0].new_full(batch_shape, 0)
     masks = images[0].new_full((B, H, W), 1).to(torch.bool)
-    for img, pad_img, mask in zip(images, batched_imgs, masks):
+    for img, pad_img, mask in zip(images, batched_imgs, masks, strict=True):
         pad_img[: img.shape[0], : img.shape[1], : img.shape[2]].copy_(img)
         mask[: img.shape[1], : img.shape[2]] = False
 

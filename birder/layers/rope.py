@@ -19,6 +19,23 @@ RoPEStyleType = Literal["default", "axial", "centered_separate"]
 RoPERotationType = Literal["standard", "interleaved"]
 
 
+def _build_rotary_frequency_bands(dim: int, temperature: float, device: Optional[torch.device] = None) -> torch.Tensor:
+    assert dim % 4 == 0
+    num_bands = dim // 4
+    exp = torch.arange(0, num_bands, 1, device=device) / num_bands
+    return 1.0 / (temperature**exp)
+
+
+def _build_default_rotary_pos_embed_from_coords(
+    coords: torch.Tensor, bands: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    pos = coords.unsqueeze(-1) * bands
+    sin_emb = pos.sin().flatten(-2).repeat_interleave(2, dim=-1)
+    cos_emb = pos.cos().flatten(-2).repeat_interleave(2, dim=-1)
+
+    return (sin_emb, cos_emb)
+
+
 def _build_default_rotary_pos_embed(
     dim: int,
     temperature: float,
@@ -28,10 +45,7 @@ def _build_default_rotary_pos_embed(
     pt_grid_size: Optional[tuple[int, int]],
     device: Optional[torch.device] = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    assert dim % 4 == 0
-    num_bands = dim // 4
-    exp = torch.arange(0, num_bands, 1, device=device) / num_bands
-    bands = 1.0 / (temperature**exp)
+    bands = _build_rotary_frequency_bands(dim, temperature, device=device)
 
     if grid_indexing == "xy":
         grid_size = (grid_size[1], grid_size[0])
@@ -42,15 +56,17 @@ def _build_default_rotary_pos_embed(
         pt_grid_size = grid_size
 
     t = [(torch.arange(s, device=device) + grid_offset) / s * p for s, p in zip(grid_size, pt_grid_size)]
-    grid = torch.stack(torch.meshgrid(t, indexing=grid_indexing), dim=-1)
-    grid = grid.unsqueeze(-1)
-    pos = grid * bands
-    sin_emb = pos.sin()
-    cos_emb = pos.cos()
+    coords = torch.stack(torch.meshgrid(t, indexing=grid_indexing), dim=-1).reshape(-1, 2)
 
-    num_spatial_dim = grid_size[0] * grid_size[1]
-    sin_emb = sin_emb.reshape(num_spatial_dim, -1).repeat_interleave(2, -1)
-    cos_emb = cos_emb.reshape(num_spatial_dim, -1).repeat_interleave(2, -1)
+    return _build_default_rotary_pos_embed_from_coords(coords, bands)
+
+
+def _build_axial_rotary_pos_embed_from_coords(
+    coords_x: torch.Tensor, coords_y: torch.Tensor, bands: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    angles = torch.concat((coords_x.unsqueeze(-1) * bands, coords_y.unsqueeze(-1) * bands), dim=-1)
+    sin_emb = angles.sin().repeat_interleave(2, dim=-1)
+    cos_emb = angles.cos().repeat_interleave(2, dim=-1)
 
     return (sin_emb, cos_emb)
 
@@ -58,17 +74,45 @@ def _build_default_rotary_pos_embed(
 def _build_axial_rotary_pos_embed(
     dim: int, temperature: float, grid_size: tuple[int, int], device: Optional[torch.device] = None
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    assert dim % 4 == 0
-    num_bands = dim // 4
-    exp = torch.arange(0, num_bands, 1, device=device) / num_bands
-    bands = 1.0 / (temperature**exp)
+    bands = _build_rotary_frequency_bands(dim, temperature, device=device)
 
     H, W = grid_size
     t_y = torch.arange(H, device=device, dtype=bands.dtype).view(H, 1).expand(H, W).reshape(-1)
     t_x = torch.arange(W, device=device, dtype=bands.dtype).view(1, W).expand(H, W).reshape(-1)
-    angles = torch.concat((torch.outer(t_x, bands), torch.outer(t_y, bands)), dim=-1)
-    sin_emb = angles.sin().repeat_interleave(2, dim=-1)
-    cos_emb = angles.cos().repeat_interleave(2, dim=-1)
+
+    return _build_axial_rotary_pos_embed_from_coords(t_x, t_y, bands)
+
+
+def _build_centered_separate_rotary_pos_embed_from_coords(
+    coords: torch.Tensor,
+    bands: torch.Tensor,
+    shift_coords: Optional[float] = None,
+    jitter_coords: Optional[float] = None,
+    rescale_coords: Optional[float] = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    coords = 2.0 * coords - 1.0
+
+    # Independently shift both axes by a uniform value in [-shift, shift]
+    if shift_coords is not None:
+        shift_hw = torch.empty(2, device=coords.device, dtype=bands.dtype).uniform_(-shift_coords, shift_coords)
+        coords += shift_hw
+
+    # Independently scale both axes by a log-uniform value in [1 / jitter, jitter]
+    if jitter_coords is not None:
+        jitter_max = math.log(jitter_coords)
+        jitter_hw = torch.empty(2, device=coords.device, dtype=bands.dtype).uniform_(-jitter_max, jitter_max).exp()
+        coords *= jitter_hw
+
+    # Scale both axes by the same log-uniform value in [1 / rescale, rescale]
+    if rescale_coords is not None:
+        rescale_max = math.log(rescale_coords)
+        rescale = torch.empty(1, device=coords.device, dtype=bands.dtype).uniform_(-rescale_max, rescale_max).exp()
+        coords *= rescale
+
+    angles = (2.0 * math.pi * coords.unsqueeze(-1)) * bands
+    angles = angles.flatten(-2).tile(2)
+    sin_emb = angles.sin()
+    cos_emb = angles.cos()
 
     return (sin_emb, cos_emb)
 
@@ -82,40 +126,20 @@ def _build_centered_separate_rotary_pos_embed(
     rescale_coords: Optional[float] = None,
     device: Optional[torch.device] = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    assert dim % 4 == 0
-    num_bands = dim // 4
-    exp = torch.arange(0, num_bands, 1, device=device) / num_bands
-    bands = 1.0 / (temperature**exp)
+    bands = _build_rotary_frequency_bands(dim, temperature, device=device)
 
     H, W = grid_size
     coords_h = (torch.arange(H, device=device, dtype=bands.dtype) + 0.5) / H
     coords_w = (torch.arange(W, device=device, dtype=bands.dtype) + 0.5) / W
     coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing="ij"), dim=-1).reshape(-1, 2)
-    coords = 2.0 * coords - 1.0
 
-    # Independently shift both axes by a uniform value in [-shift, shift]
-    if shift_coords is not None:
-        shift_hw = torch.empty(2, device=device, dtype=bands.dtype).uniform_(-shift_coords, shift_coords)
-        coords += shift_hw[None, :]
-
-    # Independently scale both axes by a log-uniform value in [1 / jitter, jitter]
-    if jitter_coords is not None:
-        jitter_max = math.log(jitter_coords)
-        jitter_hw = torch.empty(2, device=device, dtype=bands.dtype).uniform_(-jitter_max, jitter_max).exp()
-        coords *= jitter_hw[None, :]
-
-    # Scale both axes by the same log-uniform value in [1 / rescale, rescale]
-    if rescale_coords is not None:
-        rescale_max = math.log(rescale_coords)
-        rescale = torch.empty(1, device=device, dtype=bands.dtype).uniform_(-rescale_max, rescale_max).exp()
-        coords *= rescale
-
-    angles = (2.0 * math.pi * coords[:, :, None]) * bands[None, None, :]
-    angles = angles.flatten(1, 2).tile(2)
-    sin_emb = angles.sin()
-    cos_emb = angles.cos()
-
-    return (sin_emb, cos_emb)
+    return _build_centered_separate_rotary_pos_embed_from_coords(
+        coords,
+        bands,
+        shift_coords=shift_coords,
+        jitter_coords=jitter_coords,
+        rescale_coords=rescale_coords,
+    )
 
 
 def validate_rope_config(
@@ -204,6 +228,68 @@ def build_rotary_pos_embed(
             jitter_coords=jitter_coords,
             rescale_coords=rescale_coords,
             device=device,
+        )
+
+    raise ValueError(f"Unknown rope_style, got '{rope_style}'")
+
+
+def build_batched_rotary_pos_embed(
+    dim: int,
+    temperature: float,
+    grid_sizes: torch.Tensor,
+    max_seq_len: int,
+    grid_indexing: str,
+    grid_offset: int,
+    pt_grid_size: Optional[tuple[int, int]],
+    rope_style: str = "default",
+    shift_coords: Optional[float] = None,
+    jitter_coords: Optional[float] = None,
+    rescale_coords: Optional[float] = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    bands = _build_rotary_frequency_bands(dim, temperature, device=grid_sizes.device)
+
+    patch_indices = torch.arange(max_seq_len, device=grid_sizes.device).unsqueeze(0)
+    grid_h = grid_sizes[:, 0].unsqueeze(1)
+    grid_w = grid_sizes[:, 1].unsqueeze(1)
+    patch_y = torch.div(patch_indices, grid_w, rounding_mode="floor")
+    patch_x = torch.remainder(patch_indices, grid_w)
+
+    if rope_style == "default":
+        if pt_grid_size is None:
+            pt_grid_h = grid_h
+            pt_grid_w = grid_w
+        else:
+            pt_grid_h = pt_grid_size[0]
+            pt_grid_w = pt_grid_size[1]
+
+        coords_y = (patch_y + grid_offset) / grid_h * pt_grid_h
+        coords_x = (patch_x + grid_offset) / grid_w * pt_grid_w
+
+        if grid_indexing == "ij":
+            coords = torch.stack((coords_y, coords_x), dim=-1)
+        elif grid_indexing == "xy":
+            coords = torch.stack((coords_x, coords_y), dim=-1)
+        else:
+            raise ValueError(f"Unknown grid_indexing, got '{grid_indexing}'")
+
+        return _build_default_rotary_pos_embed_from_coords(coords, bands)
+
+    if rope_style == "axial":
+        return _build_axial_rotary_pos_embed_from_coords(
+            patch_x.to(dtype=bands.dtype), patch_y.to(dtype=bands.dtype), bands
+        )
+
+    if rope_style == "centered_separate":
+        coords_y = (patch_y.to(dtype=bands.dtype) + 0.5) / grid_h
+        coords_x = (patch_x.to(dtype=bands.dtype) + 0.5) / grid_w
+        coords = torch.stack((coords_y, coords_x), dim=-1)
+
+        return _build_centered_separate_rotary_pos_embed_from_coords(
+            coords,
+            bands,
+            shift_coords=shift_coords,
+            jitter_coords=jitter_coords,
+            rescale_coords=rescale_coords,
         )
 
     raise ValueError(f"Unknown rope_style, got '{rope_style}'")
@@ -312,6 +398,30 @@ class RoPE(nn.Module):
 
         return torch.concat((sin_emb, cos_emb), dim=-1)
 
+    def _build_batched_pos_embed(
+        self,
+        grid_sizes: torch.Tensor,
+        max_seq_len: int,
+        shift_coords: Optional[float] = None,
+        jitter_coords: Optional[float] = None,
+        rescale_coords: Optional[float] = None,
+    ) -> torch.Tensor:
+        sin_emb, cos_emb = build_batched_rotary_pos_embed(
+            self.dim,
+            self.temperature,
+            grid_sizes,
+            max_seq_len,
+            grid_indexing=self.grid_indexing,
+            grid_offset=self.grid_offset,
+            pt_grid_size=self.pt_grid_size,
+            rope_style=self.rope_style,
+            shift_coords=shift_coords,
+            jitter_coords=jitter_coords,
+            rescale_coords=rescale_coords,
+        )
+
+        return torch.concat((sin_emb, cos_emb), dim=-1)
+
     def get_pos_embed(self, grid_size: tuple[int, int]) -> torch.Tensor:
         if self.training is False or (
             self.shift_coords is None and self.jitter_coords is None and self.rescale_coords is None
@@ -327,6 +437,22 @@ class RoPE(nn.Module):
                 jitter_coords=self.jitter_coords,
                 rescale_coords=self.rescale_coords,
                 device=self.pos_embed.device,
+            )
+
+        return pos_embed.to(dtype=self.pos_embed.dtype)
+
+    def get_batched_pos_embed(self, grid_sizes: torch.Tensor, max_seq_len: int) -> torch.Tensor:
+        if self.training is False or (
+            self.shift_coords is None and self.jitter_coords is None and self.rescale_coords is None
+        ):
+            pos_embed = self._build_batched_pos_embed(grid_sizes, max_seq_len)
+        else:
+            pos_embed = self._build_batched_pos_embed(
+                grid_sizes,
+                max_seq_len,
+                shift_coords=self.shift_coords,
+                jitter_coords=self.jitter_coords,
+                rescale_coords=self.rescale_coords,
             )
 
         return pos_embed.to(dtype=self.pos_embed.dtype)

@@ -515,11 +515,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
             if return_all_features is True:
                 x = x[..., -1]
 
-            if self.class_token is None:
-                x = x[:, self.num_special_tokens :]
-                result["embedding"] = x.mean(dim=1)
-            else:
-                result["embedding"] = x[:, self.num_reg_tokens]
+            result["embedding"] = self.embedding_from_features(x)
 
         return result
 
@@ -560,11 +556,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
             result["features"] = features
 
         if return_keys in ("all", "embedding"):
-            if self.class_token is None:
-                x = x[:, self.num_special_tokens :]
-                result["embedding"] = x.mean(dim=1)
-            else:
-                result["embedding"] = x[:, self.num_reg_tokens]
+            result["embedding"] = self.embedding_from_features(x)
 
         return result
 
