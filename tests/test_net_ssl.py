@@ -120,6 +120,50 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(out.ndim, 0)
         torch.testing.assert_close(changed_out, out)
 
+    def test_barlow_twins_moe_training_output(self) -> None:
+        batch_size = 8
+        size = (32, 32)
+        backbone = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1",
+            0,
+            config={
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 8,
+                "moe_last_n_layers": 1,
+            },
+            size=size,
+        )
+        net = barlow_twins.BarlowTwins(
+            backbone,
+            config={"projector_sizes": [16, 16, 16], "off_lambda": 0.005},
+        )
+        net.train()
+
+        loss, moe_training_output = net(
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size),
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size),
+            return_moe_training_output=True,
+        )
+
+        self.assertTrue(torch.isfinite(loss).item())
+        self.assertEqual(loss.ndim, 0)
+        for value in moe_training_output.values():
+            self.assertTrue(torch.isfinite(value).all().item())
+
+        seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * 2 * seq_len * 2)
+
+        (loss + moe_training_output["auxiliary_loss"]).backward()
+        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        self.assertIsNotNone(router_grad)
+        self.assertTrue(torch.isfinite(router_grad).all().item())
+
     def test_byol(self) -> None:
         batch_size = 2
         backbone = registry.net_factory("resnet_v1_18", 0)
@@ -149,6 +193,46 @@ class TestNetSSL(unittest.TestCase):
         out = net(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 96, 96)))
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
+
+    def test_byol_moe_training_output(self) -> None:
+        batch_size = 8
+        size = (32, 32)
+        backbone = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1",
+            0,
+            config={
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 8,
+                "moe_last_n_layers": 1,
+            },
+            size=size,
+        )
+        net = byol.BYOL(backbone, config={"projection_size": 16, "projection_hidden_size": 32})
+        net.train()
+
+        loss, moe_training_output = net(
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size),
+            return_moe_training_output=True,
+        )
+
+        self.assertTrue(torch.isfinite(loss).item())
+        self.assertEqual(loss.ndim, 0)
+        for value in moe_training_output.values():
+            self.assertTrue(torch.isfinite(value).all().item())
+
+        seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * seq_len * 2)
+
+        (loss + moe_training_output["auxiliary_loss"]).backward()
+        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        self.assertIsNotNone(router_grad)
+        self.assertTrue(torch.isfinite(router_grad).all().item())
 
     def test_capi(self) -> None:
         batch_size = 4
@@ -344,6 +428,58 @@ class TestNetSSL(unittest.TestCase):
         pred = student(x, ids_keep, predict_indices)
         self.assertEqual(pred.size(), (masks.count_nonzero().item(), num_clusters))
         self.assertFalse(torch.isnan(pred).any())
+
+    def test_capi_moe_training_output(self) -> None:
+        batch_size = 8
+        size = (32, 32)
+        num_clusters = 16
+        backbone = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1",
+            0,
+            config={
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 8,
+                "moe_last_n_layers": 1,
+            },
+            size=size,
+        )
+        student = capi.CAPIStudent(
+            backbone,
+            config={
+                "decoder_layers": 1,
+                "decoder_dim": 32,
+                "decoder_drop_path_rate": 0.0,
+                "num_clusters": num_clusters,
+            },
+        )
+        student.train()
+
+        ids_keep = torch.tensor([[0, 1]]).repeat(batch_size, 1)
+        ids_predict = torch.tensor([[2, 3]]).repeat(batch_size, 1)
+        pred, moe_training_output = student(
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size),
+            ids_keep,
+            ids_predict,
+            return_moe_training_output=True,
+        )
+
+        self.assertEqual(pred.size(), (batch_size * ids_predict.size(1), num_clusters))
+        self.assertTrue(torch.isfinite(pred).all().item())
+        for value in moe_training_output.values():
+            self.assertTrue(torch.isfinite(value).all().item())
+
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * ids_keep.size(1) * 2)
+
+        (pred.square().mean() + moe_training_output["auxiliary_loss"]).backward()
+        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        self.assertIsNotNone(router_grad)
+        self.assertTrue(torch.isfinite(router_grad).all().item())
 
     def test_capi_decoder(self) -> None:
         decoder = capi.Decoder(input_size=(2, 4), embed_dim=32, decoder_dim=32, depth=0, drop_path_rate=0.2)
@@ -711,6 +847,67 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(loss_capi.ndim, 0)
         self.assertEqual(loss_dino.ndim, 0)
 
+    def test_capi_dino_moe_training_output(self) -> None:
+        batch_size = 8
+        size = (32, 32)
+        num_clusters = 16
+        dino_out_dim = 32
+        backbone = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1",
+            0,
+            config={
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 8,
+                "moe_last_n_layers": 1,
+            },
+            size=size,
+        )
+        student = capi_dino.CAPI_DINOStudent(
+            backbone,
+            config={
+                "decoder_layers": 1,
+                "decoder_dim": 32,
+                "decoder_drop_path_rate": 0.0,
+                "num_clusters": num_clusters,
+                "dino_out_dim": dino_out_dim,
+                "use_bn": False,
+                "num_layers": 2,
+                "hidden_dim": 32,
+                "head_bottleneck_dim": 16,
+            },
+        )
+        student.train()
+
+        ids_keep = torch.tensor([[0, 1]]).repeat(batch_size, 1)
+        ids_predict = torch.tensor([[2, 3]]).repeat(batch_size, 1)
+        patch_logits, global_logits, moe_training_output = student(
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size),
+            ids_keep,
+            ids_predict,
+            return_moe_training_output=True,
+        )
+
+        self.assertEqual(patch_logits.size(), (batch_size * ids_predict.size(1), num_clusters))
+        self.assertEqual(global_logits.size(), (batch_size, dino_out_dim))
+        self.assertTrue(torch.isfinite(patch_logits).all().item())
+        self.assertTrue(torch.isfinite(global_logits).all().item())
+        for value in moe_training_output.values():
+            self.assertTrue(torch.isfinite(value).all().item())
+
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * ids_keep.size(1) * 2)
+
+        loss = patch_logits.square().mean() + global_logits.square().mean()
+        (loss + moe_training_output["auxiliary_loss"]).backward()
+        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        self.assertIsNotNone(router_grad)
+        self.assertTrue(torch.isfinite(router_grad).all().item())
+
     def test_capi_dino_adjust_size(self) -> None:
         size = (64, 64)
         new_size = (96, 96)
@@ -847,6 +1044,52 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
 
+    def test_data2vec_moe_training_output(self) -> None:
+        batch_size = 8
+        size = (32, 32)
+        backbone = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1",
+            0,
+            config={
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 8,
+                "moe_last_n_layers": 1,
+            },
+            size=size,
+        )
+        net = data2vec.Data2Vec(
+            backbone,
+            config={"normalize_targets": True, "average_top_k_layers": 2, "loss_beta": 2.0},
+        )
+        net.train()
+        net.ema_backbone.eval()
+
+        masks = torch.tensor([[0, 1, 0, 1]]).repeat(batch_size, 1)
+        loss, moe_training_output = net(
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size),
+            masks,
+            return_moe_training_output=True,
+        )
+
+        self.assertTrue(torch.isfinite(loss).item())
+        self.assertEqual(loss.ndim, 0)
+        for value in moe_training_output.values():
+            self.assertTrue(torch.isfinite(value).all().item())
+
+        seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * seq_len * 2)
+
+        (loss + moe_training_output["auxiliary_loss"]).backward()
+        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        self.assertIsNotNone(router_grad)
+        self.assertTrue(torch.isfinite(router_grad).all().item())
+
     def test_data2vec2(self) -> None:
         batch_size = 2
         backbone = registry.net_factory("vit_t16", 0, size=(128, 128))
@@ -893,6 +1136,63 @@ class TestNetSSL(unittest.TestCase):
         out = net(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, 128, 128)), masks)
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
+
+    def test_data2vec2_moe_training_output(self) -> None:
+        batch_size = 4
+        clone_batch = 2
+        size = (32, 32)
+        backbone = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1",
+            0,
+            config={
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 8,
+                "moe_last_n_layers": 1,
+            },
+            size=size,
+        )
+        net = data2vec2.Data2Vec2(
+            backbone,
+            config={
+                "average_top_k_layers": 2,
+                "decoder_dim": 16,
+                "decoder_kernel_size": 3,
+                "decoder_layers": 1,
+                "clone_batch": clone_batch,
+                "cls_loss_weight": 0.1,
+            },
+        )
+        net.train()
+        net.ema_backbone.eval()
+
+        masks = torch.tensor([[0, 0, 1, 1]]).repeat(batch_size * clone_batch, 1)
+        loss, moe_training_output = net(
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size),
+            masks,
+            return_moe_training_output=True,
+        )
+
+        self.assertTrue(torch.isfinite(loss).item())
+        self.assertEqual(loss.ndim, 0)
+        for value in moe_training_output.values():
+            self.assertTrue(torch.isfinite(value).all().item())
+
+        num_kept = int((masks[0] == 0).count_nonzero().item())
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(
+            moe_training_output["expert_loads"].sum(),
+            batch_size * clone_batch * num_kept * 2,
+        )
+
+        (loss + moe_training_output["auxiliary_loss"]).backward()
+        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        self.assertIsNotNone(router_grad)
+        self.assertTrue(torch.isfinite(router_grad).all().item())
 
     def test_dino_v1(self) -> None:
         batch_size = 4
@@ -959,6 +1259,65 @@ class TestNetSSL(unittest.TestCase):
         loss = dino_loss(out, teacher_out, epoch=2)
         self.assertFalse(torch.isnan(loss).any())
         self.assertEqual(loss.ndim, 0)
+
+    def test_dino_v1_moe_training_output(self) -> None:
+        batch_size = 8
+        global_size = (32, 32)
+        local_size = (16, 16)
+        backbone = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1",
+            0,
+            config={
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 8,
+                "moe_last_n_layers": 1,
+            },
+            size=global_size,
+        )
+        backbone.set_dynamic_size()
+        net = dino_v1.DINO_v1(
+            backbone,
+            config={
+                "out_dim": 32,
+                "use_bn": False,
+                "norm_last_layer": False,
+                "num_layers": 2,
+                "hidden_dim": 32,
+                "bottleneck_dim": 16,
+            },
+        )
+        net.train()
+
+        images = [
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *global_size),
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *global_size),
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *local_size),
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *local_size),
+        ]
+        output, moe_training_output = net(images, return_moe_training_output=True)
+
+        self.assertEqual(output.size(), (batch_size * len(images), 32))
+        self.assertTrue(torch.isfinite(output).all().item())
+        for value in moe_training_output.values():
+            self.assertTrue(torch.isfinite(value).all().item())
+
+        global_seq_len = (global_size[0] // backbone.max_stride) * (global_size[1] // backbone.max_stride)
+        local_seq_len = (local_size[0] // backbone.max_stride) * (local_size[1] // backbone.max_stride)
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(
+            moe_training_output["expert_loads"].sum(),
+            batch_size * 2 * (2 * global_seq_len + 2 * local_seq_len),
+        )
+
+        (output.square().mean() + moe_training_output["auxiliary_loss"]).backward()
+        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        self.assertIsNotNone(router_grad)
+        self.assertTrue(torch.isfinite(router_grad).all().item())
 
     def test_dino_v2(self) -> None:
         batch_size = 4
@@ -1189,10 +1548,10 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(loss_ibot_patch).any())
         self.assertEqual(loss_ibot_patch.ndim, 0)
 
-    def test_dino_v2_moe_aux_loss(self) -> None:
+    def test_dino_v2_moe_training_output(self) -> None:
         batch_size = 4
         size = (64, 64)
-        backbone = registry.net_factory("vit_vmoe_vs32_8e_2k_last2", 0, size=size)
+        backbone = registry.net_factory("vit_vmoe_vs32_8e_2k_last2s2", 0, size=size)
         student = dino_v2.DINOv2Student(
             backbone,
             config={
@@ -1225,21 +1584,21 @@ class TestNetSSL(unittest.TestCase):
             },
         )
 
-        student.backbone.set_moe_loss_output(True)
         outputs_with_aux = student(
             global_crops,
             local_crops,
             masks,
             upper_bound,
             mask_indices_list,
+            return_moe_training_output=True,
         )
-        self.assertIn("moe_auxiliary_loss", outputs_with_aux)
+        self.assertIn("moe_training_output", outputs_with_aux)
 
         student_global_embedding = outputs_with_aux["global_embedding"]
         student_global_embedding_after_head = outputs_with_aux["global_embedding_after_head"]
         student_local_embedding_after_head = outputs_with_aux["local_embedding_after_head"]
         student_global_masked_patch_tokens_after_head = outputs_with_aux["global_masked_patch_tokens_after_head"]
-        moe_auxiliary_loss = outputs_with_aux["moe_auxiliary_loss"]
+        moe_training_output = outputs_with_aux["moe_training_output"]
         self.assertFalse(torch.isnan(student_global_embedding).any())
         self.assertEqual(student_global_embedding.size(), (batch_size * 2, backbone.embedding_size))
         self.assertFalse(torch.isnan(student_global_embedding_after_head).any())
@@ -1248,8 +1607,9 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(student_local_embedding_after_head.size(), (batch_size * 2, 128))
         self.assertFalse(torch.isnan(student_global_masked_patch_tokens_after_head).any())
         self.assertEqual(student_global_masked_patch_tokens_after_head.size(), (len(mask_indices_list), 128))
-        self.assertFalse(torch.isnan(moe_auxiliary_loss).any())
-        self.assertEqual(moe_auxiliary_loss.ndim, 0)
+        self.assertFalse(torch.isnan(moe_training_output["auxiliary_loss"]).any())
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (0, 0))
 
     @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
     def test_dino_v2_grad_checkpointing(self) -> None:
@@ -1733,12 +2093,12 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(loss_ibot_patch).any())
         self.assertEqual(loss_ibot_patch.ndim, 0)
 
-    def test_franca_moe_aux_loss(self) -> None:
+    def test_franca_moe_training_output(self) -> None:
         batch_size = 4
         size = (64, 64)
         dino_out_dim = 128
         num_nesting_levels = 2
-        backbone = registry.net_factory("vit_vmoe_vs32_8e_2k_last2", 0, size=size)
+        backbone = registry.net_factory("vit_moe_t16_4e1s1p_2k_last1", 0, size=size)
         student = franca.FrancaStudent(
             backbone,
             config={
@@ -1772,15 +2132,21 @@ class TestNetSSL(unittest.TestCase):
             },
         )
 
-        student.backbone.set_moe_loss_output(True)
-        outputs_with_aux = student(global_crops, local_crops, masks, upper_bound, mask_indices_list)
-        self.assertIn("moe_auxiliary_loss", outputs_with_aux)
+        outputs_with_aux = student(
+            global_crops,
+            local_crops,
+            masks,
+            upper_bound,
+            mask_indices_list,
+            return_moe_training_output=True,
+        )
+        self.assertIn("moe_training_output", outputs_with_aux)
 
         student_global_embedding = outputs_with_aux["global_embedding"]
         student_global_embedding_after_head = outputs_with_aux["global_embedding_after_head"]
         student_local_embedding_after_head = outputs_with_aux["local_embedding_after_head"]
         student_global_masked_patch_tokens_after_head = outputs_with_aux["global_masked_patch_tokens_after_head"]
-        moe_auxiliary_loss = outputs_with_aux["moe_auxiliary_loss"]
+        moe_training_output = outputs_with_aux["moe_training_output"]
 
         self.assertFalse(torch.isnan(student_global_embedding).any())
         self.assertEqual(student_global_embedding.size(), (batch_size * 2, backbone.embedding_size))
@@ -1792,8 +2158,10 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(
             student_global_masked_patch_tokens_after_head[-1].size(), (len(mask_indices_list), dino_out_dim)
         )
-        self.assertFalse(torch.isnan(moe_auxiliary_loss).any())
-        self.assertEqual(moe_auxiliary_loss.ndim, 0)
+        self.assertFalse(torch.isnan(moe_training_output["auxiliary_loss"]).any())
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * 8 * seq_len)
 
     def test_franca_loss_forward_matches_reference(self) -> None:
         torch.manual_seed(0)
@@ -2415,6 +2783,69 @@ class TestNetSSL(unittest.TestCase):
         self.assertEqual(sigreg_a.slice_step.item(), 1)
         self.assertEqual(sigreg_b.slice_step.item(), 1)
 
+    def test_lejepa_moe_training_output(self) -> None:
+        batch_size = 4
+        size = (32, 32)
+        local_size = (16, 16)
+        local_crops_number = 2
+        backbone = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1",
+            0,
+            config={
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 8,
+                "moe_last_n_layers": 1,
+            },
+            size=size,
+        )
+        backbone.set_dynamic_size()
+        net = lejepa.LeJEPA(
+            backbone,
+            config={
+                "projection_dim": 16,
+                "projection_hidden_dim": 32,
+                "projection_layers": 1,
+                "num_global_crops": 2,
+                "loss_lambda": 0.02,
+                "num_slices": 8,
+                "num_knots": 9,
+                "t_max": 3.0,
+            },
+        )
+        net.train()
+
+        images = [
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *local_size)),
+            torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *local_size)),
+        ]
+        loss, sigreg_loss, inv_loss, moe_training_output = net(images, return_moe_training_output=True)
+
+        self.assertTrue(torch.isfinite(loss).item())
+        self.assertTrue(torch.isfinite(sigreg_loss).item())
+        self.assertTrue(torch.isfinite(inv_loss).item())
+        for value in moe_training_output.values():
+            self.assertTrue(torch.isfinite(value).all().item())
+
+        seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+        local_seq_len = (local_size[0] // backbone.max_stride) * (local_size[1] // backbone.max_stride)
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(
+            moe_training_output["expert_loads"].sum(),
+            batch_size * (2 * seq_len + local_crops_number * local_seq_len) * 2,
+        )
+
+        (loss + moe_training_output["auxiliary_loss"]).backward()
+        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        self.assertIsNotNone(router_grad)
+        self.assertTrue(torch.isfinite(router_grad).all().item())
+
     def test_mmcr(self) -> None:
         batch_size = 4
         backbone = registry.net_factory("resnet_v1_50", 0)
@@ -2454,6 +2885,112 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(loss).any())
         self.assertEqual(loss.ndim, 0)
 
+    def test_mmcr_naflex(self) -> None:
+        batch_size = 4
+        n_aug = 2
+        patch_size = 4
+        backbone = registry.net_factory(
+            "naflex_vit_t16",
+            0,
+            config={
+                "patch_size": patch_size,
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+            },
+            size=(16, 16),
+        )
+        net = mmcr.MMCR(backbone, config={"projector_dims": [16, 16, 16]})
+        net.eval()
+
+        patch_dim = DEFAULT_NUM_CHANNELS * patch_size**2
+        patches1 = torch.rand((batch_size, 6, patch_dim))
+        grid_sizes1 = torch.tensor([[2, 2], [2, 3], [3, 2], [1, 4]])
+        valid_mask1 = torch.arange(6).unsqueeze(0) < grid_sizes1.prod(dim=1, keepdim=True)
+        patches2 = torch.rand((batch_size, 8, patch_dim))
+        grid_sizes2 = torch.tensor([[2, 4], [4, 2], [3, 2], [2, 2]])
+        valid_mask2 = torch.arange(8).unsqueeze(0) < grid_sizes2.prod(dim=1, keepdim=True)
+
+        with torch.inference_mode():
+            z, z_m = net(
+                [patches1, patches2],
+                grid_sizes=[grid_sizes1, grid_sizes2],
+                valid_masks=[valid_mask1, valid_mask2],
+            )
+            expected_z = torch.stack(
+                [
+                    net.encoder(patches1, grid_sizes=grid_sizes1, valid_mask=valid_mask1),
+                    net.encoder(patches2, grid_sizes=grid_sizes2, valid_mask=valid_mask2),
+                ],
+                dim=1,
+            ).flatten(0, 1)
+
+            changed_patches1 = patches1.clone()
+            changed_patches1[~valid_mask1] = torch.rand_like(changed_patches1[~valid_mask1])
+            changed_patches2 = patches2.clone()
+            changed_patches2[~valid_mask2] = torch.rand_like(changed_patches2[~valid_mask2])
+            changed_z, changed_z_m = net(
+                [changed_patches1, changed_patches2],
+                grid_sizes=[grid_sizes1, grid_sizes2],
+                valid_masks=[valid_mask1, valid_mask2],
+            )
+
+        self.assertTrue(torch.isfinite(z).all().item())
+        self.assertTrue(torch.isfinite(z_m).all().item())
+        self.assertEqual(z.size(), (batch_size * n_aug, 16))
+        self.assertEqual(z_m.size(), (batch_size * n_aug, 16))
+        torch.testing.assert_close(z, expected_z)
+        torch.testing.assert_close(changed_z, z)
+        torch.testing.assert_close(changed_z_m, z_m)
+
+        loss = mmcr.MMCRMomentumLoss(0.0, n_aug)(z, z_m)
+        self.assertTrue(torch.isfinite(loss).item())
+        self.assertEqual(loss.ndim, 0)
+
+    def test_mmcr_moe_training_output(self) -> None:
+        batch_size = 4
+        n_aug = 2
+        size = (32, 32)
+        backbone = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1",
+            0,
+            config={
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 8,
+                "moe_last_n_layers": 1,
+            },
+            size=size,
+        )
+        net = mmcr.MMCR(backbone, config={"projector_dims": [16, 16, 16]})
+        net.train()
+
+        z, z_m, moe_training_output = net(
+            torch.rand(batch_size, n_aug, DEFAULT_NUM_CHANNELS, *size),
+            return_moe_training_output=True,
+        )
+        loss = mmcr.MMCRMomentumLoss(0.0, n_aug)(z, z_m)
+
+        self.assertTrue(torch.isfinite(loss).item())
+        self.assertEqual(loss.ndim, 0)
+        for value in moe_training_output.values():
+            self.assertTrue(torch.isfinite(value).all().item())
+
+        seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * n_aug * seq_len * 2)
+
+        (loss + moe_training_output["auxiliary_loss"]).backward()
+        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        self.assertIsNotNone(router_grad)
+        self.assertTrue(torch.isfinite(router_grad).all().item())
+
     def test_nepa(self) -> None:
         batch_size = 4
         size = (128, 128)
@@ -2478,7 +3015,7 @@ class TestNetSSL(unittest.TestCase):
 
         del backbone_state
 
-        self.assertTrue(net.backbone.encoder.block[0].is_causal)
+        self.assertTrue(net.backbone.encoder.is_causal)
 
         out = net(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
         self.assertFalse(torch.isnan(out["loss"]).any())
@@ -2524,22 +3061,24 @@ class TestNetSSL(unittest.TestCase):
         self.assertTrue(torch.isfinite(out["loss"]))
         self.assertEqual(out["loss"].ndim, 0)
 
-    def test_nepa_moe_aux_loss(self) -> None:
+    def test_nepa_moe_training_output(self) -> None:
         batch_size = 8
         size = (128, 128)
-        backbone = registry.net_factory("vit_vmoe_vs32_8e_2k_last2", 0, size=size)
-        backbone.set_moe_loss_output(True)
+        backbone = registry.net_factory("vit_vmoe_vs32_8e_2k_last2s2", 0, size=size)
         net = nepa.NEPA(backbone, config={"shift": True})
         net.train()
 
-        out = net(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)))
+        out = net(torch.rand((batch_size, DEFAULT_NUM_CHANNELS, *size)), return_moe_training_output=True)
 
         self.assertIn("loss", out)
-        self.assertIn("moe_auxiliary_loss", out)
         self.assertFalse(torch.isnan(out["loss"]).any())
         self.assertEqual(out["loss"].ndim, 0)
-        self.assertFalse(torch.isnan(out["moe_auxiliary_loss"]).any())
-        self.assertEqual(out["moe_auxiliary_loss"].ndim, 0)
+        moe_training_output = out["moe_training_output"]
+        for value in moe_training_output.values():
+            self.assertFalse(torch.isnan(value).any())
+
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertIn("expert_loads", moe_training_output)
 
     def test_simclr(self) -> None:
         batch_size = 4
@@ -2579,6 +3118,54 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
         out.backward()
+
+    def test_simclr_moe_training_output(self) -> None:
+        batch_size = 4
+        size = (32, 32)
+        backbone = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1",
+            0,
+            config={
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 8,
+                "moe_last_n_layers": 1,
+            },
+            size=size,
+        )
+        net = simclr.SimCLR(
+            backbone,
+            config={
+                "projection_dim": 16,
+                "projection_hidden_dim": 16,
+                "temperature": 0.1,
+            },
+        )
+        net.train()
+
+        loss, moe_training_output = net(
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size),
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size),
+            return_moe_training_output=True,
+        )
+
+        self.assertTrue(torch.isfinite(loss).item())
+        self.assertEqual(loss.ndim, 0)
+        for value in moe_training_output.values():
+            self.assertTrue(torch.isfinite(value).all().item())
+
+        seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * 2 * seq_len * 2)
+
+        (loss + moe_training_output["auxiliary_loss"]).backward()
+        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        self.assertIsNotNone(router_grad)
+        self.assertTrue(torch.isfinite(router_grad).all().item())
 
     def test_sscd(self) -> None:
         batch_size = 4
@@ -2647,3 +3234,116 @@ class TestNetSSL(unittest.TestCase):
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.ndim, 0)
         out.backward()
+
+    def test_vicreg_naflex(self) -> None:
+        batch_size = 4
+        patch_size = 4
+        backbone = registry.net_factory(
+            "naflex_vit_t16",
+            0,
+            config={
+                "patch_size": patch_size,
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+            },
+            size=(16, 16),
+        )
+        net = vicreg.VICReg(
+            backbone,
+            config={
+                "mlp_dim": 16,
+                "sim_coeff": 0.1,
+                "std_coeff": 0.1,
+                "cov_coeff": 0.1,
+                "sync_batches": False,
+            },
+        )
+        net.eval()
+
+        patch_dim = DEFAULT_NUM_CHANNELS * patch_size**2
+        patches1 = torch.rand((batch_size, 6, patch_dim))
+        grid_sizes1 = torch.tensor([[2, 2], [2, 3], [3, 2], [1, 4]])
+        valid_mask1 = torch.arange(6).unsqueeze(0) < grid_sizes1.prod(dim=1, keepdim=True)
+        patches2 = torch.rand((batch_size, 8, patch_dim))
+        grid_sizes2 = torch.tensor([[2, 4], [4, 2], [3, 2], [2, 2]])
+        valid_mask2 = torch.arange(8).unsqueeze(0) < grid_sizes2.prod(dim=1, keepdim=True)
+
+        with torch.inference_mode():
+            out = net(
+                patches1,
+                patches2,
+                grid_sizes1=grid_sizes1,
+                valid_mask1=valid_mask1,
+                grid_sizes2=grid_sizes2,
+                valid_mask2=valid_mask2,
+            )
+
+            changed_patches1 = patches1.clone()
+            changed_patches1[~valid_mask1] = torch.rand_like(changed_patches1[~valid_mask1])
+            changed_patches2 = patches2.clone()
+            changed_patches2[~valid_mask2] = torch.rand_like(changed_patches2[~valid_mask2])
+            changed_out = net(
+                changed_patches1,
+                changed_patches2,
+                grid_sizes1=grid_sizes1,
+                valid_mask1=valid_mask1,
+                grid_sizes2=grid_sizes2,
+                valid_mask2=valid_mask2,
+            )
+
+        self.assertTrue(torch.isfinite(out).all().item())
+        self.assertEqual(out.ndim, 0)
+        torch.testing.assert_close(changed_out, out)
+
+    def test_vicreg_moe_training_output(self) -> None:
+        batch_size = 8
+        size = (32, 32)
+        backbone = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1",
+            0,
+            config={
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 8,
+                "moe_last_n_layers": 1,
+            },
+            size=size,
+        )
+        net = vicreg.VICReg(
+            backbone,
+            config={
+                "mlp_dim": 16,
+                "sim_coeff": 0.1,
+                "std_coeff": 0.1,
+                "cov_coeff": 0.1,
+                "sync_batches": False,
+            },
+        )
+        net.train()
+
+        loss, moe_training_output = net(
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size),
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size),
+            return_moe_training_output=True,
+        )
+
+        self.assertTrue(torch.isfinite(loss).item())
+        self.assertEqual(loss.ndim, 0)
+        for value in moe_training_output.values():
+            self.assertTrue(torch.isfinite(value).all().item())
+
+        seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * 2 * seq_len * 2)
+
+        (loss + moe_training_output["auxiliary_loss"]).backward()
+        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        self.assertIsNotNone(router_grad)
+        self.assertTrue(torch.isfinite(router_grad).all().item())

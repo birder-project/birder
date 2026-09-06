@@ -14,6 +14,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from birder.layers.moe import MoESpec
+from birder.layers.moe import MoETrainingOutputType
 from birder.model_registry import Task
 from birder.model_registry import registry
 
@@ -26,7 +28,7 @@ TokenOmissionResultType = TypedDict(
     {
         "tokens": NotRequired[torch.Tensor],
         "embedding": NotRequired[torch.Tensor],
-        "auxiliary_losses": NotRequired[dict[str, torch.Tensor]],
+        "moe_training_output": NotRequired[MoETrainingOutputType],
     },
 )
 TokenRetentionResultType = TypedDict(
@@ -34,7 +36,7 @@ TokenRetentionResultType = TypedDict(
     {
         "features": NotRequired[torch.Tensor],
         "embedding": NotRequired[torch.Tensor],
-        "auxiliary_losses": NotRequired[dict[str, torch.Tensor]],
+        "moe_training_output": NotRequired[MoETrainingOutputType],
     },
 )
 
@@ -439,3 +441,7 @@ def interpolate_attention_bias(
 
 def reparameterize_available(net: nn.Module) -> bool:
     return hasattr(net, "reparameterize_model")
+
+
+def get_moe_spec(module: nn.Module) -> Optional[MoESpec]:
+    return getattr(module, "moe_spec", None)

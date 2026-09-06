@@ -32,11 +32,21 @@ class TestTransforms(unittest.TestCase):
         self.assertIsInstance(mixup_cutmix, v2.Transform)
         self.assertEqual(len(mixup_cutmix.transforms), 3)  # identity, mixup, cutmix
         self.assertIsInstance(mixup_cutmix.transforms[0], v2.Identity)
+        self.assertSequenceEqual(mixup_cutmix.p, [1 / 3, 1 / 3, 1 / 3])
+
+        mixup_cutmix = classification.get_mixup_cutmix(0.5, 5, True, prob=0.6)
+        self.assertSequenceEqual(mixup_cutmix.p, [0.4, 0.3, 0.3])
+
+        mixup_choice = classification.get_mixup_cutmix(0.5, 5, False, prob=1.0)
+        self.assertSequenceEqual(mixup_choice.p, [0.0, 1.0])  # type: ignore[attr-defined]
 
         mixup_cutmix = classification.get_mixup_cutmix(None, 5, False)
         self.assertIsInstance(mixup_cutmix, v2.Transform)
         self.assertEqual(len(mixup_cutmix.transforms), 1)  # Only identity
         self.assertIsInstance(mixup_cutmix.transforms[0], v2.Identity)
+
+        with self.assertRaisesRegex(ValueError, "Probability must be in range"):
+            classification.get_mixup_cutmix(0.5, 5, False, prob=1.1)
 
         # Mixup module
         mixup = classification.RandomMixup(5, 0.2, 1.0)

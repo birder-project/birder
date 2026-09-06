@@ -230,11 +230,8 @@ class Attention(nn.Module):
             # Compute attention manually to get weights
             attn = (q @ k.transpose(-2, -1)) * self.scale
             if is_causal is True:
-                causal_mask = torch.triu(
-                    torch.full((N, N), float("-inf"), dtype=attn.dtype, device=attn.device),
-                    diagonal=1,
-                )
-                attn = attn + causal_mask
+                causal_bias = torch.full((N, N), float("-inf"), dtype=attn.dtype, device=attn.device).triu_(diagonal=1)
+                attn = attn + causal_bias
 
             attn = apply_attention_mask(attn, attn_mask)
             attn = attn.softmax(dim=-1)
@@ -285,7 +282,6 @@ class EncoderBlock(nn.Module):
     ) -> None:
         super().__init__()
         self.need_attn = False
-        self.is_causal = False
 
         if mlp_dim is None:
             mlp_dim = hidden_dim * 4
@@ -318,13 +314,15 @@ class EncoderBlock(nn.Module):
         else:
             self.layer_scale_2 = nn.Identity()
 
-    def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None, is_causal: bool = False
+    ) -> torch.Tensor:
         # torch._assert(x.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {x.size()}")
         attn_out, _ = self.attn(
             self.norm1(x),
             need_weights=self.need_attn,
             average_attn_weights=False,
-            is_causal=self.is_causal,
+            is_causal=is_causal,
             attn_mask=attn_mask,
         )
         x = x + self.drop_path(self.layer_scale_1(attn_out))
@@ -334,9 +332,6 @@ class EncoderBlock(nn.Module):
 
     def set_need_attn(self, need_attn: bool = True) -> None:
         self.need_attn = need_attn
-
-    def set_causal_attention(self, is_causal: bool = True) -> None:
-        self.is_causal = is_causal
 
 
 class Encoder(nn.Module):
@@ -364,6 +359,7 @@ class Encoder(nn.Module):
     ) -> None:
         super().__init__()
         self.need_attn = False
+        self.is_causal = False
         self.has_soft_moe = soft_moe_num_experts is not None
         self.grad_checkpointing = False
         self.grad_checkpointing_segments: Optional[int] = None
@@ -414,14 +410,54 @@ class Encoder(nn.Module):
 
         self.block = nn.Sequential(*layers)
 
-    def _checkpoint_blocks(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def _prepare_attention_mask(
+        self, x: torch.Tensor, attn_mask: Optional[torch.Tensor]
+    ) -> tuple[Optional[torch.Tensor], bool]:
+        if attn_mask is None:
+            return (None, self.is_causal)
+
+        if attn_mask.dtype == torch.bool:
+            if self.need_attn is True:
+                if self.is_causal is True:
+                    seq_len = x.size(1)
+                    causal_mask = torch.ones((seq_len, seq_len), dtype=torch.bool, device=attn_mask.device).tril_()
+                    attn_mask = attn_mask & causal_mask
+
+                return (attn_mask, False)
+
+            if self.is_causal is True:
+                seq_len = x.size(1)
+                causal_mask = torch.ones((seq_len, seq_len), dtype=torch.bool, device=attn_mask.device).triu_(
+                    diagonal=1
+                )
+                mask_shape = torch.broadcast_shapes(attn_mask.shape, causal_mask.shape)
+                additive_mask = torch.zeros(mask_shape, dtype=x.dtype, device=attn_mask.device)
+                additive_mask.masked_fill_(causal_mask, float("-inf"))
+                additive_mask.masked_fill_(~attn_mask, float("-inf"))
+            else:
+                additive_mask = torch.full_like(attn_mask, float("-inf"), dtype=x.dtype)
+                additive_mask.masked_fill_(attn_mask, 0.0)
+
+            attn_mask = additive_mask
+        elif self.is_causal is True:
+            seq_len = x.size(1)
+            causal_bias = torch.full(
+                (seq_len, seq_len), float("-inf"), dtype=attn_mask.dtype, device=attn_mask.device
+            ).triu_(diagonal=1)
+            attn_mask = attn_mask + causal_bias
+
+        return (attn_mask, False)
+
+    def _checkpoint_blocks(
+        self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None, is_causal: bool = False
+    ) -> torch.Tensor:
         if self.grad_checkpointing_segments is None:
             segments = len(self.block)
         else:
             segments = min(self.grad_checkpointing_segments, len(self.block))
 
-        if attn_mask is not None:
-            blocks = tuple(partial(block, attn_mask=attn_mask) for block in self.block)
+        if attn_mask is not None or is_causal is True:
+            blocks = tuple(partial(block, attn_mask=attn_mask, is_causal=is_causal) for block in self.block)
         else:
             blocks = self.block
 
@@ -435,14 +471,15 @@ class Encoder(nn.Module):
 
     def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         x = self.pre_block(x)
+        attn_mask, is_causal = self._prepare_attention_mask(x, attn_mask)
         if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
-            return self._checkpoint_blocks(x, attn_mask=attn_mask)
+            return self._checkpoint_blocks(x, attn_mask=attn_mask, is_causal=is_causal)
 
-        if attn_mask is None:
+        if attn_mask is None and is_causal is False:
             return self.block(x)
 
         for blk in self.block:
-            x = blk(x, attn_mask=attn_mask)
+            x = blk(x, attn_mask=attn_mask, is_causal=is_causal)
 
         return x
 
@@ -450,11 +487,12 @@ class Encoder(nn.Module):
         self, x: torch.Tensor, out_indices: Optional[list[int]] = None, attn_mask: Optional[torch.Tensor] = None
     ) -> list[torch.Tensor]:
         x = self.pre_block(x)
+        attn_mask, is_causal = self._prepare_attention_mask(x, attn_mask)
 
         out_indices_set = set(out_indices) if out_indices is not None else None
         xs = []
         for idx, blk in enumerate(self.block):
-            x = blk(x, attn_mask=attn_mask)
+            x = blk(x, attn_mask=attn_mask, is_causal=is_causal)
             if out_indices_set is None or idx in out_indices_set:
                 xs.append(x)
 
@@ -496,8 +534,7 @@ class Encoder(nn.Module):
         if is_causal is True and self.has_soft_moe is True:
             raise ValueError("SoftMoE_FFN does not support causal attention")
 
-        for b in self.block:
-            b.set_causal_attention(is_causal)
+        self.is_causal = is_causal
 
 
 class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMixin):
@@ -520,6 +557,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         pos_embed_interpolation_mode: Literal["bilinear", "bicubic"] = self.config.get(
             "pos_embed_interpolation_mode", "bicubic"
         )
+        pos_embed_antialias: bool = self.config.get("pos_embed_antialias", False)  # Controls forward pass only
         patch_size: int = self.config["patch_size"]
         stem_type: Literal["patchify", "hmlp"] = self.config.get("stem_type", "patchify")
         stem_norm_layer_type: Optional[Literal["BatchNorm2d", "LayerNorm2d"]] = self.config.get(
@@ -622,6 +660,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         self.abs_pos_embed = abs_pos_embed
         self.pos_embed_special_tokens = pos_embed_special_tokens
         self.pos_embed_interpolation_mode = pos_embed_interpolation_mode
+        self.pos_embed_antialias = pos_embed_antialias
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
@@ -768,7 +807,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             (H // self.patch_size, W // self.patch_size),
             self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
             interpolation_mode=self.pos_embed_interpolation_mode,
-            antialias=False,
+            antialias=self.pos_embed_antialias,
         )
 
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:

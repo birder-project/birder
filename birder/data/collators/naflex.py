@@ -213,14 +213,17 @@ class NaFlexMixupTrainingCollator(NaFlexTrainingCollator):
         Probability of applying MixUp to a batch.
     """
 
-    def __init__(self, patch_size: Optional[int], num_classes: int, alpha: float, p: float = 0.5) -> None:
+    def __init__(self, patch_size: Optional[int], num_classes: int, alpha: float, p: Optional[float] = None) -> None:
         super().__init__(patch_size)
         if num_classes < 1:
             raise ValueError(f"Number of classes must be positive, got {num_classes}")
         if alpha <= 0:
             raise ValueError(f"Alpha must be positive, got {alpha}")
-        if p < 0.0 or p > 1.0:
+        if p is not None and (p < 0.0 or p > 1.0):
             raise ValueError(f"Probability must be in range [0, 1], got {p}")
+
+        if p is None:
+            p = 0.5
 
         self.num_classes = num_classes
         self.p = p

@@ -17,6 +17,7 @@ from collections.abc import Callable
 from collections.abc import Iterator
 from contextlib import nullcontext
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 from typing import Optional
@@ -38,17 +39,23 @@ from birder.common.lib import format_duration
 from birder.common.lib import get_mim_network_name
 from birder.common.lib import get_network_name
 from birder.conf import settings
+from birder.data.collators.naflex import NaFlexBatchProcessor
+from birder.data.collators.naflex import NaFlexMultiViewPathCollator
+from birder.data.collators.naflex import resolve_naflex_batch_specs
 from birder.data.dataloader.webdataset import make_wds_loader
 from birder.data.datasets.directory import get_image_loader
 from birder.data.datasets.directory import make_image_dataset
 from birder.data.datasets.fake import FakeDataWithPaths
+from birder.data.datasets.naflex import NaFlexMultiScaleDataset
 from birder.data.datasets.webdataset import WDSImageDecoder
+from birder.data.datasets.webdataset import get_wds_num_shards
 from birder.data.datasets.webdataset import make_wds_dataset
 from birder.data.datasets.webdataset import prepare_wds_args
 from birder.data.datasets.webdataset import wds_args_from_info
 from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
+from birder.net.base import get_moe_spec
 from birder.net.base import get_signature
 from birder.net.ssl.base import get_ssl_signature
 from birder.net.ssl.mmcr import MMCR
@@ -57,7 +64,7 @@ from birder.net.ssl.mmcr import MMCRMomentumLoss
 logger = logging.getLogger(__name__)
 
 ImageLoader = Callable[[str], Any]
-ImageTransform = Callable[[Any], torch.Tensor]
+ImageTransform = Callable[[Any], torch.Tensor | list[torch.Tensor]]
 TransformFactory = Callable[[argparse.Namespace], ImageTransform]
 
 
@@ -69,16 +76,20 @@ class TrainOverrides:
 
 
 class TrainTransform:
-    def __init__(self, transform: Callable[..., torch.Tensor], n_aug: int) -> None:
+    def __init__(self, transform: Callable[..., torch.Tensor], n_aug: int, stack_views: bool = True) -> None:
         self.transform = transform
         self.n_aug = n_aug
+        self.stack_views = stack_views
 
-    def __call__(self, sample: Any) -> torch.Tensor:
+    def __call__(self, sample: Any) -> torch.Tensor | list[torch.Tensor]:
         x_list = []
         for _ in range(self.n_aug):
             x_list.append(self.transform(sample))
 
-        return torch.stack(x_list, dim=0)
+        if self.stack_views is True:
+            return torch.stack(x_list, dim=0)
+
+        return x_list
 
 
 def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) -> None:
@@ -95,16 +106,111 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
     logger.info(f"Using size={args.size}")
 
-    #
-    # Data
-    #
     rgb_stats = get_rgb_stats(args.rgb_mode, args.rgb_mean, args.rgb_std)
     logger.debug(f"Using RGB stats: {rgb_stats}")
 
-    if overrides.training_transform is not None:
+    batch_size: int = args.batch_size
+    grad_accum_steps: int = args.grad_accum_steps
+    logger.debug(f"Effective batch size = {batch_size * grad_accum_steps * args.world_size}")
+
+    begin_epoch = 1
+    epochs = args.epochs + 1
+    args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
+
+    #
+    # Initialize network
+    #
+    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
+    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
+    backbone_name = get_network_name(args.network, tag="mmcr")
+    if args.tag is not None:
+        backbone_name = f"{backbone_name}-{args.tag}"
+
+    network_name = get_mim_network_name("mmcr", encoder=args.network, tag=args.tag)
+
+    backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
+    net = MMCR(backbone, config={"projector_dims": args.projector_dims})
+
+    if args.resume_epoch is not None:
+        begin_epoch = args.resume_epoch + 1
+        net, training_states = fs_ops.load_simple_checkpoint(
+            device, net, network_name, epoch=args.resume_epoch, strict=not args.non_strict_weights
+        )
+
+    else:
+        training_states = fs_ops.TrainingStates.empty()
+
+    if args.naflex is True:
+        patch_size = net.backbone.stem_stride
+        if args.naflex_patch_sizes is not None:
+            net.encoder.backbone.set_naflex_patch_resampling()
+            net.momentum_encoder.backbone.set_naflex_patch_resampling()
+
+    net.to(device, dtype=model_dtype)
+    if args.freeze_bn is True:
+        net = training_utils.freeze_batchnorm2d(net)
+    elif args.sync_bn is True and args.distributed is True:
+        net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
+
+    if args.fast_matmul is True or args.amp is True:
+        torch.set_float32_matmul_precision("high")
+
+    # There is no backpropagation through the momentum encoder
+    for p in net.momentum_encoder.parameters():
+        p.requires_grad_(False)
+
+    if args.grad_checkpointing is True:
+        net.backbone.set_grad_checkpointing(
+            segments=args.grad_checkpointing_segments,
+            preserve_rng_state=args.grad_checkpointing_preserve_rng_state,
+        )
+
+    # Compile network
+    if args.compile is True:
+        net = torch.compile(net, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+
+    #
+    # Data
+    #
+    collate_fn: Optional[Callable[[Any], Any]] = None
+    naflex_batch_processor: Optional[NaFlexBatchProcessor] = None
+    wds_num_shards: Optional[int] = None
+    if args.naflex is True:
+        naflex_specs = resolve_naflex_batch_specs(args.size, patch_size, args.naflex_sizes, args.naflex_patch_sizes)
+    else:
+        naflex_specs = ()
+
+    if len(set(naflex_specs)) > 1:
+        if overrides.training_transform is not None:
+            raise ValueError("NaFlex batch scheduling does not support a custom training transform")
+
+        naflex_transforms = {
+            spec: TrainTransform(
+                training_utils.get_naflex_training_transform(args, spec), args.n_aug, stack_views=False
+            )
+            for spec in naflex_specs
+        }
+        logger.debug(f"Using NaFlex batch specifications: {list(naflex_specs)}")
+
+        training_transform = None
+        naflex_batch_processor = NaFlexBatchProcessor(
+            NaFlexMultiViewPathCollator(), naflex_specs, naflex_transforms, seed=args.seed or 0
+        )
+
+    elif overrides.training_transform is not None:
         training_transform = overrides.training_transform(args)
+    elif args.naflex is True:
+        spec = naflex_specs[0]
+        training_transform = TrainTransform(
+            training_utils.get_naflex_training_transform(args, spec), args.n_aug, stack_views=False
+        )
     else:
         training_transform = TrainTransform(training_utils.get_training_transform(args), n_aug=args.n_aug)
+
+    if args.naflex is True and naflex_batch_processor is None:
+        collate_fn = NaFlexMultiViewPathCollator(naflex_specs[0].patch_size)
+    elif args.naflex is False:
+        collate_fn = None
 
     if args.use_fake_data is True:
         logger.warning("Using fake data")
@@ -137,6 +243,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             cls_key=None,
             cache_dir=args.wds_cache_dir,
         )
+        if naflex_batch_processor is not None:
+            wds_num_shards = get_wds_num_shards(training_dataset)
 
     else:
         if overrides.image_loader is not None:
@@ -151,12 +259,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             loader=image_loader,
         )
 
+    if args.wds is False and naflex_batch_processor is not None:
+        training_dataset = NaFlexMultiScaleDataset(training_dataset, naflex_batch_processor)
+        collate_fn = naflex_batch_processor.base_collator
+
     logger.info(f"Using device {device}:{device_id}")
     logger.info(f"Training dataset has {len(training_dataset):,} samples")
-
-    batch_size: int = args.batch_size
-    grad_accum_steps: int = args.grad_accum_steps
-    logger.debug(f"Effective batch size = {batch_size * grad_accum_steps * args.world_size}")
 
     # Data loaders and samplers
     virtual_epoch_mode = args.steps_per_epoch is not None
@@ -165,18 +273,28 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     )
 
     if args.wds is True:
+        wds_batcher: Optional[Callable[..., Iterator[tuple[Any, ...]]]] = None
+        if naflex_batch_processor is not None:
+            wds_batcher = partial(
+                naflex_batch_processor.iter_batches,
+                batch_size=batch_size,
+                drop_last=args.drop_last,
+            )
+
         training_loader = make_wds_loader(
             training_dataset,
             batch_size,
             num_workers=args.num_workers,
             prefetch_factor=args.prefetch_factor,
-            collate_fn=None,
+            collate_fn=None if naflex_batch_processor is not None else collate_fn,
             world_size=args.world_size,
             pin_memory=args.pin_memory,
             drop_last=args.drop_last,
             persistent_workers=args.persistent_workers,
             shuffle=args.wds_extra_shuffle,
             infinite=virtual_epoch_mode,
+            batcher=wds_batcher,
+            num_shards=wds_num_shards,
         )
 
     else:
@@ -189,6 +307,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             pin_memory=args.pin_memory,
             drop_last=args.drop_last,
             persistent_workers=args.persistent_workers,
+            collate_fn=collate_fn,
         )
 
     if virtual_epoch_mode is True:
@@ -207,60 +326,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         last_accum_steps = grad_accum_steps
 
     last_accum_start_idx = epoch_num_batches - last_accum_steps
-    begin_epoch = 1
-    epochs = args.epochs + 1
-    args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
-
     logger.debug(
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
     )
-
-    #
-    # Initialize network
-    #
-    model_dtype: torch.dtype = getattr(torch, args.model_dtype)
-    sample_shape = (batch_size, args.channels, *args.size)  # B, C, H, W
-    backbone_name = get_network_name(args.network, tag="mmcr")
-    if args.tag is not None:
-        backbone_name = f"{backbone_name}-{args.tag}"
-
-    network_name = get_mim_network_name("mmcr", encoder=args.network, tag=args.tag)
-
-    backbone = registry.net_factory(args.network, 0, sample_shape[1], config=args.model_config, size=args.size)
-    net = MMCR(backbone, config={"projector_dims": args.projector_dims})
-
-    if args.resume_epoch is not None:
-        begin_epoch = args.resume_epoch + 1
-        net, training_states = fs_ops.load_simple_checkpoint(
-            device, net, network_name, epoch=args.resume_epoch, strict=not args.non_strict_weights
-        )
-
-    else:
-        training_states = fs_ops.TrainingStates.empty()
-
-    net.to(device, dtype=model_dtype)
-    if args.freeze_bn is True:
-        net = training_utils.freeze_batchnorm2d(net)
-    elif args.sync_bn is True and args.distributed is True:
-        net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
-
-    if args.fast_matmul is True or args.amp is True:
-        torch.set_float32_matmul_precision("high")
-
-    # There is no backpropagation through the momentum encoder
-    for p in net.momentum_encoder.parameters():
-        p.requires_grad_(False)
-
-    if args.grad_checkpointing is True:
-        net.backbone.set_grad_checkpointing(
-            segments=args.grad_checkpointing_segments,
-            preserve_rng_state=args.grad_checkpointing_preserve_rng_state,
-        )
-
-    # Compile backbone
-    if args.compile is True:
-        net = torch.compile(net, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -392,21 +461,52 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         training_utils.write_training_args_json(training_log_path, args)
         training_utils.write_training_data_json(training_log_path, {"training_samples": len(training_dataset)})
 
+    moe_spec = None
+    moe_expert_load_accumulator: Optional[training_utils.MoEExpertLoadAccumulator] = None
+    if args.moe_training is True:
+        unwrapped_net = training_utils.unwrap_compiled_module(net_without_ddp)
+        moe_model = unwrapped_net.encoder.backbone
+        moe_momentum_model = unwrapped_net.momentum_encoder.backbone
+        moe_spec = get_moe_spec(moe_model)
+        if moe_spec is None:
+            raise cli.ValidationError("--moe-training requires a backbone with MoE support")
+
+        if moe_spec.requires_expert_bias_update is True:
+            moe_expert_load_accumulator = training_utils.MoEExpertLoadAccumulator()
+
+            def update_moe_expert_biases(expert_loads: torch.Tensor) -> None:
+                moe_model.update_moe_expert_biases(expert_loads)
+                moe_momentum_model.update_moe_expert_biases(expert_loads)
+
+    return_moe_training_output = moe_spec is not None and moe_spec.requires_training_output is True
+
     #
     # Training loop
     #
     if virtual_epoch_mode is True:
+        # Virtual epochs share one continuous loader iterator, so initialize the NaFlex schedule before creating it
+        if naflex_batch_processor is not None:
+            naflex_batch_processor.set_epoch(begin_epoch)
+
         train_iter = iter(training_loader)
 
     running_loss = training_utils.SmoothedValue()
+    running_moe_aux_loss: Optional[training_utils.SmoothedValue] = None
+    if moe_spec is not None and moe_spec.has_auxiliary_loss is True:
+        running_moe_aux_loss = training_utils.SmoothedValue(window_size=64)
 
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
 
+        if naflex_batch_processor is not None and virtual_epoch_mode is False:
+            naflex_batch_processor.set_epoch(epoch)
+
         # Clear metrics
         running_loss.clear()
+        if running_moe_aux_loss is not None:
+            running_moe_aux_loss.clear()
 
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)
@@ -433,7 +533,24 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             batch_iter = enumerate(training_loader)
 
         for i, (_, images, _) in batch_iter:
-            images = images.to(device, dtype=model_dtype, non_blocking=True)
+            batch_kwargs: dict[str, list[torch.Tensor]] = {}
+            if args.naflex is True:
+                image_views: list[torch.Tensor] = []
+                grid_sizes: list[torch.Tensor] = []
+                valid_masks: list[torch.Tensor] = []
+                for view, view_grid_sizes, view_valid_mask in images:
+                    image_views.append(view.to(device, dtype=model_dtype, non_blocking=True))
+                    grid_sizes.append(view_grid_sizes.to(device, non_blocking=True))
+                    valid_masks.append(view_valid_mask.to(device, non_blocking=True))
+
+                images = image_views
+                batch_kwargs = {"grid_sizes": grid_sizes, "valid_masks": valid_masks}
+            else:
+                if isinstance(images, list):
+                    images = torch.stack(images, dim=1)
+
+                images = images.to(device, dtype=model_dtype, non_blocking=True)
+
             optimizer_update = (i == last_batch_idx) or ((i + 1) % grad_accum_steps == 0)
             sync_context = no_sync_cm if optimizer_update is False else nullcontext
             if i >= last_accum_start_idx:
@@ -444,8 +561,19 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             # Forward and backward
             with sync_context():
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
-                    z, z_m = net(images)
-                    raw_loss = mmcr_loss(z, z_m)
+                    if return_moe_training_output is True:
+                        z, z_m, moe_training_output = net(images, return_moe_training_output=True, **batch_kwargs)
+                    else:
+                        z, z_m = net(images, **batch_kwargs)
+
+                    mmcr_training_loss = mmcr_loss(z, z_m)
+                    raw_loss = mmcr_training_loss
+                    if return_moe_training_output is True:
+                        if moe_expert_load_accumulator is not None:
+                            moe_expert_load_accumulator.add(moe_training_output["expert_loads"])
+                        if moe_spec.has_auxiliary_loss is True:  # type: ignore[union-attr]
+                            moe_aux_loss = moe_training_output["auxiliary_loss"]
+                            raw_loss = mmcr_training_loss + moe_aux_loss
 
                 loss = raw_loss / effective_accum_steps
                 if scaler is not None:
@@ -467,6 +595,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
                     optimizer.step()
 
+                if moe_expert_load_accumulator is not None:
+                    moe_expert_load_accumulator.flush(
+                        update_moe_expert_biases  # pylint: disable=used-before-assignment
+                    )
+
                 optimizer.zero_grad()
                 if step_update is True:
                     scheduler.step()
@@ -482,7 +615,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     )
 
             # Statistics
-            running_loss.update(raw_loss.detach())
+            running_loss.update(mmcr_training_loss.detach())
+            if running_moe_aux_loss is not None:
+                running_moe_aux_loss.update(moe_aux_loss.detach())
 
             # Write statistics
             if (i + 1) % args.log_interval == 0 or i == last_batch_idx:
@@ -500,6 +635,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 cur_lr = float(max(scheduler.get_last_lr()))
 
                 running_loss.synchronize_between_processes(device)
+                if running_moe_aux_loss is not None:
+                    running_moe_aux_loss.synchronize_between_processes(device)
+
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
                         f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
@@ -510,6 +648,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         f"R: {rate:.1f} samples/s  "
                         f"LR: {cur_lr:.4e}"
                     )
+                    if running_moe_aux_loss is not None:
+                        log.info(
+                            f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
+                            f"MoE auxiliary loss: {running_moe_aux_loss.avg:.4f}"
+                        )
 
                 if training_utils.is_global_primary(args) is True:
                     summary_writer.add_scalars(
@@ -517,6 +660,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         {"training": running_loss.avg},
                         ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
+                    if running_moe_aux_loss is not None:
+                        summary_writer.add_scalars(
+                            "loss",
+                            {"moe_auxiliary": running_moe_aux_loss.avg},
+                            ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
+                        )
 
             # Update progress bar
             progress.update(n=batch_size * args.world_size)
@@ -525,6 +674,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         # Epoch training metrics
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
+        if running_moe_aux_loss is not None:
+            logger.info(
+                f"[Trn] Epoch {epoch}/{epochs-1} training_moe_auxiliary_loss: {running_moe_aux_loss.global_avg:.4f}"
+            )
 
         # Learning rate scheduler update
         if step_update is False:
@@ -647,12 +800,18 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lambda-coeff", type=float, default=0.0, help="weight of local nuc")
     parser.add_argument("--n-aug", type=int, default=2, help="number of views")
     parser.add_argument("--momentum-tau", type=float, default=0.99, help="base EMA parameter for momentum update")
+    parser.add_argument(
+        "--moe-training",
+        default=False,
+        action="store_true",
+        help="enable MoE training behavior, including auxiliary balancing losses and expert-bias updates",
+    )
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
     training_cli.add_lr_scheduler_args(parser)
     training_cli.add_training_schedule_args(parser, default_epochs=400)
     training_cli.add_batch_norm_args(parser)
-    training_cli.add_input_args(parser)
+    training_cli.add_input_args(parser, naflex=True)
     training_cli.add_data_aug_args(parser, default_min_scale=0.3, default_re_prob=0.0)
     training_cli.add_dataloader_args(parser, default_drop_last=True)
     training_cli.add_precision_args(parser)
@@ -676,6 +835,11 @@ def validate_args(args: argparse.Namespace) -> None:
     # Script specific checks
     if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
+    if args.moe_training is True:
+        if args.batch_size % 8 != 0:
+            raise cli.ValidationError("--moe-training requires local --batch-size to be divisible by 8")
+        if args.drop_last is False:
+            raise cli.ValidationError("--moe-training requires --drop-last")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

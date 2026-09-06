@@ -16,8 +16,10 @@ import torch.distributed._functional_collectives as funcol
 from torch import nn
 
 from birder.common import training_utils
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import BaseNet
 from birder.net.ssl.base import SSLBaseNet
+from birder.net.ssl.base import combine_moe_training_outputs
 
 
 def off_diagonal(x: torch.Tensor) -> torch.Tensor:
@@ -58,15 +60,32 @@ class BarlowTwins(SSLBaseNet):
         x: torch.Tensor,
         grid_sizes: Optional[torch.Tensor] = None,
         valid_mask: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
+        return_moe_training_output: bool = False,
+    ) -> tuple[torch.Tensor, Optional[MoETrainingOutputType]]:
+        moe_training_output: Optional[MoETrainingOutputType] = None
         if grid_sizes is None:
-            embedding = self.backbone.embedding(x)
+            if return_moe_training_output is True:
+                features, moe_training_output = self.backbone.forward_features(
+                    x, return_moe_training_output=True  # type: ignore[call-arg]
+                )
+            else:
+                features = self.backbone.forward_features(x)
         else:
-            embedding = self.backbone.embedding(  # type: ignore[call-arg]
-                x, grid_sizes=grid_sizes, valid_mask=valid_mask
-            )
+            if return_moe_training_output is True:
+                features, moe_training_output = self.backbone.forward_features(  # type: ignore[call-arg]
+                    x, grid_sizes=grid_sizes, valid_mask=valid_mask, return_moe_training_output=True
+                )
+            else:
+                features = self.backbone.forward_features(  # type: ignore[call-arg]
+                    x, grid_sizes=grid_sizes, valid_mask=valid_mask
+                )
 
-        return self.projector(embedding)
+        if grid_sizes is None:
+            embedding = self.backbone.embedding_from_features(features)
+        else:
+            embedding = self.backbone.embedding_from_features(features, valid_mask)  # type: ignore[call-arg]
+
+        return (self.projector(embedding), moe_training_output)
 
     # pylint: disable-next=arguments-differ
     def forward(  # type: ignore[override]
@@ -77,11 +96,15 @@ class BarlowTwins(SSLBaseNet):
         valid_mask1: Optional[torch.Tensor] = None,
         grid_sizes2: Optional[torch.Tensor] = None,
         valid_mask2: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
+        *,
+        return_moe_training_output: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, MoETrainingOutputType]:
         world_size = training_utils.get_world_size()
 
-        z1 = self._project(x1, grid_sizes=grid_sizes1, valid_mask=valid_mask1)
-        z2 = self._project(x2, grid_sizes=grid_sizes2, valid_mask=valid_mask2)
+        z1, moe_training_output = self._project(x1, grid_sizes1, valid_mask1, return_moe_training_output)
+        z2, z2_moe_training_output = self._project(x2, grid_sizes2, valid_mask2, return_moe_training_output)
+        if z2_moe_training_output is not None:
+            moe_training_output = combine_moe_training_outputs(moe_training_output, z2_moe_training_output)
 
         # Cross-correlation matrix
         c = self.bn(z1).T @ self.bn(z2)
@@ -92,5 +115,8 @@ class BarlowTwins(SSLBaseNet):
         on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
         off_diag = off_diagonal(c).pow_(2).sum()
         loss = on_diag + self.off_lambda * off_diag
+
+        if moe_training_output is not None:
+            return (loss, moe_training_output)
 
         return loss

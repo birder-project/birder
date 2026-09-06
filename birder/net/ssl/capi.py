@@ -23,6 +23,7 @@ from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
 from birder.common import training_utils
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.base import pos_embedding_sin_cos_2d
@@ -457,12 +458,25 @@ class CAPIStudent(SSLBaseNet):
         )
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
-        self, x: torch.Tensor, ids_keep: torch.Tensor, ids_predict: torch.Tensor
-    ) -> torch.Tensor:
-        x = self.backbone.masked_encoding_omission(x, ids_keep)["tokens"]
+        self,
+        x: torch.Tensor,
+        ids_keep: torch.Tensor,
+        ids_predict: torch.Tensor,
+        *,
+        return_moe_training_output: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, MoETrainingOutputType]:
+        if return_moe_training_output is True:
+            out = self.backbone.masked_encoding_omission(x, ids_keep, return_moe_training_output=True)
+        else:
+            out = self.backbone.masked_encoding_omission(x, ids_keep)
+
+        x = out["tokens"]
 
         x = self.decoder(x, ids_predict)
         x = self.head(x.flatten(0, 1))
+
+        if "moe_training_output" in out:
+            return (x, out["moe_training_output"])
 
         return x
 

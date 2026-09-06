@@ -116,48 +116,103 @@ class TestNetMIM(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
-            ("maskfeat", "vit_vmoe_vs32_8e_2k_last2"),
-            ("simmim", "rope_vit_vmoe_vs32_8e_2k_last2"),
-            ("simmim", "rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
-            ("simmim", "vit_vmoe_vs32_8e_2k_last2"),
-            ("simmim", "vit_vmoe_reg1_vs32_8e_2k_last2"),
+            ("maskfeat", "vit_vmoe_vs32_8e_2k_last2s2"),
+            ("simmim", "rope_vit_vmoe_vs32_8e_2k_last2s2"),
+            ("simmim", "rope_vit_vmoe_reg1_vs32_8e_2k_last2s2"),
+            ("simmim", "vit_vmoe_vs32_8e_2k_last2s2"),
+            ("simmim", "vit_vmoe_reg1_vs32_8e_2k_last2s2"),
         ]
     )
-    def test_net_mim_retention_moe_aux_loss(self, network_name: str, encoder_name: str) -> None:
+    def test_net_mim_retention_moe_training_output(self, network_name: str, encoder_name: str) -> None:
         size = (64, 64)
         encoder = registry.net_factory(encoder_name, 0, size=size)
         n = registry.mim_net_factory(network_name, encoder, size=size)
         n.train()
-        n.encoder.set_moe_loss_output(True)
 
-        out = n(torch.rand((8, DEFAULT_NUM_CHANNELS, *size)))
-        for key in ["loss", "pred", "mask", "moe_auxiliary_loss"]:
+        out = n(torch.rand((8, DEFAULT_NUM_CHANNELS, *size)), return_moe_training_output=True)
+        for key in ["loss", "pred", "mask"]:
             self.assertFalse(torch.isnan(out[key]).any())
 
+        moe_training_output = out["moe_training_output"]
+        for value in moe_training_output.values():
+            self.assertFalse(torch.isnan(value).any())
+
         self.assertEqual(out["loss"].ndim, 0)
-        self.assertEqual(out["moe_auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertIn("expert_loads", moe_training_output)
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
-            ("crossmae", "rope_vit_vmoe_vs32_8e_2k_last2"),
-            ("mae_vit", "rope_vit_vmoe_vs32_8e_2k_last2"),
-            ("crossmae", "vit_vmoe_vs32_8e_2k_last2"),
-            ("mae_vit", "vit_vmoe_vs32_8e_2k_last2"),
+            ("crossmae", "rope_vit_vmoe_vs32_8e_2k_last2s2"),
+            ("mae_vit", "rope_vit_vmoe_vs32_8e_2k_last2s2"),
+            ("crossmae", "vit_vmoe_vs32_8e_2k_last2s2"),
+            ("mae_vit", "vit_vmoe_vs32_8e_2k_last2s2"),
         ]
     )
-    def test_net_mim_omission_moe_aux_loss(self, network_name: str, encoder_name: str) -> None:
+    def test_net_mim_omission_moe_training_output(self, network_name: str, encoder_name: str) -> None:
         size = (64, 64)
         encoder = registry.net_factory(encoder_name, 0, size=size)
         n = registry.mim_net_factory(network_name, encoder, size=size)
         n.train()
-        n.encoder.set_moe_loss_output(True)
 
-        out = n(torch.rand((8, DEFAULT_NUM_CHANNELS, *size)))
-        for key in ["loss", "pred", "mask", "moe_auxiliary_loss"]:
+        out = n(torch.rand((8, DEFAULT_NUM_CHANNELS, *size)), return_moe_training_output=True)
+        for key in ["loss", "pred", "mask"]:
             self.assertFalse(torch.isnan(out[key]).any())
 
+        moe_training_output = out["moe_training_output"]
+        for value in moe_training_output.values():
+            self.assertFalse(torch.isnan(value).any())
+
         self.assertEqual(out["loss"].ndim, 0)
-        self.assertEqual(out["moe_auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertIn("expert_loads", moe_training_output)
+
+    def test_net_mim_aim_v1_moe_training_output(self) -> None:
+        batch_size = 8
+        size = (32, 32)
+        encoder = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1",
+            0,
+            config={
+                "num_layers": 2,
+                "num_heads": 2,
+                "hidden_dim": 16,
+                "mlp_dim": 32,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 8,
+                "moe_last_n_layers": 1,
+            },
+            size=size,
+        )
+        n = registry.mim_net_factory(
+            "aim_v1_dec512d4",
+            encoder,
+            config={"decoder_embed_dim": 16, "decoder_depth": 1},
+            size=size,
+        )
+        n.train()
+
+        out = n(
+            torch.rand(batch_size, DEFAULT_NUM_CHANNELS, *size),
+            return_moe_training_output=True,
+        )
+        for key in ["loss", "pred", "mask"]:
+            self.assertTrue(torch.isfinite(out[key]).all().item())
+
+        moe_training_output = out["moe_training_output"]
+        for value in moe_training_output.values():
+            self.assertTrue(torch.isfinite(value).all().item())
+
+        seq_len = (size[0] // encoder.max_stride) * (size[1] // encoder.max_stride)
+        self.assertEqual(out["loss"].ndim, 0)
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * seq_len * 2)
+
+        (out["loss"] + moe_training_output["auxiliary_loss"]).backward()
+        router_grad = encoder.encoder.block[1].mlp.router.gate.weight.grad
+        self.assertIsNotNone(router_grad)
+        self.assertTrue(torch.isfinite(router_grad).all().item())
 
     def test_aim_v1_prefix_mask(self) -> None:
         size = (64, 64)
@@ -254,9 +309,9 @@ class TestNetMIM(unittest.TestCase):
 
         self.assertEqual(out["loss"].ndim, 0)
 
-    def test_net_eva_retention_moe_aux_loss(self) -> None:
+    def test_net_eva_retention_moe_training_output(self) -> None:
         size = (64, 64)
-        student = registry.net_factory("vit_vmoe_vs32_8e_2k_last2", 0, size=size)
+        student = registry.net_factory("vit_vmoe_vs32_8e_2k_last2s2", 0, size=size)
         teacher = registry.net_factory("vit_t32", 0, size=size)
 
         inputs = torch.rand((8, DEFAULT_NUM_CHANNELS, *size))
@@ -265,14 +320,18 @@ class TestNetMIM(unittest.TestCase):
 
         n = registry.mim_net_factory("eva", student, config={"teacher_dim": target_tokens.size(-1)}, size=size)
         n.train()
-        n.encoder.set_moe_loss_output(True)
 
         mask = torch.zeros((inputs.size(0), target_tokens.size(1)))
         mask[:, ::2] = 1
 
-        out = n(inputs, target_tokens, mask)
-        for key in ["loss", "pred", "mask", "moe_auxiliary_loss"]:
+        out = n(inputs, target_tokens, mask, return_moe_training_output=True)
+        for key in ["loss", "pred", "mask"]:
             self.assertFalse(torch.isnan(out[key]).any())
 
+        moe_training_output = out["moe_training_output"]
+        for value in moe_training_output.values():
+            self.assertFalse(torch.isnan(value).any())
+
         self.assertEqual(out["loss"].ndim, 0)
-        self.assertEqual(out["moe_auxiliary_loss"].ndim, 0)
+        self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
+        self.assertIn("expert_loads", moe_training_output)

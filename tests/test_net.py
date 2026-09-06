@@ -21,7 +21,6 @@ from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.flexivit import interpolate_proj
 from birder.net.vit_moe import Encoder as ViTMoEEncoder
-from birder.net.vit_moe import NoisyTopKRouter
 
 logging.disable(logging.CRITICAL)
 
@@ -165,8 +164,9 @@ NET_TEST_CASES = [
     ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", False, False, 1, 14),
     ("rope_vit_s16_soft_moe_32e_4s_avg"),
     ("rope_vit5_reg4_s16"),
-    ("rope_vit_vmoe_vs32_8e_2k_last2"),
-    ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
+    ("rope_vit_moe_t16_4e1s_2k_last1_avg"),
+    ("rope_vit_vmoe_vs32_8e_2k_last2s2"),
+    ("rope_vit_vmoe_reg1_vs32_8e_2k_last2s2"),
     ("sequencer2d_s"),
     ("shufflenet_v1_8"),
     ("shufflenet_v2_0_5"),
@@ -197,8 +197,9 @@ NET_TEST_CASES = [
     ("vit_so150m_p14_ap", False, False, 1, 14),
     ("vit_reg8_so150m_p14_swiglu_avg", False, False, 1, 14),
     ("vit_s16_soft_moe_32e_4s_avg"),
-    ("vit_vmoe_vs32_8e_2k_last2"),
-    ("vit_vmoe_reg1_vs32_8e_2k_last2"),
+    ("vit_moe_t16_4e1s1p_2k_last1"),
+    ("vit_vmoe_vs32_8e_2k_last2s2"),
+    ("vit_vmoe_reg1_vs32_8e_2k_last2s2"),
     ("vit_parallel_s16_18x2_ls"),
     ("vit_det_s16"),
     ("vit_sam_b16"),
@@ -403,8 +404,9 @@ DYNAMIC_SIZE_CASES = [
     ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", 1, 14),
     ("rope_vit_s16_soft_moe_32e_4s_avg"),
     ("rope_vit5_reg4_s16"),
-    ("rope_vit_vmoe_vs32_8e_2k_last2"),
-    ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
+    ("rope_vit_moe_t16_4e1s_2k_last1_avg"),
+    ("rope_vit_vmoe_vs32_8e_2k_last2s2"),
+    ("rope_vit_vmoe_reg1_vs32_8e_2k_last2s2"),
     ("simple_vit_b32"),
     ("swin_transformer_v1_t"),
     ("swin_transformer_v2_t"),
@@ -418,8 +420,9 @@ DYNAMIC_SIZE_CASES = [
     ("vit_so150m_p14_ap", 1, 14),
     ("vit_reg8_so150m_p14_swiglu_avg", 1, 14),
     ("vit_s16_soft_moe_32e_4s_avg"),
-    ("vit_vmoe_vs32_8e_2k_last2"),
-    ("vit_vmoe_reg1_vs32_8e_2k_last2"),
+    ("vit_moe_t16_4e1s1p_2k_last1"),
+    ("vit_vmoe_vs32_8e_2k_last2s2"),
+    ("vit_vmoe_reg1_vs32_8e_2k_last2s2"),
     ("vit_parallel_s16_18x2_ls"),
     ("vit_det_s16"),
     ("vit_sam_b16"),
@@ -918,6 +921,9 @@ class TestNet(unittest.TestCase):
             ("caformer_s18"),
             ("mobilenet_v4_s", 2),
             ("mobilenet_v4_hybrid_m", 2),
+            ("mobileone_s0"),
+            ("mobilevit_v1_xxs"),
+            ("mobilevit_v2_0_25"),
             ("moganet_xt"),
             ("mvit_v2_t"),
             ("mvit_v2_t_cls"),
@@ -953,8 +959,9 @@ class TestNet(unittest.TestCase):
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
             ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
-            ("rope_vit_vmoe_vs32_8e_2k_last2"),
-            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
+            ("rope_vit_moe_t16_4e1s_2k_last1_avg"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2s2"),
+            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("simple_vit_s32"),
             ("smt_t"),
             ("swin_transformer_v1_t"),
@@ -972,8 +979,9 @@ class TestNet(unittest.TestCase):
             ("vit_so150m_p14_ap"),
             ("vit_reg8_so150m_p14_swiglu_avg"),
             ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_vmoe_vs32_8e_2k_last2"),
-            ("vit_vmoe_reg1_vs32_8e_2k_last2"),
+            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_vmoe_vs32_8e_2k_last2s2"),
+            ("vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("vit_parallel_s16_18x2_ls"),
             ("wide_resnet_50"),
             ("xcit_nano12_p16"),
@@ -1052,8 +1060,9 @@ class TestNet(unittest.TestCase):
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg"),
             ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
-            ("rope_vit_vmoe_vs32_8e_2k_last2"),
-            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
+            ("rope_vit_moe_t16_4e1s_2k_last1_avg"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2s2"),
+            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("simple_vit_b32"),
             ("vit_s32"),
             ("vit_s16_pn"),
@@ -1065,8 +1074,9 @@ class TestNet(unittest.TestCase):
             ("vit_so150m_p14_ap"),
             ("vit_reg8_so150m_p14_swiglu_avg"),
             ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_vmoe_vs32_8e_2k_last2"),
-            ("vit_vmoe_reg1_vs32_8e_2k_last2"),
+            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_vmoe_vs32_8e_2k_last2s2"),
+            ("vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
@@ -1149,13 +1159,15 @@ class TestNet(unittest.TestCase):
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit5_reg4_s16"),
-            ("rope_vit_vmoe_vs32_8e_2k_last2"),
+            ("rope_vit_moe_t16_4e1s_2k_last1_avg"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2s2"),
             ("simple_vit_s32"),
             ("swin_transformer_v1_t"),
             ("swin_transformer_v2_t"),
             ("vit_s32"),
             ("vit_sam_b16"),
-            ("vit_vmoe_vs32_8e_2k_last2"),
+            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_vmoe_vs32_8e_2k_last2s2"),
             ("vit_parallel_s16_18x2_ls"),
             ("wide_resnet_50"),
         ]
@@ -1332,8 +1344,9 @@ class TestNonSquareNet(unittest.TestCase):
             ("rope_vit_reg8_so150m_p14_swiglu_rms_avg", 1, 14, 14),
             ("rope_vit_s16_soft_moe_32e_4s_avg"),
             ("rope_vit5_reg4_s16"),
-            ("rope_vit_vmoe_vs32_8e_2k_last2"),
-            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
+            ("rope_vit_moe_t16_4e1s_2k_last1_avg"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2s2"),
+            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("sequencer2d_s"),
             ("shufflenet_v1_8"),
             ("shufflenet_v2_0_5"),
@@ -1363,8 +1376,9 @@ class TestNonSquareNet(unittest.TestCase):
             ("vit_so150m_p14_ap", 1, 14, 14),
             ("vit_reg8_so150m_p14_swiglu_avg", 1, 14, 14),
             ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_vmoe_vs32_8e_2k_last2"),
-            ("vit_vmoe_reg1_vs32_8e_2k_last2"),
+            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_vmoe_vs32_8e_2k_last2s2"),
+            ("vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_det_b16"),
             ("vit_sam_b16"),
@@ -1876,15 +1890,17 @@ class TestSpecialFunctions(unittest.TestCase):
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit5_reg4_s16"),
-            ("rope_vit_vmoe_vs32_8e_2k_last2"),
-            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
+            ("rope_vit_moe_t16_4e1s_2k_last1_avg"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2s2"),
+            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("simple_vit_s32"),
             ("vit_s32"),
             ("vit_b16_qkn_ls"),
             ("vit_b16_nf_swiglu"),
             ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_vmoe_vs32_8e_2k_last2"),
-            ("vit_vmoe_reg1_vs32_8e_2k_last2"),
+            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_vmoe_vs32_8e_2k_last2s2"),
+            ("vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("vit_parallel_s16_18x2_ls"),
         ]
     )
@@ -1910,11 +1926,13 @@ class TestSpecialFunctions(unittest.TestCase):
             ("rope_flexivit_s16"),
             ("rope_vit_s32"),
             ("rope_vit5_reg4_s16"),
-            ("rope_vit_vmoe_vs32_8e_2k_last2"),
-            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2"),
+            ("rope_vit_moe_t16_4e1s_2k_last1_avg"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2s2"),
+            ("rope_vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("simple_vit_s32"),
             ("vit_s32"),
-            ("vit_vmoe_vs32_8e_2k_last2"),
+            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_vmoe_vs32_8e_2k_last2s2"),
         ]
     )
     def test_vit_forward_features_attention_mask(self, network_name: str) -> None:
@@ -1963,71 +1981,171 @@ class TestSpecialFunctions(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
-            ("vit_vmoe_vs32_8e_2k_last2"),
-            ("rope_vit_vmoe_vs32_8e_2k_last2"),
+            ("vit_vmoe_vs32_8e_2k_last2s2"),
+            ("rope_vit_vmoe_vs32_8e_2k_last2s2"),
         ]
     )
-    def test_vit_moe_grad_checkpointing_with_aux_losses(self, network_name: str) -> None:
-        config = {
-            "patch_size": 16,
-            "num_layers": 3,
-            "num_heads": 2,
-            "hidden_dim": 8,
-            "mlp_dim": 16,
-            "drop_path_rate": 0.0,
-            "moe_last_n_layers": 1,
-            "moe_num_experts": 2,
-            "router_noise_std": 0.0,
-            "mlp_head": False,
-        }
-        baseline = registry.net_factory(network_name, 2, config=config, size=(32, 32))
+    def test_vit_moe_grad_checkpointing_with_training_output(self, network_name: str) -> None:
+        baseline = registry.net_factory(
+            network_name,
+            2,
+            config={
+                "patch_size": 16,
+                "num_layers": 3,
+                "num_heads": 2,
+                "hidden_dim": 8,
+                "mlp_dim": 16,
+                "drop_path_rate": 0.0,
+                "moe_last_n_layers": 1,
+                "moe_num_experts": 2,
+                "router_noise_std": 0.0,
+                "mlp_head": False,
+            },
+            size=(32, 32),
+        )
         with torch.no_grad():
             baseline.classifier.weight.fill_(1.0)
 
         baseline.train()
-        baseline.set_moe_loss_output(True)
         checkpointed = copy.deepcopy(baseline)
         checkpointed.set_grad_checkpointing(segments=3)
         inputs = torch.rand((8, DEFAULT_NUM_CHANNELS, 32, 32))
 
         with torch.no_grad():
-            expected_logits, expected_aux_losses = baseline(inputs)
+            expected_logits, expected_moe_training_output = baseline(inputs, return_moe_training_output=True)
 
-        logits, aux_losses = checkpointed(inputs)
+        logits, moe_training_output = checkpointed(inputs, return_moe_training_output=True)
         self.assertTrue(torch.allclose(logits, expected_logits))
-        for key, expected in expected_aux_losses.items():
-            self.assertTrue(torch.allclose(aux_losses[key], expected), msg=key)
+        self.assertEqual(
+            set(moe_training_output),
+            {"auxiliary_loss", "g_shard_loss", "importance_loss", "load_loss", "expert_loads"},
+        )
+        self.assertEqual(moe_training_output["expert_loads"].numel(), 0)
+        for key, expected in expected_moe_training_output.items():
+            self.assertTrue(torch.allclose(moe_training_output[key], expected), msg=key)
 
-        (logits.sum() + aux_losses["auxiliary_loss"]).backward()
-        for param in (checkpointed.conv_proj.weight, checkpointed.encoder.block[1].mlp.router.gate.weight):
+        (logits.sum() + moe_training_output["auxiliary_loss"]).backward()
+        for param in (checkpointed.conv_proj.weight, checkpointed.encoder.block[2].mlp.router.gate.weight):
             self.assertIsNotNone(param.grad)
             self.assertTrue(torch.isfinite(param.grad).all().item())
 
-    def test_vit_moe_router_token_mask(self) -> None:
-        router = NoisyTopKRouter(
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("vit_moe_t16_4e1s1p_2k_last1", 2),
+            ("rope_vit_moe_t16_4e1s_2k_last1_avg", 3),
+        ]
+    )
+    def test_vit_moe_token_choice(self, network_name: str, num_routed_experts: int) -> None:
+        n = registry.net_factory(
+            network_name,
             2,
-            2,
-            noise_std=0.0,
-            capacity_factor=1.0,
-            capacity_multiple_of=None,
-            g_shard_loss_weight=1.0,
-            importance_loss_weight=1.0,
+            config={
+                "num_layers": 4,
+                "num_heads": 2,
+                "hidden_dim": 8,
+                "mlp_dim": 16,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 4,
+                "moe_last_n_layers": 2,
+                "router_bias_update_speed": 0.1,
+            },
+            size=(32, 32),
         )
+        self.assertFalse(n.moe_spec.has_auxiliary_loss)
+        self.assertTrue(n.moe_spec.requires_expert_bias_update)
+
+        moe_block_indices = (2, 3)
+        initial_expert_bias = torch.arange(num_routed_experts - 1, -1, -1, dtype=torch.float32) * 2.0
         with torch.no_grad():
-            router.gate.weight.copy_(torch.tensor([[1.0, 0.0], [0.0, 1.0]]))
+            n.classifier.weight.fill_(1.0)
+            for block_idx in moe_block_indices:
+                moe_ffn = n.encoder.block[block_idx].mlp
+                self.assertEqual(moe_ffn.num_routed_experts, num_routed_experts)
+                self.assertEqual(len(moe_ffn.special_token_experts), n.num_special_tokens)
+                moe_ffn.router.expert_bias.copy_(initial_expert_bias)
 
-        router.set_moe_loss_output()
-        x = torch.tensor([[[10.0, 0.0], [3.0, 0.0], [10.0, 0.0], [2.0, 0.0]]])
-        token_mask = torch.tensor([[False, True, False, True]])
+        n.train()
+        checkpointed = copy.deepcopy(n)
+        checkpointed.set_grad_checkpointing(segments=4, use_reentrant=True)
+        inputs = torch.rand((2, DEFAULT_NUM_CHANNELS, 32, 32))
 
-        _, buffer_index, combine_weights, aux_losses = router(x, token_mask=token_mask)
-        _, _, _, expected_aux_losses = router(x[:, token_mask[0]])
+        with torch.no_grad():
+            expected_output, expected_moe_training_output = n(inputs, return_moe_training_output=True)
 
-        self.assertTrue(torch.equal(buffer_index[token_mask], torch.tensor([[0], [1]])))
-        self.assertTrue(torch.equal(combine_weights[~token_mask], torch.zeros(2, 1)))
-        self.assertTrue(torch.all(combine_weights[token_mask] > 0).item())
-        for key, expected in expected_aux_losses.items():
-            self.assertTrue(torch.allclose(aux_losses[key], expected), msg=key)
+        output, moe_training_output = checkpointed(inputs, return_moe_training_output=True)
+        torch.testing.assert_close(output, expected_output)
+        for key, expected in expected_moe_training_output.items():
+            torch.testing.assert_close(moe_training_output[key], expected)
+
+        expected_expert_loads = torch.zeros((len(moe_block_indices), num_routed_experts), dtype=torch.int64)
+        expected_expert_loads[:, :2] = 8
+        torch.testing.assert_close(moe_training_output["expert_loads"], expected_expert_loads)
+        torch.testing.assert_close(moe_training_output["auxiliary_loss"], torch.tensor(0.0))
+
+        (output.sum() + moe_training_output["auxiliary_loss"]).backward()
+        for block_idx in moe_block_indices:
+            router_grad = checkpointed.encoder.block[block_idx].mlp.router.gate.weight.grad
+            self.assertIsNotNone(router_grad)
+            self.assertTrue(torch.isfinite(router_grad).all().item())
+
+        checkpointed.update_moe_expert_biases(moe_training_output["expert_loads"])
+        expert_load = expected_expert_loads[0]
+        update_direction = torch.sign(expert_load.float().mean() - expert_load)
+        expected_expert_bias = initial_expert_bias + update_direction * 0.1
+        expected_expert_bias.sub_(expected_expert_bias.mean())
+        for block_idx in moe_block_indices:
+            torch.testing.assert_close(
+                checkpointed.encoder.block[block_idx].mlp.router.expert_bias, expected_expert_bias
+            )
+
+    def test_vit_moe_expert_choice(self) -> None:
+        n = registry.net_factory(
+            "vit_moe_t16_4e1s_2c_last1_avg",
+            2,
+            config={
+                "num_layers": 4,
+                "num_heads": 2,
+                "hidden_dim": 8,
+                "mlp_dim": 16,
+                "drop_path_rate": 0.0,
+                "moe_expert_width": 4,
+                "moe_last_n_layers": 2,
+            },
+            size=(32, 32),
+        )
+        self.assertFalse(n.moe_spec.has_auxiliary_loss)
+        self.assertFalse(n.moe_spec.requires_expert_bias_update)
+
+        moe_block_indices = (2, 3)
+        for block_idx in moe_block_indices:
+            router = n.encoder.block[block_idx].mlp.router
+            self.assertEqual(router.capacity_factor, 2.0)
+
+        with torch.no_grad():
+            n.classifier.weight.fill_(1.0)
+
+        n.train()
+        checkpointed = copy.deepcopy(n)
+        checkpointed.set_grad_checkpointing(segments=4, use_reentrant=True)
+        inputs = torch.rand((2, DEFAULT_NUM_CHANNELS, 32, 32))
+
+        with torch.no_grad():
+            expected_output, expected_moe_training_output = n(inputs, return_moe_training_output=True)
+
+        output, moe_training_output = checkpointed(inputs, return_moe_training_output=True)
+        torch.testing.assert_close(output, expected_output)
+        for key, expected in expected_moe_training_output.items():
+            torch.testing.assert_close(moe_training_output[key], expected)
+
+        self.assertEqual(moe_training_output["expert_loads"].size(), (0, 0))
+        for key in ("auxiliary_loss", "g_shard_loss", "importance_loss", "load_loss"):
+            torch.testing.assert_close(moe_training_output[key], torch.tensor(0.0), msg=key)
+
+        output.sum().backward()
+        for block_idx in moe_block_indices:
+            router_grad = checkpointed.encoder.block[block_idx].mlp.router.gate.weight.grad
+            self.assertIsNotNone(router_grad)
+            self.assertTrue(torch.isfinite(router_grad).all().item())
 
     def test_vit_moe_encoder_token_mask(self) -> None:
         encoder = ViTMoEEncoder(
@@ -2059,17 +2177,18 @@ class TestSpecialFunctions(unittest.TestCase):
         self.assertFalse(torch.allclose(output[token_mask], inputs[token_mask]))
 
         encoder.train()
-        encoder.set_moe_loss_output()
         checkpointed = copy.deepcopy(encoder)
         checkpointed.set_grad_checkpointing(segments=2)
-        expected_output, expected_aux_losses = encoder(inputs, token_mask=token_mask)
-        output, aux_losses = checkpointed(inputs, token_mask=token_mask)
+        expected_output, expected_moe_training_output = encoder(
+            inputs, token_mask=token_mask, return_moe_training_output=True
+        )
+        output, moe_training_output = checkpointed(inputs, token_mask=token_mask, return_moe_training_output=True)
 
         torch.testing.assert_close(output, expected_output)
-        for key, expected in expected_aux_losses.items():
-            torch.testing.assert_close(aux_losses[key], expected)
+        for key, expected in expected_moe_training_output.items():
+            torch.testing.assert_close(moe_training_output[key], expected)
 
-        (output.sum() + aux_losses["auxiliary_loss"]).backward()
+        (output.sum() + moe_training_output["auxiliary_loss"]).backward()
         router_grad = checkpointed.block[1].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())
@@ -2231,7 +2350,8 @@ class TestSpecialFunctions(unittest.TestCase):
             ("vit_s32"),
             ("vit_b16_qkn_ls"),
             ("vit_b16_nf_swiglu"),
-            ("vit_vmoe_vs32_8e_2k_last2"),
+            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_vmoe_vs32_8e_2k_last2s2"),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_sam_b16"),
         ]
@@ -2262,6 +2382,21 @@ class TestSpecialFunctions(unittest.TestCase):
         n.set_causal_attention(False)
 
         n = registry.net_factory("rope_vit_s16_soft_moe_32e_4s_avg", 10)
+
+        with self.assertRaises(ValueError):
+            n.set_causal_attention(True)
+
+        n.set_causal_attention(False)
+
+    def test_set_causal_attention_expert_choice_moe(self) -> None:
+        n = registry.net_factory("vit_moe_t16_4e1s_2c_last1_avg", 10)
+
+        with self.assertRaises(ValueError):
+            n.set_causal_attention(True)
+
+        n.set_causal_attention(False)
+
+        n = registry.net_factory("rope_vit_moe_t16_4e1s_2c_last1_avg", 10)
 
         with self.assertRaises(ValueError):
             n.set_causal_attention(True)

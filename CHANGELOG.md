@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.8.0 - 2026-09-06
+
+### Added
+
+- **MixUp/CutMix Batch Probability**: Added `--mixup-cutmix-prob` to control the probability that an enabled MixUp or CutMix augmentation is applied to each training batch.
+- **DeepSeek-v3-Style MoE**: Added configurable ViT and RoPE ViT MoE layers with routed and shared SwiGLU experts, normalized sigmoid top-k routing and auxiliary-loss-free load balancing through dynamically updated expert-routing biases.
+- **MoE Special-Token Experts**: Added configurable dedicated experts for CLS and register-token prefixes to DeepSeek-v3-style ViT and RoPE ViT MoE layers. Prefix tokens bypass routed experts, are processed by every configured special-token expert as well as the shared experts.
+- **Expert Choice Routing**: Added [Expert Choice routing](https://arxiv.org/abs/2202.09368) support.
+- **Sparse MoE CAPI**: Added opt-in MoE training support to CAPI pretraining with auxiliary routing losses, accumulated expert-load balancing and synchronized student-teacher expert-bias updates.
+- **Sparse MoE CAPI-DINO**: Added opt-in MoE training support to CAPI-DINO pretraining with auxiliary routing losses, accumulated expert-load balancing and synchronized student-teacher expert-bias updates.
+- **Sparse MoE BYOL**: Added opt-in MoE training support to BYOL pretraining with auxiliary routing losses, accumulated expert-load balancing and synchronized online-target expert-bias updates.
+- **Sparse MoE Data2Vec**: Added opt-in MoE training support to Data2Vec pretraining with auxiliary routing losses, accumulated expert-load balancing and synchronized student-teacher expert-bias updates.
+- **Sparse MoE Data2Vec2**: Added opt-in MoE training support to Data2Vec 2.0 pretraining with auxiliary routing losses, accumulated expert-load balancing and synchronized student-teacher expert-bias updates.
+- **Sparse MoE LeJEPA**: Added opt-in MoE training support to LeJEPA pretraining with multi-crop routing outputs, auxiliary losses and accumulated expert-load balancing.
+- **Sparse MoE RotNet**: Added opt-in MoE training support to rotation-prediction pretraining with auxiliary routing losses and accumulated expert-load balancing.
+- **Sparse MoE VICReg**: Added opt-in MoE training support to VICReg pretraining with combined two-view routing outputs, auxiliary losses and accumulated expert-load balancing.
+- **Sparse MoE Barlow Twins**: Added opt-in MoE training support to Barlow Twins pretraining with combined two-view routing outputs, auxiliary losses and accumulated expert-load balancing.
+- **Sparse MoE SimCLR**: Added opt-in MoE training support to SimCLR pretraining with concatenated two-view routing outputs, auxiliary losses and accumulated expert-load balancing.
+- **Sparse MoE MMCR**: Added opt-in MoE training support to MMCR pretraining with multi-view routing outputs, auxiliary losses, accumulated expert-load balancing and synchronized online-momentum expert-bias updates.
+- **Sparse MoE AIM v1**: Added MoE training-output propagation to AIM v1, enabling auxiliary routing losses and accumulated expert-load balancing through generic MIM training.
+- **NaFlex MMCR**: Added native-aspect-ratio and variable-patch-size MMCR pretraining with independently padded views for directory and WebDataset inputs.
+- **NaFlex VICReg**: Added variable-resolution and variable-patch-size VICReg pretraining for directory and WebDataset inputs.
+- **MobileOne and MobileViT Masked Token Retention**: Added masked token retention support to MobileOne, MobileViT v1 and MobileViT v2 encoders.
+- **Pretrained Models**:
+    - `naflex_vit_b16_nepa-generic`: Added NaFlex ViT B/16 image encoder pretrained using NEPA on multiple public datasets.
+
+### Changed
+
+- **Compatibility**: Tested with PyTorch 2.14.
+- **MoE Layer Organization (Breaking)**: Consolidated MoE specifications, routers and feed-forward layers in `birder.layers.moe`.
+- **MoE Model and Training Interface (Breaking)**: Reworked MoE capability discovery and training-output handling around explicit, stateless APIs, removed the legacy mutable output controls and replaced `--moe-aux-loss` with `--moe-training`.
+
+### Fixed
+
+- **MobileViT v2 Padded Outputs**: Restored block outputs to their original spatial dimensions after internal patch-grid alignment for non-divisible feature maps.
+
 ## 0.7.3 - 2026-08-27
 
 ### Added
@@ -325,7 +361,7 @@
 
 - **CLIP Training Augmentation**: Added a `clip` classification augmentation preset with configurable color-jitter and grayscale probabilities.
 - **Pretrained Models**:
-    - `rope_vit5_reg4_b16_nepa-bio`: Added NEPA RoPE ViT-5 reg4 B/16 image encoder pretrained weights.
+    - `rope_vit5_reg4_b16_nepa-bio`: Added NEPA RoPE ViT-5 Reg4 B/16 image encoder pretrained weights.
 
 ### Changed
 

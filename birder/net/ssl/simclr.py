@@ -14,6 +14,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from birder.common import training_utils
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import BaseNet
 from birder.net.ssl.base import SSLBaseNet
 
@@ -86,10 +87,21 @@ class SimCLR(SSLBaseNet):
 
         return loss
 
-    def forward(self, x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+    def forward(  # type: ignore[override]
+        self, x1: torch.Tensor, x2: torch.Tensor, *, return_moe_training_output: bool = False
+    ) -> torch.Tensor | tuple[torch.Tensor, MoETrainingOutputType]:
         # pylint: disable=arguments-differ
 
-        h = self.backbone.embedding(torch.concat([x1, x2], dim=0))
+        moe_training_output: Optional[MoETrainingOutputType] = None
+        inputs = torch.concat([x1, x2], dim=0)
+        if return_moe_training_output is True:
+            backbone_features, moe_training_output = self.backbone.forward_features(
+                inputs, return_moe_training_output=True  # type: ignore[call-arg]
+            )
+        else:
+            backbone_features = self.backbone.forward_features(inputs)
+
+        h = self.backbone.embedding_from_features(backbone_features)
         h1, h2 = h.chunk(2)
 
         z1 = self.projection_head(h1)
@@ -100,5 +112,8 @@ class SimCLR(SSLBaseNet):
         features = torch.concat([z1, z2], dim=0)
 
         loss = self._contrastive_loss(features)
+
+        if moe_training_output is not None:
+            return (loss, moe_training_output)
 
         return loss

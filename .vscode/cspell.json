@@ -101,6 +101,7 @@
     "docstrings",
     "downsample",
     "downsamples",
+    "dropless",
     "dtype",
     "dtypes",
     "dwconv",

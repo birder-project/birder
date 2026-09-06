@@ -90,7 +90,6 @@ class RoPEAttention(nn.Module):
         super().__init__()
         assert dim % num_heads == 0, "dim should be divisible by num_heads"
 
-        self.is_causal = False
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
         self.scale = self.head_dim**-0.5
@@ -131,7 +130,11 @@ class RoPEAttention(nn.Module):
         return torch.concat(segments, dim=2)
 
     def forward(
-        self, x: torch.Tensor, rope: RoPEPosEmbedType, attn_mask: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        rope: RoPEPosEmbedType,
+        is_causal: bool = False,
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         B, N, C = x.size()
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
@@ -149,7 +152,7 @@ class RoPEAttention(nn.Module):
             v,
             attn_mask=attn_mask,
             dropout_p=self.attn_drop.p if self.training else 0.0,
-            is_causal=self.is_causal,
+            is_causal=is_causal,
             scale=self.scale,
         )
 
@@ -190,7 +193,7 @@ class EncoderBlock(nn.Module):
         self.norm1 = norm_layer(hidden_dim, eps=norm_layer_eps)
         self.attn = RoPEAttention(
             hidden_dim,
-            num_heads,
+            num_heads=num_heads,
             attn_drop=attention_dropout,
             proj_drop=projection_dropout,
             num_special_tokens=num_special_tokens,
@@ -201,6 +204,8 @@ class EncoderBlock(nn.Module):
             norm_layer_eps=norm_layer_eps,
             rope_rot_type=rope_rot_type,
         )
+
+        self.drop_path = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
             self.layer_scale_1 = LayerScale(hidden_dim, layer_scale_init_value)
         else:
@@ -209,22 +214,24 @@ class EncoderBlock(nn.Module):
         # MLP block
         self.norm2 = norm_layer(hidden_dim, eps=norm_layer_eps)
         self.mlp = mlp_layer(hidden_dim, mlp_dim, act_layer=activation_layer, dropout=dropout)
-        self.drop_path = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
             self.layer_scale_2 = LayerScale(hidden_dim, layer_scale_init_value)
         else:
             self.layer_scale_2 = nn.Identity()
 
     def forward(
-        self, x: torch.Tensor, rope: RoPEPosEmbedType, attn_mask: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        rope: RoPEPosEmbedType,
+        attn_mask: Optional[torch.Tensor] = None,
+        is_causal: bool = False,
     ) -> torch.Tensor:
-        x = x + self.drop_path(self.layer_scale_1(self.attn(self.norm1(x), rope, attn_mask=attn_mask)))
+        x = x + self.drop_path(
+            self.layer_scale_1(self.attn(self.norm1(x), rope, is_causal=is_causal, attn_mask=attn_mask))
+        )
         x = x + self.drop_path(self.layer_scale_2(self.mlp(self.norm2(x))))
 
         return x
-
-    def set_causal_attention(self, is_causal: bool = True) -> None:
-        self.attn.is_causal = is_causal
 
 
 class Encoder(nn.Module):
@@ -251,6 +258,7 @@ class Encoder(nn.Module):
         rope_rot_type: RoPERotationType = "standard",
     ) -> None:
         super().__init__()
+        self.is_causal = False
         self.grad_checkpointing = False
         self.grad_checkpointing_segments: Optional[int] = None
         self.grad_checkpointing_preserve_rng_state = True
@@ -290,15 +298,50 @@ class Encoder(nn.Module):
 
         self.block = SequentialWithRope(*layers)
 
+    def _prepare_attention_mask(
+        self, x: torch.Tensor, attn_mask: Optional[torch.Tensor]
+    ) -> tuple[Optional[torch.Tensor], bool]:
+        if attn_mask is None:
+            return (None, self.is_causal)
+
+        if attn_mask.dtype == torch.bool:
+            if self.is_causal is True:
+                seq_len = x.size(1)
+                causal_mask = torch.ones((seq_len, seq_len), dtype=torch.bool, device=attn_mask.device).triu_(
+                    diagonal=1
+                )
+                mask_shape = torch.broadcast_shapes(attn_mask.shape, causal_mask.shape)
+                additive_mask = torch.zeros(mask_shape, dtype=x.dtype, device=attn_mask.device)
+                additive_mask.masked_fill_(causal_mask, float("-inf"))
+                additive_mask.masked_fill_(~attn_mask, float("-inf"))
+            else:
+                additive_mask = torch.full_like(attn_mask, float("-inf"), dtype=x.dtype)
+                additive_mask.masked_fill_(attn_mask, 0.0)
+
+            attn_mask = additive_mask
+        elif self.is_causal is True:
+            seq_len = x.size(1)
+            causal_bias = torch.full(
+                (seq_len, seq_len), float("-inf"), dtype=attn_mask.dtype, device=attn_mask.device
+            ).triu_(diagonal=1)
+            attn_mask = attn_mask + causal_bias
+
+        return (attn_mask, False)
+
     def _checkpoint_blocks(
-        self, x: torch.Tensor, rope: RoPEPosEmbedType, attn_mask: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        rope: RoPEPosEmbedType,
+        attn_mask: Optional[torch.Tensor] = None,
+        is_causal: bool = False,
     ) -> torch.Tensor:
         if self.grad_checkpointing_segments is None:
             segments = len(self.block)
         else:
             segments = min(self.grad_checkpointing_segments, len(self.block))
 
-        blocks = tuple(partial(block, rope=rope, attn_mask=attn_mask) for block in self.block)
+        blocks = tuple(partial(block, rope=rope, attn_mask=attn_mask, is_causal=is_causal) for block in self.block)
+
         return checkpoint_sequential(
             blocks,
             segments,
@@ -311,14 +354,15 @@ class Encoder(nn.Module):
         self, x: torch.Tensor, rope: RoPEPosEmbedType, attn_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         x = self.pre_block(x)
+        attn_mask, is_causal = self._prepare_attention_mask(x, attn_mask)
         if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
-            return self._checkpoint_blocks(x, rope, attn_mask=attn_mask)
+            return self._checkpoint_blocks(x, rope, attn_mask=attn_mask, is_causal=is_causal)
 
-        if attn_mask is None:
+        if attn_mask is None and is_causal is False:
             return self.block(x, rope)
 
         for blk in self.block:
-            x = blk(x, rope, attn_mask=attn_mask)
+            x = blk(x, rope, attn_mask=attn_mask, is_causal=is_causal)
 
         return x
 
@@ -330,11 +374,12 @@ class Encoder(nn.Module):
         attn_mask: Optional[torch.Tensor] = None,
     ) -> list[torch.Tensor]:
         x = self.pre_block(x)
+        attn_mask, is_causal = self._prepare_attention_mask(x, attn_mask)
 
         out_indices_set = set(out_indices) if out_indices is not None else None
         xs = []
         for idx, blk in enumerate(self.block):
-            x = blk(x, rope, attn_mask=attn_mask)
+            x = blk(x, rope, attn_mask=attn_mask, is_causal=is_causal)
             if out_indices_set is None or idx in out_indices_set:
                 xs.append(x)
 
@@ -362,8 +407,7 @@ class Encoder(nn.Module):
         self.grad_checkpointing_use_reentrant = use_reentrant
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
-        for b in self.block:
-            b.set_causal_attention(is_causal)
+        self.is_causal = is_causal
 
 
 class MAEDecoderBlock(nn.Module):
@@ -458,6 +502,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
 
         image_size = self.size
         abs_pos_embed: bool = self.config.get("abs_pos_embed", True)
+        pos_embed_antialias: bool = self.config.get("pos_embed_antialias", False)  # Controls forward pass only
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
@@ -519,6 +564,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
         self.abs_pos_embed = abs_pos_embed
+        self.pos_embed_antialias = pos_embed_antialias
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.num_heads = num_heads
@@ -714,7 +760,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
             0,
-            antialias=False,
+            antialias=self.pos_embed_antialias,
         )
 
     def _get_rope_embed(self, H: int, W: int) -> RoPEPosEmbedType:

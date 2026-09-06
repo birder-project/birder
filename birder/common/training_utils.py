@@ -1281,6 +1281,36 @@ def is_dist_available_and_initialized() -> bool:
     return True
 
 
+class MoEExpertLoadAccumulator:
+    """
+    Accumulate MoE expert loads over micro-batches and apply one distributed bias update
+    """
+
+    def __init__(self) -> None:
+        self._expert_loads: Optional[torch.Tensor] = None
+
+    def add(self, expert_loads: torch.Tensor) -> None:
+        if expert_loads.numel() == 0:
+            return
+
+        expert_loads = expert_loads.detach()
+        if self._expert_loads is None:
+            self._expert_loads = expert_loads.clone()
+        else:
+            self._expert_loads.add_(expert_loads)
+
+    @torch.no_grad()  # type: ignore[untyped-decorator]
+    def flush(self, update_expert_biases: Callable[[torch.Tensor], None]) -> None:
+        if self._expert_loads is None:
+            return
+
+        if is_dist_available_and_initialized() is True:
+            dist.all_reduce(self._expert_loads, op=dist.ReduceOp.SUM)
+
+        update_expert_biases(self._expert_loads)
+        self._expert_loads = None
+
+
 def reduce_across_processes(value: torch.Tensor | float, device: torch.device, op: dist.ReduceOp) -> float:
     if is_dist_available_and_initialized() is False:
         return value

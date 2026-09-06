@@ -14,6 +14,7 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.ssl.base import SSLBaseNet
@@ -62,19 +63,34 @@ class NEPA(SSLBaseNet):
         self.backbone.set_causal_attention(True)
 
     def forward(
-        self, x: torch.Tensor, *, grid_sizes: Optional[torch.Tensor] = None, valid_mask: Optional[torch.Tensor] = None
-    ) -> dict[str, torch.Tensor]:
+        self,
+        x: torch.Tensor,
+        *,
+        grid_sizes: Optional[torch.Tensor] = None,
+        valid_mask: Optional[torch.Tensor] = None,
+        return_moe_training_output: bool = False,
+    ) -> dict[str, Any]:
+        moe_training_output: Optional[MoETrainingOutputType] = None
         if grid_sizes is None:
-            features = self.backbone.forward_features(x, return_input_embedding=True)  # type: ignore[call-arg]
+            if return_moe_training_output is True:
+                features, moe_training_output = self.backbone.forward_features(  # type: ignore[call-arg]
+                    x, return_input_embedding=True, return_moe_training_output=True
+                )
+            else:
+                features = self.backbone.forward_features(x, return_input_embedding=True)  # type: ignore[call-arg]
         else:
-            features = self.backbone.forward_features(  # type: ignore[call-arg]
-                x, return_input_embedding=True, grid_sizes=grid_sizes, valid_mask=valid_mask
-            )
-
-        moe_auxiliary_loss: Optional[torch.Tensor] = None
-        if isinstance(features, tuple):
-            features, aux_losses = features
-            moe_auxiliary_loss = aux_losses["auxiliary_loss"]
+            if return_moe_training_output is True:
+                features, moe_training_output = self.backbone.forward_features(  # type: ignore[call-arg]
+                    x,
+                    return_input_embedding=True,
+                    grid_sizes=grid_sizes,
+                    valid_mask=valid_mask,
+                    return_moe_training_output=True,
+                )
+            else:
+                features = self.backbone.forward_features(  # type: ignore[call-arg]
+                    x, return_input_embedding=True, grid_sizes=grid_sizes, valid_mask=valid_mask
+                )
 
         prediction_valid_mask: Optional[torch.Tensor] = None
         if valid_mask is not None:
@@ -93,7 +109,7 @@ class NEPA(SSLBaseNet):
         loss = prediction_loss(pred, target, shift=self.shift, valid_mask=prediction_valid_mask)
 
         result = {"loss": loss}
-        if moe_auxiliary_loss is not None:
-            result["moe_auxiliary_loss"] = moe_auxiliary_loss
+        if moe_training_output is not None:
+            result["moe_training_output"] = moe_training_output
 
         return result

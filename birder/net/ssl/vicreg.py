@@ -17,8 +17,10 @@ import torch.nn.functional as F
 from torch import nn
 
 from birder.common import training_utils
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import BaseNet
 from birder.net.ssl.base import SSLBaseNet
+from birder.net.ssl.base import combine_moe_training_outputs
 
 
 def off_diagonal(x: torch.Tensor) -> torch.Tensor:
@@ -82,11 +84,58 @@ class VICReg(SSLBaseNet):
             nn.Linear(mlp_dim, mlp_dim, bias=False),
         )
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+    def _backbone_embedding(
+        self,
+        x: torch.Tensor,
+        grid_sizes: Optional[torch.Tensor],
+        valid_mask: Optional[torch.Tensor],
+        return_moe_training_output: bool,
+    ) -> tuple[torch.Tensor, Optional[MoETrainingOutputType]]:
+        moe_training_output: Optional[MoETrainingOutputType] = None
+        if grid_sizes is None:
+            if return_moe_training_output is True:
+                features, moe_training_output = self.backbone.forward_features(
+                    x, return_moe_training_output=True  # type: ignore[call-arg]
+                )
+            else:
+                features = self.backbone.forward_features(x)
+        else:
+            if return_moe_training_output is True:
+                features, moe_training_output = self.backbone.forward_features(  # type: ignore[call-arg]
+                    x, grid_sizes=grid_sizes, valid_mask=valid_mask, return_moe_training_output=True
+                )
+            else:
+                features = self.backbone.forward_features(  # type: ignore[call-arg]
+                    x, grid_sizes=grid_sizes, valid_mask=valid_mask
+                )
+
+        if grid_sizes is None:
+            embedding = self.backbone.embedding_from_features(features)
+        else:
+            embedding = self.backbone.embedding_from_features(features, valid_mask)  # type: ignore[call-arg]
+
+        return (embedding, moe_training_output)
+
+    def forward(  # type: ignore[override]
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        *,
+        grid_sizes1: Optional[torch.Tensor] = None,
+        valid_mask1: Optional[torch.Tensor] = None,
+        grid_sizes2: Optional[torch.Tensor] = None,
+        valid_mask2: Optional[torch.Tensor] = None,
+        return_moe_training_output: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, MoETrainingOutputType]:
         # pylint: disable=arguments-differ
 
-        x = self.projector(self.backbone.embedding(x))
-        y = self.projector(self.backbone.embedding(y))
+        x, moe_training_output = self._backbone_embedding(x, grid_sizes1, valid_mask1, return_moe_training_output)
+        y, y_moe_training_output = self._backbone_embedding(y, grid_sizes2, valid_mask2, return_moe_training_output)
+        if y_moe_training_output is not None:
+            moe_training_output = combine_moe_training_outputs(moe_training_output, y_moe_training_output)
+
+        x = self.projector(x)
+        y = self.projector(y)
 
         repr_loss = F.mse_loss(x, y)
 
@@ -108,5 +157,8 @@ class VICReg(SSLBaseNet):
         )
 
         loss = self.sim_coeff * repr_loss + self.std_coeff * std_loss + self.cov_coeff * cov_loss
+
+        if moe_training_output is not None:
+            return (loss, moe_training_output)
 
         return loss

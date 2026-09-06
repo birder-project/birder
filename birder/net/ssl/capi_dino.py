@@ -9,6 +9,7 @@ from typing import Optional
 
 import torch
 
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.ssl.capi import CAPIStudent
@@ -59,9 +60,20 @@ class CAPI_DINOStudent(CAPIStudent):
         )
 
     def forward(  # type: ignore[override]
-        self, x: torch.Tensor, ids_keep: torch.Tensor, ids_predict: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        out = self.backbone.masked_encoding_omission(x, ids_keep, return_keys="all")
+        self,
+        x: torch.Tensor,
+        ids_keep: torch.Tensor,
+        ids_predict: torch.Tensor,
+        *,
+        return_moe_training_output: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor] | tuple[torch.Tensor, torch.Tensor, MoETrainingOutputType]:
+        if return_moe_training_output is True:
+            out = self.backbone.masked_encoding_omission(
+                x, ids_keep, return_keys="all", return_moe_training_output=True
+            )
+        else:
+            out = self.backbone.masked_encoding_omission(x, ids_keep, return_keys="all")
+
         tokens = out["tokens"]
         embedding = out["embedding"]
 
@@ -69,6 +81,9 @@ class CAPI_DINOStudent(CAPIStudent):
         patch_logits = self.head(patch_logits.flatten(0, 1))
 
         global_logits = self.dino_head(embedding)
+
+        if "moe_training_output" in out:
+            return (patch_logits, global_logits, out["moe_training_output"])
 
         return (patch_logits, global_logits)
 

@@ -13,6 +13,7 @@ https://arxiv.org/abs/2206.02680
 import math
 from collections import OrderedDict
 from typing import Any
+from typing import Literal
 from typing import Optional
 
 import torch
@@ -21,8 +22,12 @@ from torch import nn
 from torchvision.ops import Conv2dNormActivation
 from torchvision.ops import StochasticDepth
 
+from birder.common.masking import mask_tensor
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import PreTrainEncoder
+from birder.net.base import TokenRetentionResultType
 from birder.net.mobilenet_v2 import InvertedResidual
 
 
@@ -162,7 +167,7 @@ class MobileVitBlock(nn.Module):
         self.patch_area = self.patch_size[0] * self.patch_size[1]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        B, C, H, W = x.shape
+        B, C, H, W = x.size()
         patch_h, patch_w = self.patch_size
         new_h = math.ceil(H / patch_h) * patch_h
         new_w = math.ceil(W / patch_w) * patch_w
@@ -176,7 +181,7 @@ class MobileVitBlock(nn.Module):
         x = self.conv_1x1(x)
 
         # Unfold (feature map -> patches), [B, C, H, W] -> [B, C, P, N]
-        C = x.shape[1]
+        C = x.size(1)
         x = x.reshape(B, C, num_patch_h, patch_h, num_patch_w, patch_w).permute(0, 1, 3, 5, 2, 4)
         x = x.reshape(B, C, -1, num_patches)
 
@@ -189,11 +194,13 @@ class MobileVitBlock(nn.Module):
         x = x.reshape(B, C, num_patch_h * patch_h, num_patch_w * patch_w)
 
         x = self.conv_proj(x)
+        if new_h != H or new_w != W:
+            x = F.interpolate(x, size=(H, W), mode="bilinear", align_corners=True)
 
         return x
 
 
-class MobileViT_v2(DetectorBackbone):
+class MobileViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
     default_size = (256, 256)
     block_group_regex = r"body\.stage(\d+)\.(\d+)"
 
@@ -326,6 +333,25 @@ class MobileViT_v2(DetectorBackbone):
 
             for param in module.parameters():
                 param.requires_grad_(False)
+
+    def masked_encoding_retention(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        mask_token: Optional[torch.Tensor] = None,
+        return_keys: Literal["all", "features", "embedding"] = "features",
+    ) -> TokenRetentionResultType:
+        x = self.stem(x)
+        x = mask_tensor(x, mask, patch_factor=self.max_stride // self.stem_stride, mask_token=mask_token)
+        x = self.body(x)
+
+        result: TokenRetentionResultType = {}
+        if return_keys in ("all", "features"):
+            result["features"] = x
+        if return_keys in ("all", "embedding"):
+            result["embedding"] = self.features(x)
+
+        return result
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)

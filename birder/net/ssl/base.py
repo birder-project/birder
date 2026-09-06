@@ -7,6 +7,7 @@ from typing import TypedDict
 import torch
 from torch import nn
 
+from birder.layers.moe import MoETrainingOutputType
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import BaseNet
@@ -26,6 +27,22 @@ def get_ssl_signature(input_shape: tuple[int, ...]) -> SSLSignatureType:
         "inputs": [{"data_shape": [0, *input_shape[1:]]}],
         "outputs": [{"data_shape": [0]}],
     }
+
+
+def combine_moe_training_outputs(
+    output: Optional[MoETrainingOutputType],
+    additional_output: MoETrainingOutputType,
+    *,
+    additional_loss_weight: float = 1.0,
+) -> MoETrainingOutputType:
+    weighted_output = {
+        key: value if key == "expert_loads" else additional_loss_weight * value
+        for key, value in additional_output.items()
+    }
+    if output is None:
+        return weighted_output
+
+    return {key: output[key] + value for key, value in weighted_output.items()}
 
 
 class SSLBaseNet(nn.Module):

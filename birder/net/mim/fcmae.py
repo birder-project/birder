@@ -158,17 +158,23 @@ class FCMAE(MIMBaseNet):
 
         return loss
 
-    def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+    def forward(self, x: torch.Tensor, *, return_moe_training_output: bool = False) -> dict[str, Any]:
         h = self.size[0] // self.encoder.max_stride
         w = self.size[1] // self.encoder.max_stride
         mask = uniform_mask(x.size(0), h, w, self.mask_ratio, min_mask_size=self.min_mask_size, device=x.device)[0]
 
-        latent = self.encoder.masked_encoding_retention(x, mask, return_keys="features")
+        if return_moe_training_output is True:
+            latent = self.encoder.masked_encoding_retention(
+                x, mask, return_keys="features", return_moe_training_output=True
+            )
+        else:
+            latent = self.encoder.masked_encoding_retention(x, mask, return_keys="features")
+
         pred = self.forward_decoder(latent["features"], mask)
         loss = self.forward_loss(x, pred, mask)
 
         result = {"loss": loss, "pred": pred, "mask": mask}
-        if "auxiliary_losses" in latent:
-            result["moe_auxiliary_loss"] = latent["auxiliary_losses"]["auxiliary_loss"]
+        if "moe_training_output" in latent:
+            result["moe_training_output"] = latent["moe_training_output"]
 
         return result

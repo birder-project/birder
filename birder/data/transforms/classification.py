@@ -41,7 +41,12 @@ def get_rgb_stats(
     }
 
 
-def get_mixup_cutmix(alpha: Optional[float], num_outputs: int, cutmix: bool) -> Callable[..., torch.Tensor]:
+def get_mixup_cutmix(
+    alpha: Optional[float], num_outputs: int, cutmix: bool, prob: Optional[float] = None
+) -> Callable[..., torch.Tensor]:
+    if prob is not None and (prob < 0.0 or prob > 1.0):
+        raise ValueError(f"Probability must be in range [0, 1], got {prob}")
+
     choices: list[Callable[..., torch.Tensor]] = []
     choices.append(v2.Identity())
     if alpha is not None:
@@ -50,7 +55,12 @@ def get_mixup_cutmix(alpha: Optional[float], num_outputs: int, cutmix: bool) -> 
     if cutmix is True:
         choices.append(v2.CutMix(alpha=1.0, num_classes=num_outputs))
 
-    return v2.RandomChoice(choices)  # type: ignore
+    if prob is None or len(choices) == 1:
+        return v2.RandomChoice(choices)  # type: ignore
+
+    augmentation_prob = prob / (len(choices) - 1)
+    probabilities = [1.0 - prob] + [augmentation_prob] * (len(choices) - 1)
+    return v2.RandomChoice(choices, p=probabilities)  # type: ignore
 
 
 # Using transforms v2 mixup, keeping this implementation only as a reference

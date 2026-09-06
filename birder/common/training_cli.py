@@ -438,6 +438,15 @@ def add_data_aug_args(
     if mixup_cutmix is True:
         group.add_argument("--mixup-alpha", type=float, help="mixup alpha")
         group.add_argument("--cutmix", default=False, action="store_true", help="enable cutmix")
+        group.add_argument(
+            "--mixup-cutmix-prob",
+            type=float,
+            metavar="P",
+            help=(
+                "probability of applying MixUp or CutMix to a batch "
+                "(default: equal probability among enabled augmentations and no augmentation)"
+            ),
+        )
 
     group.add_argument(
         "--rgb-mode",
@@ -1110,6 +1119,11 @@ def common_args_validation(args: argparse.Namespace) -> None:
     if hasattr(args, "clip_gray_prob") is True:
         if args.clip_gray_prob is not None and (args.clip_gray_prob < 0.0 or args.clip_gray_prob > 1.0):
             raise ValidationError(f"--clip-gray-prob must be in range of [0, 1], got {args.clip_gray_prob}")
+    if hasattr(args, "mixup_cutmix_prob") is True and args.mixup_cutmix_prob is not None:
+        if args.mixup_cutmix_prob < 0.0 or args.mixup_cutmix_prob > 1.0:
+            raise ValidationError(f"--mixup-cutmix-prob must be in range of [0, 1], got {args.mixup_cutmix_prob}")
+        if args.mixup_alpha is None and args.cutmix is False:
+            raise ValidationError("--mixup-cutmix-prob requires --mixup-alpha or --cutmix")
 
     # Training data args have a standard and a detection version
     if hasattr(args, "wds") is True:

@@ -46,6 +46,7 @@ from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import get_moe_spec
 from birder.net.base import get_signature
 
 logger = logging.getLogger(__name__)
@@ -414,6 +415,20 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         training_utils.write_training_args_json(training_log_path, args)
         training_utils.write_training_data_json(training_log_path, {"training_samples": len(training_dataset)})
 
+    moe_spec = None
+    moe_expert_load_accumulator: Optional[training_utils.MoEExpertLoadAccumulator] = None
+    if args.moe_training is True:
+        moe_model = training_utils.unwrap_compiled_module(net_without_ddp)
+        moe_spec = get_moe_spec(moe_model)
+        if moe_spec is None:
+            raise cli.ValidationError("--moe-training requires a model with MoE support")
+
+        if moe_spec.requires_expert_bias_update is True:
+            moe_expert_load_accumulator = training_utils.MoEExpertLoadAccumulator()
+            moe_expert_bias_updater = moe_model.update_moe_expert_biases
+
+    return_moe_training_output = moe_spec is not None and moe_spec.requires_training_output is True
+
     #
     # Training loop
     #
@@ -421,6 +436,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         train_iter = iter(training_loader)
 
     running_loss = training_utils.SmoothedValue(window_size=64)
+    running_moe_aux_loss: Optional[training_utils.SmoothedValue] = None
+    if moe_spec is not None and moe_spec.has_auxiliary_loss is True:
+        running_moe_aux_loss = training_utils.SmoothedValue(window_size=64)
+
     train_accuracy = training_utils.SmoothedValue(window_size=64)
 
     logger.info(f"Starting training with learning rate of {last_lr}")
@@ -430,6 +449,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         # Clear metrics
         running_loss.clear()
+        if running_moe_aux_loss is not None:
+            running_moe_aux_loss.clear()
+
         train_accuracy.clear()
 
         if args.distributed is True or virtual_epoch_mode is True:
@@ -470,8 +492,19 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             # Forward and backward
             with sync_context():
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
-                    outputs = net(inputs)
-                    raw_loss = criterion(outputs, targets)
+                    if return_moe_training_output is True:
+                        outputs, moe_training_output = net(inputs, return_moe_training_output=True)
+                    else:
+                        outputs = net(inputs)
+
+                    rotation_loss = criterion(outputs, targets)
+                    raw_loss = rotation_loss
+                    if return_moe_training_output is True:
+                        if moe_expert_load_accumulator is not None:
+                            moe_expert_load_accumulator.add(moe_training_output["expert_loads"])
+                        if moe_spec.has_auxiliary_loss is True:  # type: ignore[union-attr]
+                            moe_aux_loss = moe_training_output["auxiliary_loss"]
+                            raw_loss = rotation_loss + moe_aux_loss
 
                 loss = raw_loss / effective_accum_steps
                 if scaler is not None:
@@ -493,12 +526,18 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
                     optimizer.step()
 
+                if moe_expert_load_accumulator is not None:
+                    moe_expert_load_accumulator.flush(moe_expert_bias_updater)  # pylint: disable=used-before-assignment
+
                 optimizer.zero_grad()
                 if step_update is True:
                     scheduler.step()
 
             # Statistics
-            running_loss.update(raw_loss.detach())
+            running_loss.update(rotation_loss.detach())
+            if running_moe_aux_loss is not None:
+                running_moe_aux_loss.update(moe_aux_loss.detach())
+
             if targets.ndim == 2:
                 targets = targets.argmax(dim=1)
 
@@ -520,6 +559,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 cur_lr = float(max(scheduler.get_last_lr()))
 
                 running_loss.synchronize_between_processes(device)
+                if running_moe_aux_loss is not None:
+                    running_moe_aux_loss.synchronize_between_processes(device)
+
                 train_accuracy.synchronize_between_processes(device)
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
@@ -531,6 +573,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         f"R: {rate:.1f} samples/s  "
                         f"LR: {cur_lr:.4e}"
                     )
+                    if running_moe_aux_loss is not None:
+                        log.info(
+                            f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
+                            f"MoE auxiliary loss: {running_moe_aux_loss.avg:.4f}"
+                        )
+
                     log.info(
                         f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
                         f"Accuracy: {train_accuracy.avg:.4f}"
@@ -542,6 +590,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         {"training": running_loss.avg},
                         ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
+                    if running_moe_aux_loss is not None:
+                        summary_writer.add_scalars(
+                            "loss",
+                            {"moe_auxiliary": running_moe_aux_loss.avg},
+                            ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
+                        )
+
                     summary_writer.add_scalars(
                         "performance",
                         {"training_accuracy": train_accuracy.avg},
@@ -555,6 +610,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         # Epoch training metrics
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
+        if running_moe_aux_loss is not None:
+            logger.info(
+                f"[Trn] Epoch {epoch}/{epochs-1} training_moe_auxiliary_loss: {running_moe_aux_loss.global_avg:.4f}"
+            )
+
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_accuracy: {train_accuracy.global_avg:.4f}")
 
         # Learning rate scheduler update
@@ -645,6 +705,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=0.75,
         help="probability of applying a non-zero rotation (90, 180, or 270 degrees)",
     )
+    parser.add_argument(
+        "--moe-training",
+        default=False,
+        action="store_true",
+        help="enable MoE training behavior, including auxiliary balancing losses and expert-bias updates",
+    )
     training_cli.add_freeze_args(parser, model=True, unfreeze_features=True)
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
@@ -675,6 +741,12 @@ def validate_args(args: argparse.Namespace) -> None:
     # Script specific checks
     if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
+    if args.moe_training is True:
+        if args.batch_size % 8 != 0:
+            raise cli.ValidationError("--moe-training requires local --batch-size to be divisible by 8")
+        if args.drop_last is False:
+            raise cli.ValidationError("--moe-training requires --drop-last")
+
     if 0.0 >= args.rotation_prob and args.rotation_prob >= 1.0:
         raise cli.ValidationError("--rotation-prob must be between 0.0 and 1.0")
     if args.freeze_stages is not None and registry.exists(args.network, net_type=DetectorBackbone) is False:

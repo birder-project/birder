@@ -740,13 +740,14 @@ def train(args: argparse.Namespace) -> None:
         model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
         model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
         if (args.load_states is True or args.load_ema is True) and training_states.ema_model_state is not None:
-            logger.info("Setting model EMA weights...")
+            logger.info("Setting model EMA state...")
             if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
                 model_ema.module._orig_mod.load_state_dict(training_states.ema_model_state)
             else:
                 model_ema.module.load_state_dict(training_states.ema_model_state)
 
-            model_ema.n_averaged += 1
+            assert training_states.extra_states is not None
+            model_ema.n_averaged.copy_(training_states.extra_states["ema_state"]["n_averaged"])
 
         if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
             _rebind_forward_functions(model_ema.module._orig_mod)
@@ -1076,6 +1077,10 @@ def train(args: argparse.Namespace) -> None:
 
         # Checkpoint model
         if epoch % args.save_frequency == 0:
+            extra_states = {}
+            if args.model_ema is True:
+                extra_states["ema_state"] = {"n_averaged": model_ema.n_averaged}
+
             training_utils.save_training_checkpoint(
                 args,
                 network_name,
@@ -1088,6 +1093,8 @@ def train(args: argparse.Namespace) -> None:
                 scheduler,
                 scaler,
                 model_base,
+                fsdp_mode=False,
+                **extra_states,
             )
             if args.keep_last is not None and training_utils.is_global_primary(args) is True:
                 fs_ops.clean_checkpoints(network_name, args.keep_last)
@@ -1108,6 +1115,10 @@ def train(args: argparse.Namespace) -> None:
 
         if args.lr_steps is not None:
             args.lr_steps = json.dumps(args.lr_steps)
+        if args.freeze_modules is not None:
+            args.freeze_modules = json.dumps(args.freeze_modules)
+        if args.freeze_backbone_modules is not None:
+            args.freeze_backbone_modules = json.dumps(args.freeze_backbone_modules)
         if args.model_config is not None:
             args.model_config = json.dumps(args.model_config)
         if args.backbone_model_config is not None:
@@ -1125,6 +1136,10 @@ def train(args: argparse.Namespace) -> None:
     summary_writer.close()
 
     # Checkpoint model
+    extra_states = {}
+    if args.model_ema is True:
+        extra_states["ema_state"] = {"n_averaged": model_ema.n_averaged}
+
     training_utils.save_training_checkpoint(
         args,
         network_name,
@@ -1137,6 +1152,8 @@ def train(args: argparse.Namespace) -> None:
         scheduler,
         scaler,
         model_base,
+        fsdp_mode=False,
+        **extra_states,
     )
 
     training_utils.shutdown_distributed_mode(args)

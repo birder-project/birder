@@ -24,6 +24,7 @@ from torch import nn
 
 from birder.common.masking import get_ids_keep
 from birder.layers import LayerNorm2d
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
@@ -128,8 +129,8 @@ class Data2Vec2(SSLBaseNet):
         self.ema_backbone.load_state_dict(self.backbone.state_dict())
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
-        self, src: torch.Tensor, masks: torch.Tensor
-    ) -> torch.Tensor:
+        self, src: torch.Tensor, masks: torch.Tensor, *, return_moe_training_output: bool = False
+    ) -> torch.Tensor | tuple[torch.Tensor, MoETrainingOutputType]:
         # Target Representations
         with torch.no_grad():
             y = self.ema_backbone.masked_encoding_omission(src, return_all_features=True, return_keys="all")
@@ -152,9 +153,15 @@ class Data2Vec2(SSLBaseNet):
             src = src.repeat_interleave(self.clone_batch, 0)
 
         ids_keep = get_ids_keep(masks)
-        x = self.backbone.masked_encoding_omission(src, ids_keep=ids_keep, return_keys="all")
-        x_cls = x["embedding"]
-        x = self.backbone.flatten_features(x["tokens"], include_special_tokens=False)
+        if return_moe_training_output is True:
+            out = self.backbone.masked_encoding_omission(
+                src, ids_keep=ids_keep, return_keys="all", return_moe_training_output=True
+            )
+        else:
+            out = self.backbone.masked_encoding_omission(src, ids_keep=ids_keep, return_keys="all")
+
+        x_cls = out["embedding"]
+        x = self.backbone.flatten_features(out["tokens"], include_special_tokens=False)
 
         # Using noise instead of mask tokens
         full_sequence = (
@@ -174,4 +181,8 @@ class Data2Vec2(SSLBaseNet):
         cls_loss = F.mse_loss(x_cls, y_cls, reduction="none").sum(dim=-1).mean()
         cls_loss = cls_loss * (self.cls_loss_weight / math.sqrt(x_cls.size(-1)))
 
-        return patch_loss + cls_loss
+        loss = patch_loss + cls_loss
+        if "moe_training_output" in out:
+            return (loss, out["moe_training_output"])
+
+        return loss

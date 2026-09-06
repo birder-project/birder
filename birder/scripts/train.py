@@ -55,6 +55,7 @@ from birder.data.transforms.naflex import inference_preset as naflex_inference_p
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
+from birder.net.base import get_moe_spec
 from birder.net.base import get_signature
 
 logger = logging.getLogger(__name__)
@@ -228,7 +229,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         else:
             logger.debug("NaFlex Mixup collate activated")
             naflex_collator = NaFlexMixupTrainingCollator(
-                patch_size=None, num_classes=num_outputs, alpha=args.mixup_alpha
+                patch_size=None, num_classes=num_outputs, alpha=args.mixup_alpha, p=args.mixup_cutmix_prob
             )
 
         naflex_batch_processor = NaFlexBatchProcessor(
@@ -257,14 +258,17 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             if args.mixup_alpha is not None:
                 logger.debug("NaFlex Mixup collate activated")
                 collate_fn = NaFlexMixupTrainingCollator(
-                    patch_size=spec.patch_size, num_classes=num_outputs, alpha=args.mixup_alpha
+                    patch_size=spec.patch_size,
+                    num_classes=num_outputs,
+                    alpha=args.mixup_alpha,
+                    p=args.mixup_cutmix_prob,
                 )
             else:
                 collate_fn = NaFlexTrainingCollator(spec.patch_size)
 
     elif args.mixup_alpha is not None or args.cutmix is True:
         logger.debug("Mixup / cutmix collate activated")
-        t = get_mixup_cutmix(args.mixup_alpha, num_outputs, args.cutmix)
+        t = get_mixup_cutmix(args.mixup_alpha, num_outputs, args.cutmix, prob=args.mixup_cutmix_prob)
 
         def mixup_cutmix_collate_fn(batch: Any) -> Any:
             return t(*default_collate(batch))
@@ -556,13 +560,14 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         model_base = net_without_ddp  # Original model without DDP wrapper, will be saved as training state
         model_ema = training_utils.ema_model(args, net_without_ddp, device=device)
         if (args.load_states is True or args.load_ema is True) and training_states.ema_model_state is not None:
-            logger.info("Setting model EMA weights...")
+            logger.info("Setting model EMA state...")
             if args.compile is True and hasattr(model_ema.module, "_orig_mod") is True:
                 model_ema.module._orig_mod.load_state_dict(training_states.ema_model_state)
             else:
                 model_ema.module.load_state_dict(training_states.ema_model_state)
 
-            model_ema.n_averaged += 1
+            assert training_states.extra_states is not None
+            model_ema.n_averaged.copy_(training_states.extra_states["ema_state"]["n_averaged"])
 
         model_to_save = model_ema.module  # Save EMA model weights as default weights
         eval_model = model_ema  # Use EMA for evaluation
@@ -624,11 +629,19 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             },
         )
 
-    if args.moe_aux_loss is True:
-        if args.compile is True and hasattr(net_without_ddp, "_orig_mod") is True:
-            net_without_ddp._orig_mod.set_moe_loss_output(True)
-        else:
-            net_without_ddp.set_moe_loss_output(True)
+    moe_spec = None
+    moe_expert_load_accumulator: Optional[training_utils.MoEExpertLoadAccumulator] = None
+    if args.moe_training is True:
+        moe_model = training_utils.unwrap_compiled_module(net_without_ddp)
+        moe_spec = get_moe_spec(moe_model)
+        if moe_spec is None:
+            raise cli.ValidationError("--moe-training requires a model with MoE support")
+
+        if moe_spec.requires_expert_bias_update is True:
+            moe_expert_load_accumulator = training_utils.MoEExpertLoadAccumulator()
+            moe_expert_bias_updater = moe_model.update_moe_expert_biases
+
+    return_moe_training_output = moe_spec is not None and moe_spec.requires_training_output is True
 
     #
     # Training loop
@@ -644,7 +657,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     top_k = args.top_k
     running_loss = training_utils.SmoothedValue(window_size=64)
     running_moe_aux_loss: Optional[training_utils.SmoothedValue] = None
-    if args.moe_aux_loss is True:
+    if moe_spec is not None and moe_spec.has_auxiliary_loss is True:
         running_moe_aux_loss = training_utils.SmoothedValue(window_size=64)
 
     running_val_loss = training_utils.SmoothedValue()
@@ -733,14 +746,17 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             # Forward and backward
             with sync_context():
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
-                    if args.moe_aux_loss is True:
-                        outputs, aux_losses = net(inputs, **batch_kwargs)
-                        moe_aux_loss = aux_losses["auxiliary_loss"]
+                    if return_moe_training_output is True:
+                        outputs, moe_training_output = net(inputs, return_moe_training_output=True, **batch_kwargs)
                         classification_loss = criterion(outputs, loss_targets)
-                        raw_loss = classification_loss + moe_aux_loss
+                        raw_loss = classification_loss
+                        if moe_expert_load_accumulator is not None:
+                            moe_expert_load_accumulator.add(moe_training_output["expert_loads"])
+                        if moe_spec.has_auxiliary_loss is True:  # type: ignore[union-attr]
+                            moe_aux_loss = moe_training_output["auxiliary_loss"]
+                            raw_loss = classification_loss + moe_aux_loss
                     else:
                         outputs = net(inputs, **batch_kwargs)
-                        moe_aux_loss = None
                         classification_loss = criterion(outputs, loss_targets)
                         raw_loss = classification_loss
 
@@ -764,6 +780,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
+
+                if moe_expert_load_accumulator is not None:
+                    moe_expert_load_accumulator.flush(moe_expert_bias_updater)  # pylint: disable=used-before-assignment
 
                 optimizer.zero_grad()
                 if step_update is True:
@@ -977,6 +996,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         # Checkpoint model
         if epoch % args.save_frequency == 0:
+            extra_states = {}
+            if args.model_ema is True:
+                extra_states["ema_state"] = {"n_averaged": model_ema.n_averaged}
+
             training_utils.save_training_checkpoint(
                 args,
                 network_name,
@@ -989,6 +1012,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 scheduler,
                 scaler,
                 model_base,
+                fsdp_mode=False,
+                **extra_states,
             )
             if args.keep_last is not None and training_utils.is_global_primary(args) is True:
                 fs_ops.clean_checkpoints(network_name, args.keep_last)
@@ -1009,6 +1034,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         if args.lr_steps is not None:
             args.lr_steps = json.dumps(args.lr_steps)
+        if args.freeze_modules is not None:
+            args.freeze_modules = json.dumps(args.freeze_modules)
         if args.model_config is not None:
             args.model_config = json.dumps(args.model_config)
         if args.size is not None:
@@ -1030,6 +1057,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     summary_writer.close()
 
     # Checkpoint model
+    extra_states = {}
+    if args.model_ema is True:
+        extra_states["ema_state"] = {"n_averaged": model_ema.n_averaged}
+
     training_utils.save_training_checkpoint(
         args,
         network_name,
@@ -1042,6 +1073,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         scheduler,
         scaler,
         model_base,
+        fsdp_mode=False,
+        **extra_states,
     )
 
     training_utils.shutdown_distributed_mode(args)
@@ -1114,7 +1147,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     group = parser.add_argument_group("Loss parameters")
     group.add_argument("--bce-loss", default=False, action="store_true", help="enable BCE loss")
     group.add_argument("--bce-threshold", type=float, default=0.0, help="threshold for binarizing soft BCE targets")
-    group.add_argument("--moe-aux-loss", default=False, action="store_true", help="enable MoE auxiliary loss")
+    group.add_argument(
+        "--moe-training",
+        default=False,
+        action="store_true",
+        help="enable MoE training behavior, including auxiliary balancing losses and expert-bias updates",
+    )
     training_cli.add_freeze_args(parser, model=True, unfreeze_features=True)
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
@@ -1152,11 +1190,11 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--smoothing-alpha must be in range of [0, 0.5), got {args.smoothing_alpha}")
     if args.bce_loss is True and args.smoothing_alpha != 0.0:
         raise cli.ValidationError("--bce-loss can only be used with --smoothing-alpha 0.0")
-    if args.moe_aux_loss is True:
+    if args.moe_training is True:
         if args.batch_size % 8 != 0:
-            raise cli.ValidationError("--moe-aux-loss requires local --batch-size to be divisible by 8")
+            raise cli.ValidationError("--moe-training requires local --batch-size to be divisible by 8")
         if args.drop_last is False:
-            raise cli.ValidationError("--moe-aux-loss requires --drop-last")
+            raise cli.ValidationError("--moe-training requires --drop-last")
 
     if args.freeze_stages is not None and registry.exists(args.network, net_type=DetectorBackbone) is False:
         raise cli.ValidationError(

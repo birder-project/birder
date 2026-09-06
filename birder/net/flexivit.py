@@ -128,7 +128,7 @@ class FlexiViT(ViT):
             (H // patch_size, W // patch_size),
             self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
             interpolation_mode=self.pos_embed_interpolation_mode,
-            antialias=False,
+            antialias=self.pos_embed_antialias,
         )
 
     # pylint: disable-next=arguments-renamed

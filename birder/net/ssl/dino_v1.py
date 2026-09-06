@@ -16,8 +16,10 @@ import torch.nn.functional as F
 from torch import nn
 
 from birder.common import training_utils
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import BaseNet
 from birder.net.ssl.base import SSLBaseNet
+from birder.net.ssl.base import combine_moe_training_outputs
 
 
 class DINOLoss(nn.Module):
@@ -169,7 +171,23 @@ class DINO_v1(SSLBaseNet):
             bottleneck_dim=bottleneck_dim,
         )
 
-    def forward(self, xs: list[torch.Tensor]) -> torch.Tensor:  # pylint: disable=arguments-renamed
+    def _backbone_embedding(
+        self, x: torch.Tensor, return_moe_training_output: bool
+    ) -> tuple[torch.Tensor, Optional[MoETrainingOutputType]]:
+        moe_training_output: Optional[MoETrainingOutputType] = None
+        if return_moe_training_output is True:
+            features, moe_training_output = self.backbone.forward_features(
+                x, return_moe_training_output=True  # type: ignore[call-arg]
+            )
+            embedding = self.backbone.embedding_from_features(features)
+        else:
+            embedding = self.backbone.embedding(x)
+
+        return (embedding, moe_training_output)
+
+    def forward(  # pylint: disable=arguments-renamed
+        self, xs: list[torch.Tensor], *, return_moe_training_output: bool = False
+    ) -> torch.Tensor | tuple[torch.Tensor, MoETrainingOutputType]:
         idx_crops = torch.cumsum(
             torch.unique_consecutive(
                 torch.tensor([x.size(-1) for x in xs]),
@@ -180,11 +198,24 @@ class DINO_v1(SSLBaseNet):
 
         start_idx = 0
         output = torch.empty(0).to(xs[0].device)
+        moe_training_output: Optional[MoETrainingOutputType] = None
         for end_idx in idx_crops:
-            out = self.backbone.embedding(torch.concat(xs[start_idx:end_idx], dim=0))
+            out, group_moe_training_output = self._backbone_embedding(
+                torch.concat(xs[start_idx:end_idx], dim=0), return_moe_training_output
+            )
+            if group_moe_training_output is not None:
+                moe_training_output = combine_moe_training_outputs(
+                    moe_training_output,
+                    group_moe_training_output,
+                    additional_loss_weight=1.0 if start_idx == 0 else 0.1,
+                )
 
             # Accumulate outputs
             output = torch.concat((output, out), dim=0)
             start_idx = end_idx
 
-        return self.head(output)
+        output = self.head(output)
+        if moe_training_output is not None:
+            return (output, moe_training_output)
+
+        return output

@@ -18,8 +18,10 @@ import torch.nn.functional as F
 from torch import nn
 
 from birder.common import training_utils
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import BaseNet
 from birder.net.ssl.base import SSLBaseNet
+from birder.net.ssl.base import combine_moe_training_outputs
 
 
 class MMCRMomentumLoss(nn.Module):
@@ -92,12 +94,44 @@ class MMCREncoder(nn.Module):
         layers.append(nn.Linear(sizes[-2], sizes[-1], bias=False))
         self.projector = nn.Sequential(*layers)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.backbone.embedding(x)
-        x = torch.flatten(x, start_dim=1)
-        x = self.projector(x)
+    def forward(
+        self,
+        x: torch.Tensor,
+        grid_sizes: Optional[torch.Tensor] = None,
+        valid_mask: Optional[torch.Tensor] = None,
+        *,
+        return_moe_training_output: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, MoETrainingOutputType]:
+        moe_training_output: Optional[MoETrainingOutputType] = None
+        if grid_sizes is None:
+            if return_moe_training_output is True:
+                features, moe_training_output = self.backbone.forward_features(
+                    x, return_moe_training_output=True  # type: ignore[call-arg]
+                )
+            else:
+                features = self.backbone.forward_features(x)
+        else:
+            if return_moe_training_output is True:
+                features, moe_training_output = self.backbone.forward_features(  # type: ignore[call-arg]
+                    x, grid_sizes=grid_sizes, valid_mask=valid_mask, return_moe_training_output=True
+                )
+            else:
+                features = self.backbone.forward_features(  # type: ignore[call-arg]
+                    x, grid_sizes=grid_sizes, valid_mask=valid_mask
+                )
 
-        return x
+        if grid_sizes is None:
+            embedding = self.backbone.embedding_from_features(features)
+        else:
+            embedding = self.backbone.embedding_from_features(features, valid_mask)  # type: ignore[call-arg]
+
+        embedding = torch.flatten(embedding, start_dim=1)
+        embedding = self.projector(embedding)
+
+        if moe_training_output is not None:
+            return (embedding, moe_training_output)
+
+        return embedding
 
 
 class MMCR(SSLBaseNet):
@@ -124,12 +158,54 @@ class MMCR(SSLBaseNet):
         # Weights initialization
         self.momentum_encoder.load_state_dict(self.encoder.state_dict())
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        C, H, W = x.shape[-3:]  # B, num_views, C, H, W
-        x = x.reshape(-1, C, H, W)
-        z = self.encoder(x)
+    def forward(
+        self,
+        x: torch.Tensor | list[torch.Tensor],
+        *,
+        grid_sizes: Optional[list[torch.Tensor]] = None,
+        valid_masks: Optional[list[torch.Tensor]] = None,
+        return_moe_training_output: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor] | tuple[torch.Tensor, torch.Tensor, MoETrainingOutputType]:
+        moe_training_output: Optional[MoETrainingOutputType] = None
+        if grid_sizes is None:
+            assert isinstance(x, torch.Tensor)
 
-        with torch.no_grad():
-            z_m = self.momentum_encoder(x)
+            C, H, W = x.shape[-3:]  # B, num_views, C, H, W
+            x = x.reshape(-1, C, H, W)
+            if return_moe_training_output is True:
+                z, moe_training_output = self.encoder(x, return_moe_training_output=True)
+            else:
+                z = self.encoder(x)
+
+            with torch.no_grad():
+                z_m = self.momentum_encoder(x)
+
+        else:
+            assert isinstance(x, list)
+
+            z_views: list[torch.Tensor] = []
+            z_m_views: list[torch.Tensor] = []
+            for view, view_grid_sizes, view_valid_mask in zip(
+                x, grid_sizes, valid_masks, strict=True  # type: ignore[arg-type]
+            ):
+                if return_moe_training_output is True:
+                    view_z, view_moe_training_output = self.encoder(
+                        view, grid_sizes=view_grid_sizes, valid_mask=view_valid_mask, return_moe_training_output=True
+                    )
+                    moe_training_output = combine_moe_training_outputs(moe_training_output, view_moe_training_output)
+                else:
+                    view_z = self.encoder(view, grid_sizes=view_grid_sizes, valid_mask=view_valid_mask)
+
+                with torch.no_grad():
+                    view_z_m = self.momentum_encoder(view, grid_sizes=view_grid_sizes, valid_mask=view_valid_mask)
+
+                z_views.append(view_z)
+                z_m_views.append(view_z_m)
+
+            z = torch.stack(z_views, dim=1).flatten(0, 1)
+            z_m = torch.stack(z_m_views, dim=1).flatten(0, 1)
+
+        if moe_training_output is not None:
+            return (z, z_m, moe_training_output)
 
         return (z, z_m)

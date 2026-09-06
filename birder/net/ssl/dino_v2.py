@@ -20,10 +20,12 @@ from torch import nn
 from torch.utils.checkpoint import checkpoint
 
 from birder.common import training_utils
+from birder.layers.moe import MoETrainingOutputType
 from birder.model_registry import registry
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.ssl.base import SSLBaseNet
+from birder.net.ssl.base import combine_moe_training_outputs
 
 
 class DINOHead(nn.Module):
@@ -500,26 +502,35 @@ class DINOv2Student(SSLBaseNet):
         mask: torch.Tensor,
         upper_bound: int,
         mask_indices_list: torch.Tensor,
-    ) -> dict[str, torch.Tensor]:
+        *,
+        return_moe_training_output: bool = False,
+    ) -> dict[str, Any]:
         n_masked_patches = mask_indices_list.size(0)
 
-        global_out = self.backbone.masked_encoding_retention(global_crops, mask, self.mask_token, return_keys="all")
+        if return_moe_training_output is True:
+            global_out = self.backbone.masked_encoding_retention(
+                global_crops, mask, self.mask_token, return_keys="all", return_moe_training_output=True
+            )
+        else:
+            global_out = self.backbone.masked_encoding_retention(global_crops, mask, self.mask_token, return_keys="all")
+
         global_features = global_out["features"]
         global_features = global_features.flatten(2).transpose(1, 2)
         global_embedding = global_out["embedding"]
 
-        moe_auxiliary_loss: Optional[torch.Tensor] = None
-        if "auxiliary_losses" in global_out:
-            moe_auxiliary_loss = global_out["auxiliary_losses"]["auxiliary_loss"]
+        moe_training_output: Optional[MoETrainingOutputType] = None
+        if "moe_training_output" in global_out:
+            moe_training_output = global_out["moe_training_output"]
 
-        local_features = self.backbone.forward_features(local_crops)
-        if isinstance(local_features, tuple):
-            local_features, local_aux_losses = local_features
-            local_moe_auxiliary_loss = 0.1 * local_aux_losses["auxiliary_loss"]
-            if moe_auxiliary_loss is None:
-                moe_auxiliary_loss = local_moe_auxiliary_loss
-            else:
-                moe_auxiliary_loss = moe_auxiliary_loss + local_moe_auxiliary_loss
+        if return_moe_training_output is True:
+            local_features, local_moe_training_output = self.backbone.forward_features(
+                local_crops, return_moe_training_output=True  # type: ignore[call-arg]
+            )
+            moe_training_output = combine_moe_training_outputs(
+                moe_training_output, local_moe_training_output, additional_loss_weight=0.1
+            )
+        else:
+            local_features = self.backbone.forward_features(local_crops)
 
         local_embedding = self.backbone.embedding_from_features(local_features)
 
@@ -543,8 +554,8 @@ class DINOv2Student(SSLBaseNet):
             "local_embedding_after_head": local_embedding_after_head,
             "global_masked_patch_tokens_after_head": global_masked_patch_tokens_after_head,
         }
-        if moe_auxiliary_loss is not None:
-            outputs["moe_auxiliary_loss"] = moe_auxiliary_loss
+        if moe_training_output is not None:
+            outputs["moe_training_output"] = moe_training_output
 
         return outputs
 

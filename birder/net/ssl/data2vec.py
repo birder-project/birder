@@ -21,6 +21,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import MaskedTokenOmissionMixin
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
@@ -63,9 +64,16 @@ class Data2Vec(SSLBaseNet):
         nn.init.trunc_normal_(self.mask_token, std=0.02)
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
-        self, src: torch.Tensor, mask: torch.Tensor
-    ) -> torch.Tensor:
-        x = self.backbone.masked_encoding_retention(src, mask, mask_token=self.mask_token)["features"]
+        self, src: torch.Tensor, mask: torch.Tensor, *, return_moe_training_output: bool = False
+    ) -> torch.Tensor | tuple[torch.Tensor, MoETrainingOutputType]:
+        if return_moe_training_output is True:
+            out = self.backbone.masked_encoding_retention(
+                src, mask, mask_token=self.mask_token, return_moe_training_output=True
+            )
+        else:
+            out = self.backbone.masked_encoding_retention(src, mask, mask_token=self.mask_token)
+
+        x = out["features"]
         x = x.flatten(2).transpose(1, 2)
 
         with torch.no_grad():
@@ -89,5 +97,8 @@ class Data2Vec(SSLBaseNet):
             loss = F.mse_loss(x, y, reduction="none").sum(dim=-1).mean()
         else:
             loss = F.smooth_l1_loss(x, y, reduction="none", beta=self.loss_beta).sum(dim=-1).mean()
+
+        if "moe_training_output" in out:
+            return (loss, out["moe_training_output"])
 
         return loss

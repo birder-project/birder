@@ -336,6 +336,7 @@ class ViT_Windowed(DetectorBackbone):
         pos_embed_interpolation_mode: Literal["bilinear", "bicubic"] = self.config.get(
             "pos_embed_interpolation_mode", "bicubic"
         )
+        pos_embed_antialias: bool = self.config.get("pos_embed_antialias", False)  # Controls forward pass only
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
@@ -360,6 +361,7 @@ class ViT_Windowed(DetectorBackbone):
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
         self.pos_embed_special_tokens = pos_embed_special_tokens
         self.pos_embed_interpolation_mode = pos_embed_interpolation_mode
+        self.pos_embed_antialias = pos_embed_antialias
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
@@ -463,7 +465,7 @@ class ViT_Windowed(DetectorBackbone):
             (grid_h, grid_w),
             self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
             interpolation_mode=self.pos_embed_interpolation_mode,
-            antialias=False,
+            antialias=self.pos_embed_antialias,
         )
 
     def _get_special_tokens(

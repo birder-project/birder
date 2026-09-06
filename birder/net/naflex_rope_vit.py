@@ -64,11 +64,14 @@ class NaFlex_RoPE_ViT(RoPE_ViT):
 
         pos_embed_resize_mode: str = self.config.get("naflex_pos_embed_resize_mode", "grid_sample")
         if pos_embed_resize_mode == "grid_sample":
+            if self.pos_embed_antialias is True:
+                raise ValueError("pos_embed_antialias=True requires naflex_pos_embed_resize_mode='interpolate'")
+
             pos_embed_resize = GridSamplePosEmbed(interpolation_mode=self.pos_embed_interpolation_mode)
         elif pos_embed_resize_mode == "interpolate":
             pos_embed_resize = InterpolatePosEmbed(
                 interpolation_mode=self.pos_embed_interpolation_mode,
-                antialias=self.config.get("naflex_pos_embed_antialias", False),
+                antialias=self.pos_embed_antialias,
             )
         else:
             raise ValueError(f"Unknown naflex_pos_embed_resize_mode '{pos_embed_resize_mode}'")

@@ -391,7 +391,6 @@ class BiFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         side_dwconv = 5
         depths: list[int] = self.config["depths"]
         embed_dims: list[int] = self.config["embed_dims"]
-        qk_dims: list[int] = self.config["qk_dims"]
         layer_scale_init_value: Optional[float] = self.config["layer_scale_init_value"]
         drop_path_rate: float = self.config["drop_path_rate"]
         n_win_h = self.size[0] // 32
@@ -419,7 +418,7 @@ class BiFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
 
         dpr = staged_stochastic_depth_rates(drop_path_rate, depths)
         num_stages = len(depths)
-        n_heads = [dim // head_dim for dim in qk_dims]
+        n_heads = [dim // head_dim for dim in embed_dims]
 
         prev_dim = embed_dims[0]
         stages: OrderedDict[str, nn.Module] = OrderedDict()
@@ -539,7 +538,6 @@ registry.register_model_config(
     config={
         "depths": [2, 2, 8, 2],
         "embed_dims": [64, 128, 256, 512],
-        "qk_dims": [64, 128, 256, 512],
         "layer_scale_init_value": None,
         "drop_path_rate": 0.1,
     },
@@ -550,7 +548,6 @@ registry.register_model_config(
     config={
         "depths": [4, 4, 18, 4],
         "embed_dims": [64, 128, 256, 512],
-        "qk_dims": [64, 128, 256, 512],
         "layer_scale_init_value": None,
         "drop_path_rate": 0.15,
     },
@@ -561,7 +558,6 @@ registry.register_model_config(
     config={
         "depths": [4, 4, 18, 4],
         "embed_dims": [96, 192, 384, 768],
-        "qk_dims": [96, 192, 384, 768],
         "layer_scale_init_value": None,
         "drop_path_rate": 0.4,
     },

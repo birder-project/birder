@@ -47,6 +47,7 @@ from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import get_moe_spec
 from birder.net.base import get_signature
 from birder.net.ssl.base import get_ssl_signature
 from birder.net.ssl.data2vec2 import Data2Vec2
@@ -417,6 +418,25 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         training_utils.write_training_args_json(training_log_path, args)
         training_utils.write_training_data_json(training_log_path, {"training_samples": len(training_dataset)})
 
+    moe_spec = None
+    moe_expert_load_accumulator: Optional[training_utils.MoEExpertLoadAccumulator] = None
+    if args.moe_training is True:
+        unwrapped_net = training_utils.unwrap_compiled_module(net_without_ddp)
+        moe_model = unwrapped_net.backbone
+        moe_teacher_model = unwrapped_net.ema_backbone
+        moe_spec = get_moe_spec(moe_model)
+        if moe_spec is None:
+            raise cli.ValidationError("--moe-training requires a backbone with MoE support")
+
+        if moe_spec.requires_expert_bias_update is True:
+            moe_expert_load_accumulator = training_utils.MoEExpertLoadAccumulator()
+
+            def update_moe_expert_biases(expert_loads: torch.Tensor) -> None:
+                moe_model.update_moe_expert_biases(expert_loads)
+                moe_teacher_model.update_moe_expert_biases(expert_loads)
+
+    return_moe_training_output = moe_spec is not None and moe_spec.requires_training_output is True
+
     #
     # Training loop
     #
@@ -425,6 +445,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         train_iter = iter(training_loader)
 
     running_loss = training_utils.SmoothedValue()
+    running_moe_aux_loss: Optional[training_utils.SmoothedValue] = None
+    if moe_spec is not None and moe_spec.has_auxiliary_loss is True:
+        running_moe_aux_loss = training_utils.SmoothedValue(window_size=64)
 
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
@@ -434,6 +457,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         # Clear metrics
         running_loss.clear()
+        if running_moe_aux_loss is not None:
+            running_moe_aux_loss.clear()
 
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)
@@ -474,7 +499,17 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             # Forward and backward
             with sync_context():
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
-                    raw_loss = net(x, masks)
+                    if return_moe_training_output is True:
+                        data2vec2_loss, moe_training_output = net(x, masks, return_moe_training_output=True)
+                        raw_loss = data2vec2_loss
+                        if moe_expert_load_accumulator is not None:
+                            moe_expert_load_accumulator.add(moe_training_output["expert_loads"])
+                        if moe_spec.has_auxiliary_loss is True:  # type: ignore[union-attr]
+                            moe_aux_loss = moe_training_output["auxiliary_loss"]
+                            raw_loss = data2vec2_loss + moe_aux_loss
+                    else:
+                        data2vec2_loss = net(x, masks)
+                        raw_loss = data2vec2_loss
 
                 loss = raw_loss / effective_accum_steps
                 if scaler is not None:
@@ -496,6 +531,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
                     optimizer.step()
 
+                if moe_expert_load_accumulator is not None:
+                    moe_expert_load_accumulator.flush(
+                        update_moe_expert_biases  # pylint: disable=used-before-assignment
+                    )
+
                 optimizer.zero_grad()
                 if step_update is True:
                     scheduler.step()
@@ -513,7 +553,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     )
 
             # Statistics
-            running_loss.update(raw_loss.detach())
+            running_loss.update(data2vec2_loss.detach())
+            if running_moe_aux_loss is not None:
+                running_moe_aux_loss.update(moe_aux_loss.detach())
 
             # Write statistics
             if (i + 1) % args.log_interval == 0 or i == last_batch_idx:
@@ -531,6 +573,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 cur_lr = float(max(scheduler.get_last_lr()))
 
                 running_loss.synchronize_between_processes(device)
+                if running_moe_aux_loss is not None:
+                    running_moe_aux_loss.synchronize_between_processes(device)
+
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
                         f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
@@ -541,6 +586,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         f"R: {rate:.1f} samples/s  "
                         f"LR: {cur_lr:.4e}"
                     )
+                    if running_moe_aux_loss is not None:
+                        log.info(
+                            f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
+                            f"MoE auxiliary loss: {running_moe_aux_loss.avg:.4f}"
+                        )
 
                 if training_utils.is_global_primary(args) is True:
                     summary_writer.add_scalars(
@@ -548,6 +598,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         {"training": running_loss.avg},
                         ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
+                    if running_moe_aux_loss is not None:
+                        summary_writer.add_scalars(
+                            "loss",
+                            {"moe_auxiliary": running_moe_aux_loss.avg},
+                            ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
+                        )
 
             # Update progress bar
             progress.update(n=batch_size * args.world_size)
@@ -556,6 +612,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         # Epoch training metrics
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
+        if running_moe_aux_loss is not None:
+            logger.info(
+                f"[Trn] Epoch {epoch}/{epochs-1} training_moe_auxiliary_loss: {running_moe_aux_loss.global_avg:.4f}"
+            )
 
         # Learning rate scheduler update
         if step_update is False:
@@ -693,6 +753,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         type=int,
         help="optimizer step at which teacher momentum reaches its final value",
     )
+    parser.add_argument(
+        "--moe-training",
+        default=False,
+        action="store_true",
+        help="enable MoE training behavior, including auxiliary balancing losses and expert-bias updates",
+    )
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
     training_cli.add_lr_scheduler_args(parser)
@@ -722,6 +788,12 @@ def validate_args(args: argparse.Namespace) -> None:
     # Script specific checks
     if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION, net_type=MaskedTokenOmissionMixin) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
+    if args.moe_training is True:
+        if args.batch_size % 8 != 0:
+            raise cli.ValidationError("--moe-training requires local --batch-size to be divisible by 8")
+        if args.drop_last is False:
+            raise cli.ValidationError("--moe-training requires --drop-last")
+
     if args.decoder_kernel_size <= 0 or args.decoder_kernel_size % 2 == 0:
         raise cli.ValidationError("--decoder-kernel-size must be a positive odd integer")
     if args.mask_block_size <= 1:

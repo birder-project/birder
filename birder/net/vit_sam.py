@@ -99,7 +99,6 @@ class Attention(nn.Module):
         self, dim: int, num_heads: int, qkv_bias: bool, use_rel_pos: bool, input_size: Optional[tuple[int, int]] = None
     ) -> None:
         super().__init__()
-        self.is_causal = False
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = head_dim**-0.5
@@ -113,7 +112,7 @@ class Attention(nn.Module):
             self.rel_pos_h = nn.Parameter(torch.zeros(2 * input_size[0] - 1, head_dim))
             self.rel_pos_w = nn.Parameter(torch.zeros(2 * input_size[1] - 1, head_dim))
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, is_causal: bool = False) -> torch.Tensor:
         B, H, W, _ = x.shape
         qkv = self.qkv(x).reshape(B, H * W, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.reshape(3, B * self.num_heads, H * W, -1).unbind(0)
@@ -123,16 +122,15 @@ class Attention(nn.Module):
         else:
             attn_bias = None
 
-        if self.is_causal is True:
+        if is_causal is True:
             seq_len = H * W
-            causal_mask = torch.triu(
-                torch.full((seq_len, seq_len), float("-inf"), dtype=q.dtype, device=q.device),
-                diagonal=1,
+            causal_bias = torch.full((seq_len, seq_len), float("-inf"), dtype=q.dtype, device=q.device).triu_(
+                diagonal=1
             )
             if attn_bias is not None:
-                attn_bias = attn_bias + causal_mask
+                attn_bias = attn_bias + causal_bias
             else:
-                attn_bias = causal_mask
+                attn_bias = causal_bias
 
         x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
             q, k, v, attn_mask=attn_bias, scale=self.scale
@@ -142,9 +140,6 @@ class Attention(nn.Module):
         x = self.proj(x)
 
         return x
-
-    def set_causal_attention(self, is_causal: bool = True) -> None:
-        self.is_causal = is_causal
 
 
 class EncoderBlock(nn.Module):
@@ -176,6 +171,7 @@ class EncoderBlock(nn.Module):
             use_rel_pos=use_rel_pos,
             input_size=input_size if window_size == (0, 0) else window_size,
         )
+
         self.drop_path1 = StochasticDepth(drop_path, mode="row")
         if layer_scale_init_value is not None:
             self.layer_scale_1 = LayerScale(dim, layer_scale_init_value)
@@ -191,7 +187,7 @@ class EncoderBlock(nn.Module):
         else:
             self.layer_scale_2 = nn.Identity()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, is_causal: bool = False) -> torch.Tensor:
         _, H, W, _ = x.shape
         shortcut = x
 
@@ -200,7 +196,7 @@ class EncoderBlock(nn.Module):
         if self.window_size[0] > 0 or self.window_size[1] > 0:
             x, pad_hw = window_partition(x, self.window_size)
 
-        x = self.attn(x)
+        x = self.attn(x, is_causal=is_causal)
         if self.window_size[0] > 0 or self.window_size[1] > 0:
             x = window_unpartition(x, self.window_size, pad_hw, (H, W))
 
@@ -209,9 +205,6 @@ class EncoderBlock(nn.Module):
         x = x + self.drop_path2(self.layer_scale_2(self.mlp(self.norm2(x))))
 
         return x
-
-    def set_causal_attention(self, is_causal: bool = True) -> None:
-        self.attn.set_causal_attention(is_causal)
 
 
 class ViT_SAM(DetectorBackbone):
@@ -230,6 +223,7 @@ class ViT_SAM(DetectorBackbone):
 
         image_size = self.size
         use_rel_pos = True
+        pos_embed_antialias: bool = self.config.get("pos_embed_antialias", False)  # Controls forward pass only
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
@@ -265,12 +259,14 @@ class ViT_SAM(DetectorBackbone):
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
+        self.pos_embed_antialias = pos_embed_antialias
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.global_attn_indexes = global_attn_indexes
         self.num_special_tokens = 0
         self.out_indices = normalize_out_indices(out_indices, num_layers)
+        self.is_causal = False
         self.grad_checkpointing = False
         self.grad_checkpointing_segments: Optional[int] = None
         self.grad_checkpointing_preserve_rng_state = True
@@ -377,7 +373,9 @@ class ViT_SAM(DetectorBackbone):
         orig_dtype = self.pos_embedding.dtype
         pos_embedding = self.pos_embedding.float()
         pos_embedding = pos_embedding.permute(0, 3, 1, 2)
-        pos_embedding = F.interpolate(pos_embedding, size=(base_h, base_w), mode="bicubic", antialias=False)
+        pos_embedding = F.interpolate(
+            pos_embedding, size=(base_h, base_w), mode="bicubic", antialias=self.pos_embed_antialias
+        )
         pos_embedding = pos_embedding.permute(0, 2, 3, 1)
 
         return pos_embedding.to(orig_dtype)
@@ -418,8 +416,7 @@ class ViT_SAM(DetectorBackbone):
         self.grad_checkpointing_use_reentrant = use_reentrant
 
     def set_causal_attention(self, is_causal: bool = True) -> None:
-        for b in self.body:
-            b.set_causal_attention(is_causal)
+        self.is_causal = is_causal
 
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         H, W = x.shape[-2:]
@@ -427,7 +424,12 @@ class ViT_SAM(DetectorBackbone):
         x = x + self._get_pos_embed(H, W)
 
         if self.out_indices is None:
-            x = self.body(x)
+            if self.is_causal is False:
+                x = self.body(x)
+            else:
+                for blk in self.body:
+                    x = blk(x, is_causal=True)
+
             x = self.neck(x.permute(0, 3, 1, 2))
             return {self.return_stages[0]: x}
 
@@ -436,7 +438,7 @@ class ViT_SAM(DetectorBackbone):
         out: dict[str, torch.Tensor] = {}
         stage_idx = 0
         for idx, blk in enumerate(self.body):
-            x = blk(x)
+            x = blk(x, is_causal=self.is_causal)
             if idx not in out_indices_set:
                 continue
 
@@ -479,15 +481,23 @@ class ViT_SAM(DetectorBackbone):
             else:
                 segments = min(self.grad_checkpointing_segments, len(self.body))
 
+            if self.is_causal is True:
+                blocks = tuple(partial(block, is_causal=True) for block in self.body)
+            else:
+                blocks = self.body
+
             x = checkpoint_sequential(
-                self.body,
+                blocks,
                 segments,
                 x,
                 use_reentrant=self.grad_checkpointing_use_reentrant,
                 preserve_rng_state=self.grad_checkpointing_preserve_rng_state,
             )
-        else:
+        elif self.is_causal is False:
             x = self.body(x)
+        else:
+            for blk in self.body:
+                x = blk(x, is_causal=True)
 
         x = self.neck(x.permute(0, 3, 1, 2))
 

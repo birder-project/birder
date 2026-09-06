@@ -22,8 +22,10 @@ import torch.nn.functional as F
 from torch import nn
 
 from birder.common import training_utils
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import BaseNet
 from birder.net.ssl.base import SSLBaseNet
+from birder.net.ssl.base import combine_moe_training_outputs
 
 
 class SIGReg(nn.Module):
@@ -142,7 +144,27 @@ class LeJEPA(SSLBaseNet):
         self.projector = nn.Sequential(*layers)
         self.sigreg = SIGReg(num_knots=num_knots, num_slices=num_slices, t_max=t_max)
 
-    def forward(self, x: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def _backbone_embedding(
+        self, x: torch.Tensor, return_moe_training_output: bool
+    ) -> tuple[torch.Tensor, Optional[MoETrainingOutputType]]:
+        moe_training_output: Optional[MoETrainingOutputType] = None
+        if return_moe_training_output is True:
+            features, moe_training_output = self.backbone.forward_features(
+                x, return_moe_training_output=True  # type: ignore[call-arg]
+            )
+        else:
+            features = self.backbone.forward_features(x)
+
+        embedding = self.backbone.embedding_from_features(features)
+
+        return (embedding, moe_training_output)
+
+    def forward(
+        self, x: list[torch.Tensor], *, return_moe_training_output: bool = False
+    ) -> (
+        tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+        | tuple[torch.Tensor, torch.Tensor, torch.Tensor, MoETrainingOutputType]
+    ):
         idx_crops = torch.cumsum(
             torch.unique_consecutive(
                 torch.tensor([view.size(-1) for view in x]),
@@ -153,9 +175,16 @@ class LeJEPA(SSLBaseNet):
 
         batch_size = x[0].size(0)
         embeddings: list[torch.Tensor] = []
+        moe_training_output: Optional[MoETrainingOutputType] = None
         start_idx = 0
         for end_idx in idx_crops.tolist():
-            embeddings.append(self.backbone.embedding(torch.concat(x[start_idx:end_idx], dim=0)))
+            embedding, group_moe_training_output = self._backbone_embedding(
+                torch.concat(x[start_idx:end_idx], dim=0), return_moe_training_output
+            )
+            embeddings.append(embedding)
+            if group_moe_training_output is not None:
+                moe_training_output = combine_moe_training_outputs(moe_training_output, group_moe_training_output)
+
             start_idx = end_idx
 
         combined_embeddings = torch.concat(embeddings, dim=0)
@@ -166,5 +195,8 @@ class LeJEPA(SSLBaseNet):
         global_proj_mean = proj[: self.num_global_crops].float().mean(dim=0, keepdim=True)
         inv_loss = (global_proj_mean - proj.float()).square().mean()
         total_loss = self.loss_lambda * sigreg_loss + (1.0 - self.loss_lambda) * inv_loss
+
+        if moe_training_output is not None:
+            return (total_loss, sigreg_loss, inv_loss, moe_training_output)
 
         return (total_loss, sigreg_loss, inv_loss)

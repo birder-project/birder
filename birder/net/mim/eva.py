@@ -12,6 +12,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.mim.base import MIMBaseNet
@@ -51,27 +52,46 @@ class EVA(MIMBaseNet):
         *,
         grid_sizes: Optional[torch.Tensor] = None,
         valid_mask: Optional[torch.Tensor] = None,
-    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+        return_moe_training_output: bool = False,
+    ) -> tuple[torch.Tensor, Optional[MoETrainingOutputType]]:
         if grid_sizes is None:
-            latent = self.encoder.masked_encoding_retention(x, mask, mask_token=self.mask_token, return_keys="features")
+            if return_moe_training_output is True:
+                latent = self.encoder.masked_encoding_retention(
+                    x, mask, mask_token=self.mask_token, return_keys="features", return_moe_training_output=True
+                )
+            else:
+                latent = self.encoder.masked_encoding_retention(
+                    x, mask, mask_token=self.mask_token, return_keys="features"
+                )
         else:
-            latent = self.encoder.masked_encoding_retention(
-                x,
-                mask,
-                mask_token=self.mask_token,
-                return_keys="features",
-                grid_sizes=grid_sizes,
-                valid_mask=valid_mask,
-            )
+            if return_moe_training_output is True:
+                latent = self.encoder.masked_encoding_retention(
+                    x,
+                    mask,
+                    mask_token=self.mask_token,
+                    return_keys="features",
+                    grid_sizes=grid_sizes,
+                    valid_mask=valid_mask,
+                    return_moe_training_output=True,
+                )
+            else:
+                latent = self.encoder.masked_encoding_retention(
+                    x,
+                    mask,
+                    mask_token=self.mask_token,
+                    return_keys="features",
+                    grid_sizes=grid_sizes,
+                    valid_mask=valid_mask,
+                )
 
         features = latent["features"].flatten(2).permute(0, 2, 1)
         pred = self.predictor(features)
 
-        moe_auxiliary_loss = None
-        if "auxiliary_losses" in latent:
-            moe_auxiliary_loss = latent["auxiliary_losses"]["auxiliary_loss"]
+        moe_training_output = None
+        if "moe_training_output" in latent:
+            moe_training_output = latent["moe_training_output"]
 
-        return (pred, moe_auxiliary_loss)
+        return (pred, moe_training_output)
 
     def forward_loss(
         self,
@@ -99,14 +119,17 @@ class EVA(MIMBaseNet):
         *,
         grid_sizes: Optional[torch.Tensor] = None,
         valid_mask: Optional[torch.Tensor] = None,
-    ) -> dict[str, torch.Tensor]:
+        return_moe_training_output: bool = False,
+    ) -> dict[str, Any]:
         # pylint: disable=arguments-differ
 
-        pred, moe_auxiliary_loss = self.forward_features(x, mask, grid_sizes=grid_sizes, valid_mask=valid_mask)
+        pred, moe_training_output = self.forward_features(
+            x, mask, grid_sizes=grid_sizes, valid_mask=valid_mask, return_moe_training_output=return_moe_training_output
+        )
         loss = self.forward_loss(pred, target_tokens, mask, valid_mask=valid_mask)
 
         result = {"loss": loss, "pred": pred, "mask": mask}
-        if moe_auxiliary_loss is not None:
-            result["moe_auxiliary_loss"] = moe_auxiliary_loss
+        if moe_training_output is not None:
+            result["moe_training_output"] = moe_training_output
 
         return result

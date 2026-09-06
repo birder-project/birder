@@ -21,10 +21,10 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.utils.checkpoint import checkpoint_sequential
-from torchvision.ops import MLP
 from torchvision.ops import StochasticDepth
 
 from birder.common.masking import mask_tensor
+from birder.layers import FFN
 from birder.layers import LayerScale
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 class Attention(nn.Module):
-    def __init__(self, dim: int, num_heads: int, attn_drop: float, proj_drop: float) -> None:
+    def __init__(self, dim: int, num_heads: int, attn_drop: float, proj_drop: float, qkv_bias: bool = True) -> None:
         super().__init__()
         assert dim % num_heads == 0, "dim should be divisible by num_heads"
 
@@ -51,7 +51,7 @@ class Attention(nn.Module):
         self.head_dim = dim // num_heads
         self.scale = self.head_dim**-0.5
 
-        self.qkv = nn.Linear(dim, dim * 3)
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
@@ -88,6 +88,8 @@ class EncoderParallelBlock(nn.Module):
         activation_layer: Callable[..., nn.Module],
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        norm_layer_eps: float = 1e-6,
+        qkv_bias: bool = True,
     ) -> None:
         super().__init__()
         if mlp_dim is None:
@@ -98,9 +100,13 @@ class EncoderParallelBlock(nn.Module):
         for _ in range(num_parallel):
             self.attn_blocks.append(
                 nn.Sequential(
-                    norm_layer(hidden_dim, eps=1e-6),
-                    Attention(hidden_dim, num_heads, attn_drop=attention_dropout, proj_drop=dropout),
-                    LayerScale(hidden_dim, layer_scale_init_value) if layer_scale_init_value else nn.Identity(),
+                    norm_layer(hidden_dim, eps=norm_layer_eps),
+                    Attention(hidden_dim, num_heads, attn_drop=attention_dropout, proj_drop=dropout, qkv_bias=qkv_bias),
+                    (
+                        LayerScale(hidden_dim, layer_scale_init_value)
+                        if layer_scale_init_value is not None
+                        else nn.Identity()
+                    ),
                     StochasticDepth(drop_path, mode="row"),
                 )
             )
@@ -110,15 +116,18 @@ class EncoderParallelBlock(nn.Module):
         for _ in range(num_parallel):
             self.mlp_blocks.append(
                 nn.Sequential(
-                    norm_layer(hidden_dim, eps=1e-6),
-                    MLP(
+                    norm_layer(hidden_dim, eps=norm_layer_eps),
+                    FFN(
                         hidden_dim,
-                        [mlp_dim, hidden_dim],
-                        activation_layer=activation_layer,
-                        inplace=None,
+                        mlp_dim,
+                        act_layer=activation_layer,
                         dropout=dropout,
                     ),
-                    LayerScale(hidden_dim, layer_scale_init_value) if layer_scale_init_value else nn.Identity(),
+                    (
+                        LayerScale(hidden_dim, layer_scale_init_value)
+                        if layer_scale_init_value is not None
+                        else nn.Identity()
+                    ),
                     StochasticDepth(drop_path, mode="row"),
                 )
             )
@@ -146,8 +155,10 @@ class Encoder(nn.Module):
         dropout: float,
         attention_dropout: float,
         dpr: list[float],
+        qkv_bias: bool = True,
         layer_scale_init_value: Optional[float] = None,
         norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
+        norm_layer_eps: float = 1e-6,
     ) -> None:
         super().__init__()
         self.grad_checkpointing = False
@@ -155,10 +166,13 @@ class Encoder(nn.Module):
         self.grad_checkpointing_preserve_rng_state = True
         self.grad_checkpointing_use_reentrant = False
 
-        layers = []
+        pre_layers = []
         if dropout > 0.0:
-            layers.append(nn.Dropout(dropout))
+            pre_layers.append(nn.Dropout(dropout))
 
+        self.pre_block = nn.Sequential(*pre_layers)
+
+        layers = []
         for i in range(num_layers):
             layers.append(
                 EncoderParallelBlock(
@@ -172,6 +186,8 @@ class Encoder(nn.Module):
                     activation_layer=nn.GELU,
                     layer_scale_init_value=layer_scale_init_value,
                     norm_layer=norm_layer,
+                    norm_layer_eps=norm_layer_eps,
+                    qkv_bias=qkv_bias,
                 )
             )
 
@@ -193,6 +209,7 @@ class Encoder(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # torch._assert(x.dim() == 3, f"Expected (batch_size, seq_length, hidden_dim) got {x.size()}")
+        x = self.pre_block(x)
         if self.grad_checkpointing is True and torch.is_grad_enabled() is True and not torch.jit.is_scripting():
             return self._checkpoint_blocks(x)
 
@@ -201,6 +218,7 @@ class Encoder(nn.Module):
         return x
 
     def forward_features(self, x: torch.Tensor, out_indices: Optional[list[int]] = None) -> list[torch.Tensor]:
+        x = self.pre_block(x)
         xs = []
         out_indices_set = set(out_indices) if out_indices is not None else None
         for idx, blk in enumerate(self.block):
@@ -253,6 +271,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         image_size = self.size
         attention_dropout = 0.0
         dropout = 0.0
+        pos_embed_antialias: bool = self.config.get("pos_embed_antialias", False)  # Controls forward pass only
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
@@ -260,9 +279,11 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         mlp_dim: int = self.config["mlp_dim"]
         num_parallel: int = self.config["num_parallel"]
         layer_scale_init_value: Optional[float] = self.config.get("layer_scale_init_value", None)
+        qkv_bias: bool = self.config.get("qkv_bias", True)
         num_reg_tokens: int = self.config.get("num_reg_tokens", 0)
         class_token: bool = self.config.get("class_token", True)
         norm_layer_type: str = self.config.get("norm_layer_type", "LayerNorm")
+        norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         drop_path_rate: float = self.config["drop_path_rate"]
 
@@ -276,10 +297,10 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
+        self.pos_embed_antialias = pos_embed_antialias
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
-        self.layer_scale_init_value = layer_scale_init_value
         self.num_reg_tokens = num_reg_tokens
         self.out_indices = normalize_out_indices(out_indices, num_layers)
         dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
@@ -324,10 +345,12 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
             dropout,
             attention_dropout,
             dpr,
-            layer_scale_init_value,
+            qkv_bias=qkv_bias,
+            layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
+            norm_layer_eps=norm_layer_eps,
         )
-        self.norm = norm_layer(hidden_dim, eps=1e-6)
+        self.norm = norm_layer(hidden_dim, eps=norm_layer_eps)
 
         num_return_stages = len(self.out_indices) if self.out_indices is not None else 1
         self.return_stages = [f"stage{stage_idx + 1}" for stage_idx in range(num_return_stages)]
@@ -344,12 +367,12 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
             16,
             mlp_dim=None,
             num_parallel=num_parallel,
-            dropout=0,
-            attention_dropout=0,
-            drop_path=0,
+            dropout=0.0,
+            attention_dropout=0.0,
+            drop_path=0.0,
             activation_layer=nn.GELU,
-            layer_scale_init_value=layer_scale_init_value,
             norm_layer=norm_layer,
+            norm_layer_eps=norm_layer_eps,
         )
 
         # Weight initialization
@@ -377,7 +400,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
             self.num_special_tokens,
-            antialias=False,
+            antialias=self.pos_embed_antialias,
         )
 
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:

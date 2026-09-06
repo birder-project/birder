@@ -163,11 +163,14 @@ class NaFlex_ViT(ViT):
 
         pos_embed_resize_mode: str = self.config.get("naflex_pos_embed_resize_mode", "grid_sample")
         if pos_embed_resize_mode == "grid_sample":
+            if self.pos_embed_antialias is True:
+                raise ValueError("pos_embed_antialias=True requires naflex_pos_embed_resize_mode='interpolate'")
+
             pos_embed_resize = GridSamplePosEmbed(interpolation_mode=self.pos_embed_interpolation_mode)
         elif pos_embed_resize_mode == "interpolate":
             pos_embed_resize = InterpolatePosEmbed(
                 interpolation_mode=self.pos_embed_interpolation_mode,
-                antialias=self.config.get("naflex_pos_embed_antialias", False),
+                antialias=self.pos_embed_antialias,
             )
         else:
             raise ValueError(f"Unknown naflex_pos_embed_resize_mode '{pos_embed_resize_mode}'")
@@ -463,8 +466,8 @@ registry.register_model_config(  # For SigLIP 2 - https://arxiv.org/abs/2502.147
         "attn_pool_act_layer_type": "gelu_tanh",
         "act_layer_type": "gelu_tanh",
         "pos_embed_interpolation_mode": "bilinear",
+        "pos_embed_antialias": True,
         "naflex_pos_embed_resize_mode": "interpolate",
-        "naflex_pos_embed_antialias": True,
     },
 )
 registry.register_model_config(
@@ -494,8 +497,8 @@ registry.register_model_config(  # For SigLIP 2 - https://arxiv.org/abs/2502.147
         "attn_pool_act_layer_type": "gelu_tanh",
         "act_layer_type": "gelu_tanh",
         "pos_embed_interpolation_mode": "bilinear",
+        "pos_embed_antialias": True,
         "naflex_pos_embed_resize_mode": "interpolate",
-        "naflex_pos_embed_antialias": True,
     },
 )
 registry.register_model_config(
@@ -588,6 +591,24 @@ registry.register_model_config(
     },
 )
 
+registry.register_weights(
+    "naflex_vit_b16_nepa-generic",
+    {
+        "url": "https://huggingface.co/birder-project/naflex_vit_b16_nepa-generic/resolve/main",
+        "description": (
+            "NaFlex ViT B/16 image encoder, pretrained using NEPA on mix of generic datasets. "
+            "It has not been fine-tuned for a specific classification task"
+        ),
+        "resolution": (256, 256),
+        "formats": {
+            "pt": {
+                "file_size": 327.5,
+                "sha256": "b0f317c0593b91cbe4c45ca93061dd194b233d70dcbae85065854a74381d215d",
+            },
+        },
+        "net": {"network": "naflex_vit_b16", "tag": "nepa-generic"},
+    },
+)
 registry.register_weights(  # SigLIP 2: https://arxiv.org/abs/2502.14786
     "naflex_i_vit_b16_ap_c1_siglip-v2-webli",
     {

@@ -218,7 +218,10 @@ def show_iterator(args: argparse.Namespace) -> None:
                 naflex_collator = NaFlexTrainingCollator(collator_patch_size)
             else:
                 naflex_collator = NaFlexMixupTrainingCollator(
-                    patch_size=collator_patch_size, num_classes=num_outputs, alpha=args.mixup_alpha
+                    patch_size=collator_patch_size,
+                    num_classes=num_outputs,
+                    alpha=args.mixup_alpha,
+                    p=args.mixup_cutmix_prob,
                 )
 
             if naflex_transforms is not None:
@@ -230,7 +233,7 @@ def show_iterator(args: argparse.Namespace) -> None:
             else:
                 collate_fn = naflex_collator
         else:
-            t = get_mixup_cutmix(args.mixup_alpha, num_outputs, args.cutmix)
+            t = get_mixup_cutmix(args.mixup_alpha, num_outputs, args.cutmix, prob=args.mixup_cutmix_prob)
 
             def mixup_cutmix_collate_fn(batch: Any) -> Any:
                 return t(*default_collate(batch))
@@ -381,6 +384,15 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument("--mixup-alpha", type=float, help="mixup alpha")
     subparser.add_argument("--cutmix", default=False, action="store_true", help="enable cutmix")
     subparser.add_argument(
+        "--mixup-cutmix-prob",
+        type=float,
+        metavar="P",
+        help=(
+            "probability of applying MixUp or CutMix to a batch "
+            "(default: equal probability among enabled augmentations and no augmentation)"
+        ),
+    )
+    subparser.add_argument(
         "--masking",
         type=str,
         choices=["uniform", "block", "fixed-size-block", "roll-block", "inverse-roll"],
@@ -433,6 +445,11 @@ def main(args: argparse.Namespace) -> None:
         raise cli.ValidationError("--naflex does not support --simple-crop")
     if args.naflex is True and args.wds is True and args.wds_extra_shuffle is True:
         raise cli.ValidationError("--naflex cannot be used with --wds-extra-shuffle")
+    if args.mixup_cutmix_prob is not None:
+        if args.mixup_cutmix_prob < 0.0 or args.mixup_cutmix_prob > 1.0:
+            raise cli.ValidationError(f"--mixup-cutmix-prob must be in range of [0, 1], got {args.mixup_cutmix_prob}")
+        if args.mixup_alpha is None and args.cutmix is False:
+            raise cli.ValidationError("--mixup-cutmix-prob requires --mixup-alpha or --cutmix")
     if args.naflex_sizes is not None and args.naflex is False:
         raise cli.ValidationError("--naflex-sizes requires --naflex")
     if args.naflex_sizes is not None and args.mode != "training":

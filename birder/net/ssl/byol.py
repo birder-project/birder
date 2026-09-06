@@ -18,6 +18,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import BaseNet
 from birder.net.ssl.base import SSLBaseNet
 
@@ -51,9 +52,23 @@ class BYOLEncoder(nn.Module):
         self.backbone = backbone
         self.projector = MLP(backbone.embedding_size, projection_hidden_size, projection_size)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.backbone.embedding(x)
-        return self.projector(x)
+    def forward(
+        self, x: torch.Tensor, *, return_moe_training_output: bool = False
+    ) -> torch.Tensor | tuple[torch.Tensor, MoETrainingOutputType]:
+        moe_training_output: Optional[MoETrainingOutputType] = None
+        if return_moe_training_output is True:
+            features, moe_training_output = self.backbone.forward_features(
+                x, return_moe_training_output=True  # type: ignore[call-arg]
+            )
+        else:
+            features = self.backbone.forward_features(x)
+
+        embedding = self.backbone.embedding_from_features(features)
+        projection = self.projector(embedding)
+        if moe_training_output is not None:
+            return (projection, moe_training_output)
+
+        return projection
 
 
 class BYOL(SSLBaseNet):
@@ -79,8 +94,15 @@ class BYOL(SSLBaseNet):
         # Weights initialization
         self.target_encoder.load_state_dict(self.online_encoder.state_dict())
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        projection = self.online_encoder(x)
+    def forward(
+        self, x: torch.Tensor, *, return_moe_training_output: bool = False
+    ) -> torch.Tensor | tuple[torch.Tensor, MoETrainingOutputType]:
+        moe_training_output: Optional[MoETrainingOutputType] = None
+        if return_moe_training_output is True:
+            projection, moe_training_output = self.online_encoder(x, return_moe_training_output=True)
+        else:
+            projection = self.online_encoder(x)
+
         online_predictions = self.online_predictor(projection)
         online_pred_one, online_pred_two = online_predictions.chunk(2, dim=0)
 
@@ -91,5 +113,8 @@ class BYOL(SSLBaseNet):
         loss_one = loss_fn(online_pred_one, target_proj_two.detach())
         loss_two = loss_fn(online_pred_two, target_proj_one.detach())
         loss = loss_one + loss_two
+
+        if moe_training_output is not None:
+            return (loss.mean(), moe_training_output)
 
         return loss.mean()

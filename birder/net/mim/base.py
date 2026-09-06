@@ -76,5 +76,5 @@ class MIMBaseNet(nn.Module):
         assert isinstance(self.size[1], int)
         assert isinstance(self.mask_ratio, float)
 
-    def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> dict[str, Any]:
         raise NotImplementedError

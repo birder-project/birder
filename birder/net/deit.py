@@ -41,6 +41,7 @@ class DeiT(DetectorBackbone):
         assert self.config is not None, "must set config"
 
         image_size = self.size
+        pos_embed_antialias: bool = self.config.get("pos_embed_antialias", False)  # Controls forward pass only
         patch_size: int = self.config["patch_size"]
         num_layers: int = self.config["num_layers"]
         num_heads: int = self.config["num_heads"]
@@ -55,6 +56,7 @@ class DeiT(DetectorBackbone):
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(hidden_dim % num_heads == 0, "Hidden dim indivisible by num heads!")
+        self.pos_embed_antialias = pos_embed_antialias
         self.patch_size = patch_size
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
@@ -134,7 +136,7 @@ class DeiT(DetectorBackbone):
             (self.size[0] // self.patch_size, self.size[1] // self.patch_size),
             (H // self.patch_size, W // self.patch_size),
             self.num_special_tokens,
-            antialias=False,
+            antialias=self.pos_embed_antialias,
         )
 
     def reset_classifier(self, num_classes: int) -> None:

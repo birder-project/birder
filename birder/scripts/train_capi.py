@@ -54,6 +54,7 @@ from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import MaskedTokenOmissionMixin
+from birder.net.base import get_moe_spec
 from birder.net.base import get_signature
 from birder.net.ssl.base import get_ssl_signature
 from birder.net.ssl.capi import CAPIStudent
@@ -555,6 +556,24 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         training_utils.write_training_args_json(training_log_path, args)
         training_utils.write_training_data_json(training_log_path, {"training_samples": len(training_dataset)})
 
+    moe_spec = None
+    moe_expert_load_accumulator: Optional[training_utils.MoEExpertLoadAccumulator] = None
+    if args.moe_training is True:
+        moe_model = training_utils.unwrap_compiled_module(student_without_ddp).backbone
+        moe_teacher_model = training_utils.unwrap_compiled_module(teacher_without_ddp).backbone
+        moe_spec = get_moe_spec(moe_model)
+        if moe_spec is None:
+            raise cli.ValidationError("--moe-training requires a backbone with MoE support")
+
+        if moe_spec.requires_expert_bias_update is True:
+            moe_expert_load_accumulator = training_utils.MoEExpertLoadAccumulator()
+
+            def update_moe_expert_biases(expert_loads: torch.Tensor) -> None:
+                moe_model.update_moe_expert_biases(expert_loads)
+                moe_teacher_model.update_moe_expert_biases(expert_loads)
+
+    return_moe_training_output = moe_spec is not None and moe_spec.requires_training_output is True
+
     #
     # Training loop
     #
@@ -564,6 +583,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     running_loss = training_utils.SmoothedValue()
     running_clustering_loss = training_utils.SmoothedValue()
     running_target_entropy = training_utils.SmoothedValue()
+    running_moe_aux_loss: Optional[training_utils.SmoothedValue] = None
+    if moe_spec is not None and moe_spec.has_auxiliary_loss is True:
+        running_moe_aux_loss = training_utils.SmoothedValue(window_size=64)
 
     logger.info(f"Starting training with learning rate of {last_lr}")
     for epoch in range(begin_epoch, args.stop_epoch):
@@ -575,6 +597,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         running_loss.clear()
         running_clustering_loss.clear()
         running_target_entropy.clear()
+        if running_moe_aux_loss is not None:
+            running_moe_aux_loss.clear()
 
         if args.sinkhorn_queue_size is not None:
             queue_active = epoch > args.sinkhorn_queue_warmup_epochs
@@ -655,11 +679,28 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             # Student forward and backward
             with student_sync_context():
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
-                    pred = student(images, ids_keep, predict_indices)
-                    raw_loss = -torch.sum(selected_assignments * F.log_softmax(pred / student_temp, dim=-1), dim=-1)
+                    if return_moe_training_output is True:
+                        pred, moe_training_output = student(
+                            images, ids_keep, predict_indices, return_moe_training_output=True
+                        )
+                        if moe_expert_load_accumulator is not None:
+                            moe_expert_load_accumulator.add(moe_training_output["expert_loads"])
+                        if moe_spec.has_auxiliary_loss is True:  # type: ignore[union-attr]
+                            moe_aux_loss = moe_training_output["auxiliary_loss"]
+                    else:
+                        pred = student(images, ids_keep, predict_indices)
+
+                    raw_capi_loss = -torch.sum(
+                        selected_assignments * F.log_softmax(pred / student_temp, dim=-1), dim=-1
+                    )
                     target_entropy = -torch.xlogy(selected_assignments, selected_assignments).sum(dim=-1).mean()
 
-                raw_loss = raw_loss.double().sum() / len(raw_loss)
+                raw_capi_loss = raw_capi_loss.double().sum() / len(raw_capi_loss)
+                if moe_spec is not None and moe_spec.has_auxiliary_loss is True:
+                    raw_loss = raw_capi_loss + moe_aux_loss  # pylint: disable=used-before-assignment
+                else:
+                    raw_loss = raw_capi_loss
+
                 loss = raw_loss / effective_accum_steps
 
                 if scaler is not None:
@@ -682,6 +723,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
                     optimizer.step()
 
+                if moe_expert_load_accumulator is not None:
+                    moe_expert_load_accumulator.flush(
+                        update_moe_expert_biases  # pylint: disable=used-before-assignment
+                    )
+
                 optimizer.zero_grad()
                 if step_update is True:
                     scheduler.step()
@@ -697,9 +743,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     )
 
             # Statistics
-            running_loss.update(raw_loss.detach())
+            running_loss.update(raw_capi_loss.detach())
             running_clustering_loss.update(raw_clustering_loss.detach())
             running_target_entropy.update(target_entropy.detach())
+            if running_moe_aux_loss is not None:
+                running_moe_aux_loss.update(moe_aux_loss.detach())
 
             # Write statistics
             if (i + 1) % args.log_interval == 0 or i == last_batch_idx:
@@ -719,6 +767,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 running_loss.synchronize_between_processes(device)
                 running_clustering_loss.synchronize_between_processes(device)
                 running_target_entropy.synchronize_between_processes(device)
+                if running_moe_aux_loss is not None:
+                    running_moe_aux_loss.synchronize_between_processes(device)
+
                 with training_utils.single_handler_logging(logger, file_handler, enabled=not disable_tqdm) as log:
                     log.info(
                         f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
@@ -729,6 +780,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         f"R: {rate:.1f} samples/s  "
                         f"LR: {cur_lr:.4e}"
                     )
+                    if running_moe_aux_loss is not None:
+                        log.info(
+                            f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
+                            f"MoE auxiliary loss: {running_moe_aux_loss.avg:.4f}"
+                        )
 
                 if training_utils.is_global_primary(args) is True:
                     summary_writer.add_scalars(
@@ -739,6 +795,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         },
                         ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
+                    if running_moe_aux_loss is not None:
+                        summary_writer.add_scalars(
+                            "loss",
+                            {"moe_auxiliary": running_moe_aux_loss.avg},
+                            ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
+                        )
+
                     summary_writer.add_scalars(
                         "performance",
                         {"target_entropy": running_target_entropy.avg},
@@ -754,6 +817,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} clustering_loss: {running_clustering_loss.global_avg:.4f}")
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} target_entropy: {running_target_entropy.global_avg:.4f}")
+        if running_moe_aux_loss is not None:
+            logger.info(
+                f"[Trn] Epoch {epoch}/{epochs-1} training_moe_auxiliary_loss: {running_moe_aux_loss.global_avg:.4f}"
+            )
 
         # Learning rate scheduler update
         if step_update is False:
@@ -956,6 +1023,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=0,
         help="number of initial epochs to disable Sinkhorn queueing",
     )
+    parser.add_argument(
+        "--moe-training",
+        default=False,
+        action="store_true",
+        help="enable MoE training behavior, including auxiliary balancing losses and expert-bias updates",
+    )
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser)
     training_cli.add_lr_scheduler_args(parser, default_cosine_fraction=0.8)
@@ -985,6 +1058,11 @@ def validate_args(args: argparse.Namespace) -> None:
     # Script specific checks
     if registry.exists(args.network, task=Task.IMAGE_CLASSIFICATION, net_type=MaskedTokenOmissionMixin) is False:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
+    if args.moe_training is True:
+        if args.batch_size % 8 != 0:
+            raise cli.ValidationError("--moe-training requires local --batch-size to be divisible by 8")
+        if args.drop_last is False:
+            raise cli.ValidationError("--moe-training requires --drop-last")
 
     if args.decoder_drop_path_rate < 0.0 or args.decoder_drop_path_rate >= 1.0:
         raise cli.ValidationError("--decoder-drop-path-rate must be in the range [0, 1)")

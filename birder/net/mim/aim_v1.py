@@ -14,6 +14,7 @@ from typing import Optional
 import torch
 from torch import nn
 
+from birder.layers.moe import MoETrainingOutputType
 from birder.model_registry import registry
 from birder.net.base import PreTrainEncoder
 from birder.net.base import pos_embedding_sin_cos_2d
@@ -143,6 +144,8 @@ class AIM_v1(MIMBaseNet):
         return patch_idx >= prefix_lengths.unsqueeze(1)
 
     def _make_attention_mask(self, prefix_mask: torch.Tensor, num_special_tokens: int) -> torch.Tensor:
+        # This mask constrains attention only, the encoder's other token-mixing operations must preserve causality too.
+        # For sparse MoE, use dropless token-choice or V-MoE with top_k=1, expert-choice routing is not causal.
         B, K = prefix_mask.size()
         device = prefix_mask.device
 
@@ -175,7 +178,7 @@ class AIM_v1(MIMBaseNet):
 
         return loss
 
-    def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+    def forward(self, x: torch.Tensor, *, return_moe_training_output: bool = False) -> dict[str, Any]:
         h = self.size[0] // self.patch_size
         w = self.size[1] // self.patch_size
         num_patches = h * w
@@ -183,7 +186,14 @@ class AIM_v1(MIMBaseNet):
         prefix_lengths = self._sample_prefix_lengths(x.size(0), num_patches, x.device)
         prefix_mask = self._make_prefix_mask(prefix_lengths, num_patches)
         attn_mask = self._make_attention_mask(prefix_mask, getattr(self.encoder, "num_special_tokens", 0))
-        features = self.encoder.forward_features(x, attn_mask=attn_mask)  # type: ignore[call-arg]
+        moe_training_output: Optional[MoETrainingOutputType] = None
+        if return_moe_training_output is True:
+            features, moe_training_output = self.encoder.forward_features(
+                x, attn_mask=attn_mask, return_moe_training_output=True  # type: ignore[call-arg]
+            )
+        else:
+            features = self.encoder.forward_features(x, attn_mask=attn_mask)  # type: ignore[call-arg]
+
         features = self.encoder.flatten_features(features, include_special_tokens=False)
         pred = self.decoder_embed(features)
         pred = pred + self.decoder_pos_embed
@@ -192,7 +202,11 @@ class AIM_v1(MIMBaseNet):
         pred = self.decoder_pred(pred)
         loss = self.forward_loss(x, pred, prefix_mask)
 
-        return {"loss": loss, "pred": pred, "mask": prefix_mask, "prefix_lengths": prefix_lengths}
+        result = {"loss": loss, "pred": pred, "mask": prefix_mask, "prefix_lengths": prefix_lengths}
+        if moe_training_output is not None:
+            result["moe_training_output"] = moe_training_output
+
+        return result
 
 
 registry.register_model_config("aim_v1", AIM_v1, config={"decoder_embed_dim": 2048, "decoder_depth": 12})

@@ -110,6 +110,8 @@ class Conv2dNorm(nn.Module):
         # Weights initialization
         if zero_bn_init is True:
             nn.init.zeros_(self.norm.weight)
+        else:
+            nn.init.ones_(self.norm.weight)
 
         nn.init.zeros_(self.norm.bias)
 
@@ -376,7 +378,7 @@ class EfficientViM(DetectorBackbone):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-            elif isinstance(m, (nn.BatchNorm2d, LayerNorm2d, LayerNorm1d)):
+            elif isinstance(m, (LayerNorm2d, LayerNorm1d)):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
 

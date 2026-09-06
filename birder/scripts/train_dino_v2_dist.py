@@ -45,6 +45,7 @@ from birder.data.transforms.classification import get_rgb_stats
 from birder.model_registry import Task
 from birder.model_registry import registry
 from birder.net.base import MaskedTokenRetentionMixin
+from birder.net.base import get_moe_spec
 from birder.net.base import get_signature
 from birder.net.ssl.base import get_ssl_signature
 from birder.net.ssl.dino_v2 import DINOLoss
@@ -224,9 +225,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         student.set_grad_checkpointing(
             segments=args.grad_checkpointing_segments, preserve_rng_state=args.grad_checkpointing_preserve_rng_state
         )
-
-    if args.moe_aux_loss is True:
-        student.backbone.set_moe_loss_output(True)
 
     # Compile networks
     teacher_compile_flag = args.compile is True or args.compile_teacher is True
@@ -520,6 +518,23 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         training_utils.write_training_args_json(training_log_path, args)
         training_utils.write_training_data_json(training_log_path, {"training_samples": len(training_dataset)})
 
+    moe_spec = None
+    moe_expert_load_accumulator: Optional[training_utils.MoEExpertLoadAccumulator] = None
+    if args.moe_training is True:
+        moe_model = training_utils.unwrap_compiled_module(student_without_ddp).backbone
+        moe_spec = get_moe_spec(moe_model)
+        if moe_spec is None:
+            raise cli.ValidationError("--moe-training requires a backbone with MoE support")
+
+        if moe_spec.requires_expert_bias_update is True:
+            moe_expert_load_accumulator = training_utils.MoEExpertLoadAccumulator()
+
+            def update_moe_expert_biases(expert_loads: torch.Tensor) -> None:
+                moe_model.update_moe_expert_biases(expert_loads)
+                student_backbone_ema.update_moe_expert_biases(expert_loads)
+
+    return_moe_training_output = moe_spec is not None and moe_spec.requires_training_output is True
+
     #
     # Training loop
     #
@@ -533,7 +548,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     running_loss_koleo = training_utils.SmoothedValue()
     running_loss_ibot_patch = training_utils.SmoothedValue()
     running_moe_aux_loss: Optional[training_utils.SmoothedValue] = None
-    if args.moe_aux_loss is True:
+    if moe_spec is not None and moe_spec.has_auxiliary_loss is True:
         running_moe_aux_loss = training_utils.SmoothedValue(window_size=64)
     if track_extended_metrics is True:
         train_proto_agreement = training_utils.SmoothedValue()
@@ -664,7 +679,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
                     # Student
                     student_output = student(
-                        global_crops, local_crops, torch.zeros_like(masks), upper_bound, mask_indices_list
+                        global_crops,
+                        local_crops,
+                        torch.zeros_like(masks),
+                        upper_bound,
+                        mask_indices_list,
+                        return_moe_training_output=return_moe_training_output,
                     )
                     student_global_embedding = student_output["global_embedding"]
                     student_global_embedding_after_head = student_output["global_embedding_after_head"]
@@ -672,7 +692,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     student_global_masked_patch_tokens_after_head = student_output[
                         "global_masked_patch_tokens_after_head"
                     ]
-                    moe_aux_loss = student_output.get("moe_auxiliary_loss")
+                    if return_moe_training_output is True:
+                        moe_training_output = student_output["moe_training_output"]
+                        if moe_expert_load_accumulator is not None:
+                            moe_expert_load_accumulator.add(moe_training_output["expert_loads"])
+                        if moe_spec.has_auxiliary_loss is True:  # type: ignore[union-attr]
+                            moe_aux_loss = moe_training_output["auxiliary_loss"]
 
                     # Local DINO loss
                     loss_dino_local_crops = dino_loss(
@@ -714,8 +739,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     loss += args.ibot_loss_weight * loss_ibot_patch
 
                 ssl_loss = loss
-                if args.moe_aux_loss is True:
-                    raw_loss = ssl_loss + moe_aux_loss
+                if moe_spec is not None and moe_spec.has_auxiliary_loss is True:
+                    raw_loss = ssl_loss + moe_aux_loss  # pylint: disable=used-before-assignment
                 else:
                     raw_loss = ssl_loss
 
@@ -747,6 +772,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         torch.nn.utils.clip_grad_norm_(net.parameters(), args.clip_grad_norm)
 
                     optimizer.step()
+
+                if moe_expert_load_accumulator is not None:
+                    moe_expert_load_accumulator.flush(
+                        update_moe_expert_biases  # pylint: disable=used-before-assignment
+                    )
 
                 optimizer.zero_grad()
                 if step_update is True:
@@ -1100,7 +1130,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="disable extended metrics (prototype/patch agreement, target entropy, center drift)",
     )
-    parser.add_argument("--moe-aux-loss", default=False, action="store_true", help="enable MoE auxiliary loss")
+    parser.add_argument(
+        "--moe-training",
+        default=False,
+        action="store_true",
+        help="enable MoE training behavior, including auxiliary balancing losses and expert-bias updates",
+    )
     training_cli.add_optimization_args(parser)
     training_cli.add_lr_wd_args(parser, wd_end=True)
     training_cli.add_lr_scheduler_args(parser)
@@ -1133,13 +1168,11 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--network {args.network} not supported, see list-models tool for available options")
     if registry.exists(args.teacher, task=Task.IMAGE_CLASSIFICATION, net_type=MaskedTokenRetentionMixin) is False:
         raise cli.ValidationError(f"--teacher {args.teacher} not supported, see list-models tool for available options")
-    if args.moe_aux_loss is True:
-        if (args.batch_size * 2) % 8 != 0:
-            raise cli.ValidationError("--moe-aux-loss requires global crop batch size to be divisible by 8")
-        if (args.batch_size * args.local_crops_number) % 8 != 0:
-            raise cli.ValidationError("--moe-aux-loss requires local crop batch size to be divisible by 8")
+    if args.moe_training is True:
+        if args.batch_size % 8 != 0:
+            raise cli.ValidationError("--moe-training requires local --batch-size to be divisible by 8")
         if args.drop_last is False:
-            raise cli.ValidationError("--moe-aux-loss requires --drop-last")
+            raise cli.ValidationError("--moe-training requires --drop-last")
 
 
 def args_from_dict(**kwargs: Any) -> argparse.Namespace:

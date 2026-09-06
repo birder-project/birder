@@ -188,16 +188,22 @@ class MaskFeat(MIMBaseNet):
 
         return (loss * mask).sum() / mask.sum().clamp_min(1.0)
 
-    def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+    def forward(self, x: torch.Tensor, *, return_moe_training_output: bool = False) -> dict[str, Any]:
         mask = self._generate_mask(x.size(0), x.device)
         target = self.get_hog_targets(x)
-        latent = self.encoder.masked_encoding_retention(x, mask, mask_token=self.mask_token, return_keys="features")
+        if return_moe_training_output is True:
+            latent = self.encoder.masked_encoding_retention(
+                x, mask, mask_token=self.mask_token, return_keys="features", return_moe_training_output=True
+            )
+        else:
+            latent = self.encoder.masked_encoding_retention(x, mask, mask_token=self.mask_token, return_keys="features")
+
         pred = self.predictor(latent["features"])
         pred = pred.flatten(2).transpose(1, 2)
         loss = self.forward_loss(pred, target, mask)
 
         result = {"loss": loss, "pred": pred, "mask": mask}
-        if "auxiliary_losses" in latent:
-            result["moe_auxiliary_loss"] = latent["auxiliary_losses"]["auxiliary_loss"]
+        if "moe_training_output" in latent:
+            result["moe_training_output"] = latent["moe_training_output"]
 
         return result

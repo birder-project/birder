@@ -76,7 +76,7 @@ class RoPE_FlexiViT(RoPE_ViT):
             (H // patch_size, W // patch_size),
             self.num_special_tokens if self.pos_embed_special_tokens is True else 0,
             interpolation_mode=self.pos_embed_interpolation_mode,
-            antialias=False,
+            antialias=self.pos_embed_antialias,
         )
 
     def _get_rope_embed(self, H: int, W: int, patch_size: Optional[int] = None) -> torch.Tensor:

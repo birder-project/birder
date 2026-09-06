@@ -226,20 +226,26 @@ class CrossMAE(MIMBaseNet):
 
         return loss
 
-    def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
+    def forward(self, x: torch.Tensor, *, return_moe_training_output: bool = False) -> dict[str, Any]:
         h = self.size[0] // self.encoder.stem_stride
         w = self.size[1] // self.encoder.stem_stride
         mask, ids_keep, _ = uniform_mask(
             x.size(0), h, w, self.mask_ratio, self.kept_mask_ratio, min_mask_size=self.min_mask_size, device=x.device
         )
 
-        latent = self.encoder.masked_encoding_omission(x, ids_keep, return_all_features=True)
+        if return_moe_training_output is True:
+            latent = self.encoder.masked_encoding_omission(
+                x, ids_keep, return_all_features=True, return_moe_training_output=True
+            )
+        else:
+            latent = self.encoder.masked_encoding_omission(x, ids_keep, return_all_features=True)
+
         pred = self.forward_decoder(latent["tokens"], mask)
         loss = self.forward_loss(x, pred, mask)
 
         result = {"loss": loss, "pred": pred, "mask": mask}
-        if "auxiliary_losses" in latent:
-            result["moe_auxiliary_loss"] = latent["auxiliary_losses"]["auxiliary_loss"]
+        if "moe_training_output" in latent:
+            result["moe_training_output"] = latent["moe_training_output"]
 
         return result
 
