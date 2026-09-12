@@ -124,7 +124,7 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 8
         size = (32, 32)
         backbone = registry.net_factory(
-            "vit_moe_t16_4e1s1p_2k_last1",
+            "vit_moe_t16_4e1s1p_2k_last1o1",
             0,
             config={
                 "num_layers": 2,
@@ -156,11 +156,11 @@ class TestNetSSL(unittest.TestCase):
 
         seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * 2 * seq_len * 2)
 
         (loss + moe_training_output["auxiliary_loss"]).backward()
-        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        router_grad = backbone.encoder.block[0].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())
 
@@ -198,7 +198,7 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 8
         size = (32, 32)
         backbone = registry.net_factory(
-            "vit_moe_t16_4e1s1p_2k_last1",
+            "vit_moe_t16_4e1s1p_2k_last1o1",
             0,
             config={
                 "num_layers": 2,
@@ -226,11 +226,11 @@ class TestNetSSL(unittest.TestCase):
 
         seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * seq_len * 2)
 
         (loss + moe_training_output["auxiliary_loss"]).backward()
-        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        router_grad = backbone.encoder.block[0].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())
 
@@ -434,7 +434,7 @@ class TestNetSSL(unittest.TestCase):
         size = (32, 32)
         num_clusters = 16
         backbone = registry.net_factory(
-            "vit_moe_t16_4e1s1p_2k_last1",
+            "vit_moe_t16_4e1s1p_2k_last1o1",
             0,
             config={
                 "num_layers": 2,
@@ -473,11 +473,11 @@ class TestNetSSL(unittest.TestCase):
             self.assertTrue(torch.isfinite(value).all().item())
 
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * ids_keep.size(1) * 2)
 
         (pred.square().mean() + moe_training_output["auxiliary_loss"]).backward()
-        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        router_grad = backbone.encoder.block[0].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())
 
@@ -853,7 +853,7 @@ class TestNetSSL(unittest.TestCase):
         num_clusters = 16
         dino_out_dim = 32
         backbone = registry.net_factory(
-            "vit_moe_t16_4e1s1p_2k_last1",
+            "vit_moe_t16_4e1s1p_2k_last1o1",
             0,
             config={
                 "num_layers": 2,
@@ -899,12 +899,12 @@ class TestNetSSL(unittest.TestCase):
             self.assertTrue(torch.isfinite(value).all().item())
 
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * ids_keep.size(1) * 2)
 
         loss = patch_logits.square().mean() + global_logits.square().mean()
         (loss + moe_training_output["auxiliary_loss"]).backward()
-        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        router_grad = backbone.encoder.block[0].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())
 
@@ -1048,7 +1048,7 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 8
         size = (32, 32)
         backbone = registry.net_factory(
-            "vit_moe_t16_4e1s1p_2k_last1",
+            "vit_moe_t16_4e1s1p_2k_last1o1",
             0,
             config={
                 "num_layers": 2,
@@ -1082,11 +1082,11 @@ class TestNetSSL(unittest.TestCase):
 
         seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * seq_len * 2)
 
         (loss + moe_training_output["auxiliary_loss"]).backward()
-        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        router_grad = backbone.encoder.block[0].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())
 
@@ -1142,7 +1142,7 @@ class TestNetSSL(unittest.TestCase):
         clone_batch = 2
         size = (32, 32)
         backbone = registry.net_factory(
-            "vit_moe_t16_4e1s1p_2k_last1",
+            "vit_moe_t16_4e1s1p_2k_last1o1",
             0,
             config={
                 "num_layers": 2,
@@ -1183,14 +1183,14 @@ class TestNetSSL(unittest.TestCase):
 
         num_kept = int((masks[0] == 0).count_nonzero().item())
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(
             moe_training_output["expert_loads"].sum(),
             batch_size * clone_batch * num_kept * 2,
         )
 
         (loss + moe_training_output["auxiliary_loss"]).backward()
-        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        router_grad = backbone.encoder.block[0].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())
 
@@ -1265,7 +1265,7 @@ class TestNetSSL(unittest.TestCase):
         global_size = (32, 32)
         local_size = (16, 16)
         backbone = registry.net_factory(
-            "vit_moe_t16_4e1s1p_2k_last1",
+            "vit_moe_t16_4e1s1p_2k_last1o1",
             0,
             config={
                 "num_layers": 2,
@@ -1308,14 +1308,14 @@ class TestNetSSL(unittest.TestCase):
         global_seq_len = (global_size[0] // backbone.max_stride) * (global_size[1] // backbone.max_stride)
         local_seq_len = (local_size[0] // backbone.max_stride) * (local_size[1] // backbone.max_stride)
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(
             moe_training_output["expert_loads"].sum(),
             batch_size * 2 * (2 * global_seq_len + 2 * local_seq_len),
         )
 
         (output.square().mean() + moe_training_output["auxiliary_loss"]).backward()
-        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        router_grad = backbone.encoder.block[0].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())
 
@@ -2098,7 +2098,7 @@ class TestNetSSL(unittest.TestCase):
         size = (64, 64)
         dino_out_dim = 128
         num_nesting_levels = 2
-        backbone = registry.net_factory("vit_moe_t16_4e1s1p_2k_last1", 0, size=size)
+        backbone = registry.net_factory("vit_moe_t16_4e1s1p_2k_last1o1", 0, size=size)
         student = franca.FrancaStudent(
             backbone,
             config={
@@ -2160,7 +2160,7 @@ class TestNetSSL(unittest.TestCase):
         )
         self.assertFalse(torch.isnan(moe_training_output["auxiliary_loss"]).any())
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * 8 * seq_len)
 
     def test_franca_loss_forward_matches_reference(self) -> None:
@@ -2789,7 +2789,7 @@ class TestNetSSL(unittest.TestCase):
         local_size = (16, 16)
         local_crops_number = 2
         backbone = registry.net_factory(
-            "vit_moe_t16_4e1s1p_2k_last1",
+            "vit_moe_t16_4e1s1p_2k_last1o1",
             0,
             config={
                 "num_layers": 2,
@@ -2835,14 +2835,14 @@ class TestNetSSL(unittest.TestCase):
         seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
         local_seq_len = (local_size[0] // backbone.max_stride) * (local_size[1] // backbone.max_stride)
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(
             moe_training_output["expert_loads"].sum(),
             batch_size * (2 * seq_len + local_crops_number * local_seq_len) * 2,
         )
 
         (loss + moe_training_output["auxiliary_loss"]).backward()
-        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        router_grad = backbone.encoder.block[0].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())
 
@@ -2954,7 +2954,7 @@ class TestNetSSL(unittest.TestCase):
         n_aug = 2
         size = (32, 32)
         backbone = registry.net_factory(
-            "vit_moe_t16_4e1s1p_2k_last1",
+            "vit_moe_t16_4e1s1p_2k_last1o1",
             0,
             config={
                 "num_layers": 2,
@@ -2983,11 +2983,11 @@ class TestNetSSL(unittest.TestCase):
 
         seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * n_aug * seq_len * 2)
 
         (loss + moe_training_output["auxiliary_loss"]).backward()
-        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        router_grad = backbone.encoder.block[0].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())
 
@@ -3123,7 +3123,7 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 4
         size = (32, 32)
         backbone = registry.net_factory(
-            "vit_moe_t16_4e1s1p_2k_last1",
+            "vit_moe_t16_4e1s1p_2k_last1o1",
             0,
             config={
                 "num_layers": 2,
@@ -3159,11 +3159,11 @@ class TestNetSSL(unittest.TestCase):
 
         seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * 2 * seq_len * 2)
 
         (loss + moe_training_output["auxiliary_loss"]).backward()
-        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        router_grad = backbone.encoder.block[0].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())
 
@@ -3302,7 +3302,7 @@ class TestNetSSL(unittest.TestCase):
         batch_size = 8
         size = (32, 32)
         backbone = registry.net_factory(
-            "vit_moe_t16_4e1s1p_2k_last1",
+            "vit_moe_t16_4e1s1p_2k_last1o1",
             0,
             config={
                 "num_layers": 2,
@@ -3340,10 +3340,10 @@ class TestNetSSL(unittest.TestCase):
 
         seq_len = (size[0] // backbone.max_stride) * (size[1] // backbone.max_stride)
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * 2 * seq_len * 2)
 
         (loss + moe_training_output["auxiliary_loss"]).backward()
-        router_grad = backbone.encoder.block[1].mlp.router.gate.weight.grad
+        router_grad = backbone.encoder.block[0].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())

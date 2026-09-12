@@ -10,6 +10,8 @@ from birder.layers.layer_scale import LayerScale
 from birder.layers.layer_scale import LayerScale2d
 from birder.layers.moe import BaseSparseMoE_FFN
 from birder.layers.moe import ExpertChoiceRouter
+from birder.layers.moe import GroupedLinear
+from birder.layers.moe import GroupedSwiGLU_FFN
 from birder.layers.moe import MoE_FFN
 from birder.layers.moe import MoESpec
 from birder.layers.moe import MoETrainingOutputType
@@ -17,6 +19,8 @@ from birder.layers.moe import NoisyTopKRouter
 from birder.layers.moe import SigmoidTopKRouter
 from birder.layers.moe import SoftMoE_FFN
 from birder.layers.moe import VMoE_FFN
+from birder.layers.moe import group_experts
+from birder.layers.moe import ungroup_experts
 
 __all__ = [
     "QuickGELU",
@@ -31,6 +35,8 @@ __all__ = [
     "LayerScale2d",
     "BaseSparseMoE_FFN",
     "ExpertChoiceRouter",
+    "GroupedLinear",
+    "GroupedSwiGLU_FFN",
     "MoE_FFN",
     "MoESpec",
     "MoETrainingOutputType",
@@ -38,4 +44,6 @@ __all__ = [
     "SigmoidTopKRouter",
     "SoftMoE_FFN",
     "VMoE_FFN",
+    "group_experts",
+    "ungroup_experts",
 ]

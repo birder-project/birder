@@ -312,6 +312,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             "ibot_separate_head": args.ibot_separate_head,
             "ibot_out_dim": args.ibot_out_dim,
             "nesting_levels": args.nesting_levels,
+            "image_embedding_norm": args.image_embedding_norm,
         },
     )
     teacher = FrancaTeacher(
@@ -325,6 +326,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             "ibot_separate_head": args.ibot_separate_head,
             "ibot_out_dim": args.ibot_out_dim,
             "nesting_levels": args.nesting_levels,
+            "image_embedding_norm": args.image_embedding_norm,
         },
     )
     teacher.load_state_dict(student.state_dict())
@@ -1222,6 +1224,12 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ibot-out-dim", type=int, default=65536, help="dimensionality of the iBOT head output")
     parser.add_argument(
         "--nesting-levels", type=int, default=5, help="number of nesting levels for Matryoshka representation learning"
+    )
+    parser.add_argument(
+        "--image-embedding-norm",
+        default=False,
+        action="store_true",
+        help="apply LayerNorm to image embeddings before the DINO head and KoLeo loss",
     )
     parser.add_argument(
         "--momentum-teacher",

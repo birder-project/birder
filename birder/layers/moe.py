@@ -288,20 +288,14 @@ class NoisyTopKRouter(nn.Module):
 
     def forward(
         self, x: torch.Tensor, token_mask: Optional[torch.Tensor] = None, *, return_moe_training_output: bool = False
-    ) -> (
-        tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-        | tuple[torch.Tensor, torch.Tensor, torch.Tensor, MoETrainingOutputType]
-    ):
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, Optional[MoETrainingOutputType]]:
         expert_index, buffer_index, combine_weights, moe_training_output = self._route(
             x, token_mask, return_moe_training_output=return_moe_training_output
         )
-        if return_moe_training_output is True:
-            if moe_training_output is None:
-                moe_training_output = _empty_moe_training_output(x)
+        if return_moe_training_output is True and moe_training_output is None:
+            moe_training_output = _empty_moe_training_output(x)
 
-            return (expert_index, buffer_index, combine_weights, moe_training_output)
-
-        return (expert_index, buffer_index, combine_weights)
+        return (expert_index, buffer_index, combine_weights, moe_training_output)
 
 
 class VMoE_FFN(BaseSparseMoE_FFN):
@@ -385,13 +379,9 @@ class VMoE_FFN(BaseSparseMoE_FFN):
 
             grouped_token_mask = grouped_token_mask.reshape(G, S)
 
-        if return_moe_training_output is True:
-            expert_index, buffer_index, combine_weights, moe_training_output = self.router(
-                grouped_x, grouped_token_mask, return_moe_training_output=True
-            )
-        else:
-            expert_index, buffer_index, combine_weights = self.router(grouped_x, grouped_token_mask)
-            moe_training_output = None
+        expert_index, buffer_index, combine_weights, moe_training_output = self.router(
+            grouped_x, grouped_token_mask, return_moe_training_output=return_moe_training_output
+        )
 
         valid_mask = combine_weights > 0
         expert_slot = torch.arange(G, device=x.device).view(G, 1, 1) * capacity + buffer_index
@@ -497,11 +487,15 @@ class ExpertChoiceRouter(nn.Module):
         return math.ceil(group_size * self.capacity_factor / self.num_experts)
 
     def forward(self, x: torch.Tensor, token_mask: Optional[torch.Tensor] = None) -> tuple[torch.Tensor, torch.Tensor]:
-        affinity_scores = self.gate(x).float().softmax(dim=-1)
+        if token_mask is not None:
+            token_mask = token_mask.to(dtype=torch.bool)
+            x = x.masked_fill(~token_mask.unsqueeze(-1), 0.0)
+
+        logits = self.gate(x)
+        affinity_scores = logits.float().softmax(dim=-1)
         expert_scores = affinity_scores.transpose(-2, -1)
 
         if token_mask is not None:
-            token_mask = token_mask.to(dtype=torch.bool)
             selection_scores = expert_scores.masked_fill(~token_mask.unsqueeze(-2), -torch.inf)
         else:
             selection_scores = expert_scores
@@ -513,9 +507,188 @@ class ExpertChoiceRouter(nn.Module):
         expert_weights = expert_scores.gather(-1, token_indices)
         if token_mask is not None:
             selected_token_mask = token_mask.unsqueeze(-2).expand_as(expert_scores).gather(-1, token_indices)
-            expert_weights = expert_weights * selected_token_mask
+            expert_weights = expert_weights.masked_fill(~selected_token_mask, 0.0)
 
         return (token_indices, expert_weights)
+
+
+class GroupedLinear(nn.Module):
+    """
+    Expert-major linear projection for dense and packed expert batches
+    """
+
+    def __init__(self, in_features: int, out_features: int, num_experts: int, bias: bool = False) -> None:
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.num_experts = num_experts
+        self.weight = nn.Parameter(torch.empty(num_experts, out_features, in_features))
+        if bias is True:
+            self.bias = nn.Parameter(torch.empty(num_experts, out_features))
+        else:
+            self.register_parameter("bias", None)
+
+        # Weight initialization
+        for weight in self.weight:
+            nn.init.kaiming_uniform_(weight, a=math.sqrt(5))
+
+        if self.bias is not None:
+            bound = 1 / math.sqrt(in_features)
+            nn.init.uniform_(self.bias, -bound, bound)
+
+    def forward(
+        self, x: torch.Tensor, *, offsets: Optional[torch.Tensor] = None, expert_indices: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        if offsets is not None:
+            output = F.grouped_mm(x, self.weight.to(dtype=x.dtype).transpose(-2, -1), offs=offsets)
+            if self.bias is not None:
+                # Gather in FP32 so backward accumulates repeated expert-bias contributions in FP32
+                output = output + self.bias.float().index_select(0, expert_indices).to(dtype=output.dtype)
+
+        else:
+            output = torch.bmm(x, self.weight.transpose(-2, -1))
+            if self.bias is not None:
+                bias = self.bias.unsqueeze(1)
+                if output.dtype in (torch.float16, torch.bfloat16):
+                    # Cast after expansion so the broadcast reduction accumulates bias gradients in FP32
+                    bias = bias.float().expand_as(output)
+
+                output = output + bias.to(dtype=output.dtype)
+
+        return output
+
+
+class GroupedSwiGLU_FFN(nn.Module):
+    """
+    Expert-major SwiGLU feed-forward layer for dense and packed expert batches
+    """
+
+    def __init__(
+        self, in_features: int, hidden_features: int, num_experts: int, bias: bool = False, dropout: float = 0.0
+    ) -> None:
+        super().__init__()
+        self.in_features = in_features
+        self.hidden_features = hidden_features
+        self.num_experts = num_experts
+        self.fc1_g = GroupedLinear(in_features, hidden_features, num_experts, bias)
+        self.fc1_x = GroupedLinear(in_features, hidden_features, num_experts, bias)
+        self.act = nn.SiLU()
+        self.drop1 = nn.Dropout(dropout)
+        self.fc2 = GroupedLinear(hidden_features, in_features, num_experts, bias)
+        self.drop2 = nn.Dropout(dropout)
+
+        if self.fc1_g.bias is not None:
+            nn.init.normal_(self.fc1_g.weight, std=1e-6)
+            nn.init.ones_(self.fc1_g.bias)
+
+    def forward(self, x: torch.Tensor, *, expert_counts: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Process dense expert batches or packed contiguous expert segments
+        """
+
+        empty_packed = False
+        offsets = None
+        expert_indices = None
+        if expert_counts is not None:
+            if x.size(0) == 0:
+                empty_packed = True
+                x = x.reshape(self.num_experts, 0, self.in_features)
+            else:
+                # grouped_mm does not participate in autocast itself
+                x = x.to(dtype=torch.bfloat16)
+                offsets = expert_counts.cumsum(0, dtype=torch.int32)
+                if self.fc1_g.bias is not None:
+                    expert_indices = torch.arange(self.num_experts, device=x.device).repeat_interleave(
+                        expert_counts, output_size=x.size(0)
+                    )
+
+        x_gate = self.fc1_g(x, offsets=offsets, expert_indices=expert_indices)
+        x = self.fc1_x(x, offsets=offsets, expert_indices=expert_indices)
+        x = self.act(x_gate) * x
+        x = self.drop1(x)
+        x = self.fc2(x, offsets=offsets, expert_indices=expert_indices)
+        x = self.drop2(x)
+        if empty_packed is True:
+            x = x.reshape(0, self.in_features)
+
+        return x
+
+
+def group_experts(experts: nn.ModuleList) -> GroupedSwiGLU_FFN:
+    """
+    Copy homogeneous SwiGLU experts configured by MoE_FFN into grouped parameters
+    """
+
+    if len(experts) == 0:
+        raise ValueError("experts must contain at least one SwiGLU_FFN")
+
+    reference = experts[0]
+    for expert in experts:
+        if any(module.training != experts.training for module in (expert, expert.drop1, expert.drop2)):
+            raise ValueError("all experts and dropout layers must have the same training mode as the ModuleList")
+        if any(
+            parameter.requires_grad != reference_parameter.requires_grad
+            for parameter, reference_parameter in zip(expert.parameters(), reference.parameters())
+        ):
+            raise ValueError("corresponding expert parameters must use the same requires_grad setting")
+
+    with torch.device("meta"):
+        grouped = GroupedSwiGLU_FFN(
+            reference.fc1_g.in_features,
+            reference.fc1_g.out_features,
+            len(experts),
+            bias=reference.fc1_g.bias is not None,
+            dropout=reference.drop1.p,
+        )
+    with torch.no_grad():
+        for projection_name in ("fc1_g", "fc1_x", "fc2"):
+            grouped_projection = getattr(grouped, projection_name)
+            expert_projections = [getattr(expert, projection_name) for expert in experts]
+            grouped_projection.weight = nn.Parameter(
+                torch.stack([projection.weight for projection in expert_projections]),
+                requires_grad=expert_projections[0].weight.requires_grad,
+            )
+            if grouped_projection.bias is not None:
+                grouped_projection.bias = nn.Parameter(
+                    torch.stack([projection.bias for projection in expert_projections]),
+                    requires_grad=expert_projections[0].bias.requires_grad,
+                )
+
+    return grouped.train(experts.training)  # type: ignore[no-any-return]
+
+
+def ungroup_experts(grouped: GroupedSwiGLU_FFN) -> nn.ModuleList:
+    """
+    Copy grouped experts configured by MoE_FFN into a ModuleList of SwiGLU FFNs
+    """
+
+    if grouped.drop1.training != grouped.training or grouped.drop2.training != grouped.training:
+        raise ValueError("dropout layers must have the same training mode as the grouped experts")
+
+    num_experts = grouped.num_experts
+    hidden_features = grouped.hidden_features
+    in_features = grouped.in_features
+    bias = grouped.fc1_g.bias is not None
+    with torch.device("meta"):
+        experts = nn.ModuleList(
+            [SwiGLU_FFN(in_features, hidden_features, bias=bias, dropout=grouped.drop1.p) for _ in range(num_experts)]
+        )
+    with torch.no_grad():
+        for expert_idx, expert in enumerate(experts):
+            for projection_name in ("fc1_g", "fc1_x", "fc2"):
+                grouped_projection = getattr(grouped, projection_name)
+                projection = getattr(expert, projection_name)
+                projection.weight = nn.Parameter(
+                    grouped_projection.weight[expert_idx].clone(),
+                    requires_grad=grouped_projection.weight.requires_grad,
+                )
+                if projection.bias is not None:
+                    projection.bias = nn.Parameter(
+                        grouped_projection.bias[expert_idx].clone(),
+                        requires_grad=grouped_projection.bias.requires_grad,
+                    )
+
+    return experts.train(grouped.training)
 
 
 class MoE_FFN(BaseSparseMoE_FFN):
@@ -528,6 +701,10 @@ class MoE_FFN(BaseSparseMoE_FFN):
     balance loss are not implemented.
     Expert-choice routing is provided as an independent alternative.
 
+    Setting 'grouped_token_choice=True' stores token-choice routed experts in grouped parameters and executes them with
+    grouped matrix multiplications. This is intended for compatible CUDA BF16 execution, such as BF16 AMP or FSDP
+    mixed-precision training, the default individual expert modules remain the portable option for other environments.
+
     When special-token experts are configured, the prefix identified by 'num_special_tokens' bypasses the router and
     is processed by every special-token expert. Shared experts continue to process the full sequence.
     """
@@ -538,11 +715,12 @@ class MoE_FFN(BaseSparseMoE_FFN):
         hidden_features: int,
         bias: bool = False,
         dropout: float = 0.0,
-        num_routed_experts: int = 31,
+        num_routed_experts: int = 32,
         num_shared_experts: int = 1,
         num_special_token_experts: int = 0,
         routed_scaling_factor: float = 1.0,
         routing_type: Literal["token_choice", "expert_choice"] = "token_choice",
+        grouped_token_choice: bool = False,
         top_k: int = 2,
         router_bias_update_speed: float = 0.001,
         expert_choice_capacity_factor: float = 2.0,
@@ -578,56 +756,82 @@ class MoE_FFN(BaseSparseMoE_FFN):
                 for _ in range(num_special_token_experts)
             ]
         )
-        self.routed_experts = nn.ModuleList(
-            [SwiGLU_FFN(in_features, hidden_features, bias=bias, dropout=dropout) for _ in range(num_routed_experts)]
-        )
+        self.routed_experts: nn.ModuleList | GroupedSwiGLU_FFN
+        if routing_type == "expert_choice" or grouped_token_choice is True:
+            self.routed_experts = GroupedSwiGLU_FFN(in_features, hidden_features, num_routed_experts, bias, dropout)
+        else:
+            self.routed_experts = nn.ModuleList(
+                [
+                    SwiGLU_FFN(in_features, hidden_features, bias=bias, dropout=dropout)
+                    for _ in range(num_routed_experts)
+                ]
+            )
 
-    def _route(
+    def _route_token_choice(
         self, x: torch.Tensor, token_mask: Optional[torch.Tensor]
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         num_tokens = x.numel() // self.in_features
-        if self.routing_type == "token_choice":
-            expert_indices, expert_weights = self.router(x, token_mask=token_mask)
-            num_choices = expert_indices.size(-1)
-            flat_expert_indices = expert_indices.reshape(-1)
-            flat_expert_weights = expert_weights.reshape(-1)
-            flat_token_indices = (
-                torch.arange(num_tokens, device=x.device).unsqueeze(-1).expand(-1, num_choices).reshape(-1)
+        expert_indices, expert_weights = self.router(x, token_mask=token_mask)
+        num_choices = expert_indices.size(-1)
+        flat_expert_indices = expert_indices.reshape(-1)
+        flat_expert_weights = expert_weights.reshape(-1)
+        flat_token_indices = torch.arange(num_tokens, device=x.device).unsqueeze(-1).expand(-1, num_choices).reshape(-1)
+        if token_mask is not None:
+            flat_assignment_mask = (
+                token_mask.to(dtype=torch.bool).reshape(num_tokens, 1).expand(-1, num_choices).reshape(-1)
             )
-            if token_mask is not None:
-                flat_assignment_mask = (
-                    token_mask.to(dtype=torch.bool).reshape(num_tokens, 1).expand(-1, num_choices).reshape(-1)
-                )
-            else:
-                flat_assignment_mask = None
-
         else:
-            token_indices, expert_weights = self.router(x, token_mask=token_mask)
-            group_size = x.size(-2)
-            num_groups = num_tokens // group_size
-            capacity = token_indices.size(-1)
-            grouped_token_indices = token_indices.reshape(num_groups, self.num_routed_experts, capacity)
-            group_offsets = torch.arange(num_groups, device=x.device).reshape(-1, 1, 1) * group_size
-            flat_token_indices = (grouped_token_indices + group_offsets).reshape(-1)
-            flat_expert_indices = (
-                torch.arange(self.num_routed_experts, device=x.device)
-                .reshape(1, -1, 1)
-                .expand_as(grouped_token_indices)
-                .reshape(-1)
-            )
-            flat_expert_weights = expert_weights.reshape(-1)
-            if token_mask is not None:
-                grouped_token_mask = token_mask.to(dtype=torch.bool).reshape(num_groups, group_size)
-                flat_assignment_mask = (
-                    grouped_token_mask.unsqueeze(1)
-                    .expand(-1, self.num_routed_experts, -1)
-                    .gather(-1, grouped_token_indices)
-                    .reshape(-1)
-                )
-            else:
-                flat_assignment_mask = None
+            flat_assignment_mask = None
 
         return (flat_token_indices, flat_expert_indices, flat_expert_weights, flat_assignment_mask)
+
+    def _route_expert_choice(
+        self, x: torch.Tensor, token_mask: Optional[torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        token_indices, expert_weights = self.router(x, token_mask=token_mask)
+        group_size = x.size(-2)
+        num_groups = math.prod(x.shape[:-2])
+        capacity = token_indices.size(-1)
+        grouped_token_indices = token_indices.reshape(num_groups, self.num_routed_experts, capacity)
+        group_offsets = torch.arange(num_groups, device=x.device).reshape(-1, 1, 1) * group_size
+
+        token_indices = (grouped_token_indices + group_offsets).transpose(0, 1)
+        token_indices = token_indices.reshape(self.num_routed_experts, num_groups * capacity)
+        expert_weights = expert_weights.reshape(num_groups, self.num_routed_experts, capacity).transpose(0, 1)
+        expert_weights = expert_weights.reshape(self.num_routed_experts, num_groups * capacity)
+
+        return (token_indices, expert_weights)
+
+    def _run_grouped_experts(
+        self,
+        flat_routed_x: torch.Tensor,
+        token_indices: torch.Tensor,
+        expert_weights: torch.Tensor,
+        expert_counts: Optional[torch.Tensor],
+        token_mask: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        flat_token_indices = token_indices.reshape(-1)
+
+        # The gather's backward scatter-add must accumulate repeated token gradients in FP32
+        gather_source = flat_routed_x
+        if gather_source.dtype in (torch.float16, torch.bfloat16):
+            gather_source = gather_source.float()
+
+        expert_input = gather_source.index_select(0, flat_token_indices).to(dtype=flat_routed_x.dtype)
+        if token_mask is not None:
+            selected_mask = token_mask.reshape(-1).to(dtype=torch.bool).index_select(0, flat_token_indices)
+            expert_input = expert_input.masked_fill(~selected_mask.unsqueeze(-1), 0.0)
+
+        expert_input = expert_input.reshape(*token_indices.shape, self.in_features)
+        expert_output = self.routed_experts(expert_input, expert_counts=expert_counts).reshape(-1, self.in_features)
+
+        # Accumulate the forward scatter-add's low-precision expert contributions in FP32
+        combine_dtype = torch.float32 if expert_output.dtype in (torch.float16, torch.bfloat16) else expert_output.dtype
+        combine_weights = expert_weights.reshape(-1, 1).to(dtype=combine_dtype)
+        routed_output = expert_output.new_zeros((flat_routed_x.size(0), self.in_features), dtype=combine_dtype)
+        routed_output.index_add_(0, flat_token_indices, expert_output.to(dtype=combine_dtype) * combine_weights)
+
+        return routed_output.to(dtype=expert_output.dtype)
 
     def forward(
         self,
@@ -648,28 +852,71 @@ class MoE_FFN(BaseSparseMoE_FFN):
             routed_x = x
             routed_token_mask = token_mask
 
-        flat_token_indices, flat_expert_indices, flat_expert_weights, flat_assignment_mask = self._route(
-            routed_x, routed_token_mask
-        )
         num_routed_tokens = routed_x.numel() // self.in_features
         flat_routed_x = routed_x.reshape(num_routed_tokens, self.in_features)
+        expert_loads: Optional[torch.Tensor] = None
+        if isinstance(self.routed_experts, nn.ModuleList):
+            flat_token_indices, flat_expert_indices, flat_expert_weights, flat_assignment_mask = (
+                self._route_token_choice(routed_x, routed_token_mask)
+            )
+            if torch.is_autocast_enabled(x.device.type) is True:
+                expert_dtype = torch.get_autocast_dtype(x.device.type)
+            else:
+                expert_dtype = x.dtype
 
-        if torch.is_autocast_enabled(x.device.type) is True:
-            expert_dtype = torch.get_autocast_dtype(x.device.type)
+            routed_output = x.new_zeros((num_routed_tokens, self.in_features), dtype=expert_dtype)
+            for expert_idx, expert in enumerate(self.routed_experts):
+                expert_mask = flat_expert_indices == expert_idx
+                if flat_assignment_mask is not None:
+                    expert_mask = expert_mask & flat_assignment_mask
+
+                token_indices = flat_token_indices[expert_mask]
+                expert_input = flat_routed_x.index_select(0, token_indices)
+                expert_output = expert(expert_input)
+                combine_weights = flat_expert_weights[expert_mask].to(dtype=expert_output.dtype).unsqueeze(-1)
+                routed_output.index_add_(0, token_indices, expert_output * combine_weights)
+
+            if self.training is True and return_moe_training_output is True:
+                selected_experts = flat_expert_indices
+                if flat_assignment_mask is not None:
+                    selected_experts = selected_experts[flat_assignment_mask]
+
+                expert_loads = torch.bincount(
+                    selected_experts.reshape(-1), minlength=self.num_routed_experts
+                ).unsqueeze(0)
+
         else:
-            expert_dtype = x.dtype
+            expert_counts = None
+            selected_token_mask = routed_token_mask
+            if self.routing_type == "token_choice":
+                flat_token_indices, flat_expert_indices, flat_expert_weights, flat_assignment_mask = (
+                    self._route_token_choice(routed_x, routed_token_mask)
+                )
+                if flat_assignment_mask is not None:
+                    flat_expert_indices = flat_expert_indices[flat_assignment_mask]
+                    flat_token_indices = flat_token_indices[flat_assignment_mask]
+                    flat_expert_weights = flat_expert_weights[flat_assignment_mask]
 
-        routed_output = x.new_zeros((num_routed_tokens, self.in_features), dtype=expert_dtype)
-        for expert_idx, expert in enumerate(self.routed_experts):
-            expert_mask = flat_expert_indices == expert_idx
-            if flat_assignment_mask is not None:
-                expert_mask = expert_mask & flat_assignment_mask
+                order = flat_expert_indices.argsort(stable=True)
+                expert_counts = flat_expert_indices.new_zeros(self.num_routed_experts)
+                expert_counts.scatter_add_(0, flat_expert_indices, torch.ones_like(flat_expert_indices))
+                token_indices = flat_token_indices[order]
+                expert_weights = flat_expert_weights[order]
+                selected_token_mask = None
+                if self.training is True and return_moe_training_output is True:
+                    expert_loads = expert_counts.unsqueeze(0)
 
-            token_indices = flat_token_indices[expert_mask]
-            expert_input = flat_routed_x.index_select(0, token_indices)
-            expert_output = expert(expert_input)
-            combine_weights = flat_expert_weights[expert_mask].to(dtype=expert_output.dtype).unsqueeze(-1)
-            routed_output.index_add_(0, token_indices, expert_output * combine_weights)
+            else:
+                token_indices, expert_weights = self._route_expert_choice(routed_x, routed_token_mask)
+
+            routed_output = self._run_grouped_experts(
+                flat_routed_x,
+                token_indices,
+                expert_weights,
+                expert_counts,
+                selected_token_mask,
+            )
+            expert_dtype = routed_output.dtype
 
         routed_output = (routed_output * self.routed_scaling_factor).reshape_as(routed_x)
 
@@ -696,14 +943,7 @@ class MoE_FFN(BaseSparseMoE_FFN):
 
         if return_moe_training_output is True:
             moe_training_output = _empty_moe_training_output(output)
-            if self.training is True and self.routing_type == "token_choice":
-                selected_experts = flat_expert_indices
-                if flat_assignment_mask is not None:
-                    selected_experts = selected_experts[flat_assignment_mask]
-
-                expert_loads = torch.bincount(
-                    selected_experts.reshape(-1), minlength=self.num_routed_experts
-                ).unsqueeze(0)
+            if expert_loads is not None:
                 moe_training_output["expert_loads"] = expert_loads
 
             return (output, moe_training_output)

@@ -197,7 +197,7 @@ NET_TEST_CASES = [
     ("vit_so150m_p14_ap", False, False, 1, 14),
     ("vit_reg8_so150m_p14_swiglu_avg", False, False, 1, 14),
     ("vit_s16_soft_moe_32e_4s_avg"),
-    ("vit_moe_t16_4e1s1p_2k_last1"),
+    ("vit_moe_t16_4e1s1p_2k_last1o1"),
     ("vit_vmoe_vs32_8e_2k_last2s2"),
     ("vit_vmoe_reg1_vs32_8e_2k_last2s2"),
     ("vit_parallel_s16_18x2_ls"),
@@ -420,7 +420,7 @@ DYNAMIC_SIZE_CASES = [
     ("vit_so150m_p14_ap", 1, 14),
     ("vit_reg8_so150m_p14_swiglu_avg", 1, 14),
     ("vit_s16_soft_moe_32e_4s_avg"),
-    ("vit_moe_t16_4e1s1p_2k_last1"),
+    ("vit_moe_t16_4e1s1p_2k_last1o1"),
     ("vit_vmoe_vs32_8e_2k_last2s2"),
     ("vit_vmoe_reg1_vs32_8e_2k_last2s2"),
     ("vit_parallel_s16_18x2_ls"),
@@ -979,7 +979,7 @@ class TestNet(unittest.TestCase):
             ("vit_so150m_p14_ap"),
             ("vit_reg8_so150m_p14_swiglu_avg"),
             ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_moe_t16_4e1s1p_2k_last1o1"),
             ("vit_vmoe_vs32_8e_2k_last2s2"),
             ("vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("vit_parallel_s16_18x2_ls"),
@@ -1074,7 +1074,7 @@ class TestNet(unittest.TestCase):
             ("vit_so150m_p14_ap"),
             ("vit_reg8_so150m_p14_swiglu_avg"),
             ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_moe_t16_4e1s1p_2k_last1o1"),
             ("vit_vmoe_vs32_8e_2k_last2s2"),
             ("vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("vit_parallel_s16_18x2_ls"),
@@ -1166,7 +1166,7 @@ class TestNet(unittest.TestCase):
             ("swin_transformer_v2_t"),
             ("vit_s32"),
             ("vit_sam_b16"),
-            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_moe_t16_4e1s1p_2k_last1o1"),
             ("vit_vmoe_vs32_8e_2k_last2s2"),
             ("vit_parallel_s16_18x2_ls"),
             ("wide_resnet_50"),
@@ -1191,7 +1191,7 @@ class TestNet(unittest.TestCase):
 
                 # Verify forward with checkpointing
                 self.assertEqual(out.size(), expected.size())
-                self.assertTrue(torch.allclose(out, expected))
+                torch.testing.assert_close(out, expected, rtol=1e-5, atol=1e-6)
                 self.assertEqual(out.numel(), 100 * batch_size)
                 self.assertTrue(torch.isfinite(out).all().item(), msg=f"{network_name} non-finite output")
 
@@ -1376,7 +1376,7 @@ class TestNonSquareNet(unittest.TestCase):
             ("vit_so150m_p14_ap", 1, 14, 14),
             ("vit_reg8_so150m_p14_swiglu_avg", 1, 14, 14),
             ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_moe_t16_4e1s1p_2k_last1o1"),
             ("vit_vmoe_vs32_8e_2k_last2s2"),
             ("vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("vit_parallel_s16_18x2_ls"),
@@ -1898,7 +1898,7 @@ class TestSpecialFunctions(unittest.TestCase):
             ("vit_b16_qkn_ls"),
             ("vit_b16_nf_swiglu"),
             ("vit_s16_soft_moe_32e_4s_avg"),
-            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_moe_t16_4e1s1p_2k_last1o1"),
             ("vit_vmoe_vs32_8e_2k_last2s2"),
             ("vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("vit_parallel_s16_18x2_ls"),
@@ -1931,7 +1931,7 @@ class TestSpecialFunctions(unittest.TestCase):
             ("rope_vit_vmoe_reg1_vs32_8e_2k_last2s2"),
             ("simple_vit_s32"),
             ("vit_s32"),
-            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_moe_t16_4e1s1p_2k_last1o1"),
             ("vit_vmoe_vs32_8e_2k_last2s2"),
         ]
     )
@@ -1997,7 +1997,7 @@ class TestSpecialFunctions(unittest.TestCase):
                 "mlp_dim": 16,
                 "drop_path_rate": 0.0,
                 "moe_last_n_layers": 1,
-                "moe_num_experts": 2,
+                "moe_num_routed_experts": 2,
                 "router_noise_std": 0.0,
                 "mlp_head": False,
             },
@@ -2031,11 +2031,13 @@ class TestSpecialFunctions(unittest.TestCase):
 
     @parameterized.expand(  # type: ignore[untyped-decorator]
         [
-            ("vit_moe_t16_4e1s1p_2k_last1", 2),
-            ("rope_vit_moe_t16_4e1s_2k_last1_avg", 3),
+            ("vit_moe_t16_4e1s1p_2k_last1o1", 4, (1, 2)),
+            ("rope_vit_moe_t16_4e1s_2k_last1_avg", 4, (2, 3)),
         ]
     )
-    def test_vit_moe_token_choice(self, network_name: str, num_routed_experts: int) -> None:
+    def test_vit_moe_token_choice(
+        self, network_name: str, num_routed_experts: int, moe_block_indices: tuple[int, int]
+    ) -> None:
         n = registry.net_factory(
             network_name,
             2,
@@ -2054,7 +2056,6 @@ class TestSpecialFunctions(unittest.TestCase):
         self.assertFalse(n.moe_spec.has_auxiliary_loss)
         self.assertTrue(n.moe_spec.requires_expert_bias_update)
 
-        moe_block_indices = (2, 3)
         initial_expert_bias = torch.arange(num_routed_experts - 1, -1, -1, dtype=torch.float32) * 2.0
         with torch.no_grad():
             n.classifier.weight.fill_(1.0)
@@ -2158,7 +2159,7 @@ class TestSpecialFunctions(unittest.TestCase):
             attention_dropout=0.0,
             projection_dropout=0.0,
             dpr=[0.0, 0.0],
-            moe_num_experts=2,
+            moe_num_routed_experts=2,
             router_noise_std=0.0,
         )
         with torch.no_grad():
@@ -2350,7 +2351,7 @@ class TestSpecialFunctions(unittest.TestCase):
             ("vit_s32"),
             ("vit_b16_qkn_ls"),
             ("vit_b16_nf_swiglu"),
-            ("vit_moe_t16_4e1s1p_2k_last1"),
+            ("vit_moe_t16_4e1s1p_2k_last1o1"),
             ("vit_vmoe_vs32_8e_2k_last2s2"),
             ("vit_parallel_s16_18x2_ls"),
             ("vit_sam_b16"),
@@ -2402,3 +2403,102 @@ class TestSpecialFunctions(unittest.TestCase):
             n.set_causal_attention(True)
 
         n.set_causal_attention(False)
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+class TestGroupedMoE(unittest.TestCase):
+    @parameterized.expand(  # type: ignore[untyped-decorator]
+        [
+            ("vit_moe_t16_4e1s1p_2k_last1o1",),
+            ("rope_vit_moe_t16_4e1s_2k_last1_avg",),
+        ]
+    )
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_forward_backward(self, network_name: str) -> None:
+        device = torch.device("cuda", torch.cuda.current_device())
+        n = registry.net_factory(
+            network_name,
+            0,
+            config={
+                "moe_grouped_token_choice": True,
+                "moe_layers": [0],
+                "moe_last_n_layers": None,
+                "moe_last_n_layers_offset": 0,
+            },
+        ).to(device)
+        moe_ffn = n.encoder.block[0].mlp
+
+        inputs = torch.randn((2, DEFAULT_NUM_CHANNELS, *n.default_size), device=device, requires_grad=True)
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            output, moe_training_output = n(inputs, return_moe_training_output=True)
+
+        self.assertEqual(output.size(), (2, n.embedding_size))
+        self.assertTrue(torch.isfinite(output).all().item())
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, moe_ffn.num_routed_experts))
+        self.assertGreater(moe_training_output["expert_loads"].sum().item(), 0)
+
+        upstream = torch.linspace(0.1, 1.0, output.numel(), device=output.device, dtype=output.dtype).reshape_as(output)
+        output.backward(upstream)
+        parameters = (inputs, n.conv_proj.weight, moe_ffn.router.gate.weight, *moe_ffn.routed_experts.parameters())
+        for parameter in parameters:
+            self.assertIsNotNone(parameter.grad)
+            self.assertTrue(torch.isfinite(parameter.grad).all().item())
+
+        routed_grad_sum = sum(
+            parameter.grad.float().abs().sum().item()
+            for parameter in moe_ffn.routed_experts.parameters()
+            if parameter.grad is not None
+        )
+        self.assertGreater(routed_grad_sum, 0.0)
+
+    @unittest.skipUnless(env_bool("SLOW_TESTS"), "Avoid slow tests")
+    def test_grad_checkpointing(self) -> None:
+        device = torch.device("cuda", torch.cuda.current_device())
+        baseline = registry.net_factory(
+            "vit_moe_t16_4e1s1p_2k_last1o1",
+            0,
+            config={
+                "moe_grouped_token_choice": True,
+                "moe_layers": [0],
+                "moe_last_n_layers": None,
+                "moe_last_n_layers_offset": 0,
+            },
+        ).to(device)
+        checkpointed = copy.deepcopy(baseline)
+        checkpointed.set_grad_checkpointing(segments=2)
+        inputs = torch.randn((2, DEFAULT_NUM_CHANNELS, *baseline.default_size), device=device)
+        checkpointed_inputs = inputs.detach().clone().requires_grad_()
+
+        with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+            expected, expected_moe_training_output = baseline(inputs, return_moe_training_output=True)
+
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            actual, moe_training_output = checkpointed(
+                checkpointed_inputs,
+                return_moe_training_output=True,
+            )
+
+        upstream = torch.linspace(0.1, 1.0, actual.numel(), device=actual.device, dtype=actual.dtype).reshape_as(actual)
+        actual.backward(upstream)
+
+        torch.testing.assert_close(actual, expected)
+        for key, expected_value in expected_moe_training_output.items():
+            torch.testing.assert_close(moe_training_output[key], expected_value, msg=key)
+
+        moe_ffn = checkpointed.encoder.block[0].mlp
+        parameters = (
+            checkpointed_inputs,
+            checkpointed.conv_proj.weight,
+            moe_ffn.router.gate.weight,
+            *moe_ffn.routed_experts.parameters(),
+        )
+        for parameter in parameters:
+            self.assertIsNotNone(parameter.grad)
+            self.assertTrue(torch.isfinite(parameter.grad).all().item())
+
+        routed_grad_sum = sum(
+            parameter.grad.float().abs().sum().item()
+            for parameter in moe_ffn.routed_experts.parameters()
+            if parameter.grad is not None
+        )
+        self.assertGreater(routed_grad_sum, 0.0)

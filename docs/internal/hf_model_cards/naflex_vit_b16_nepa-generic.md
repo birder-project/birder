@@ -9,7 +9,7 @@ license: apache-2.0
 
 # Model Card for naflex_vit_b16_nepa-generic
 
-A NaFlex ViT B/16 image encoder pretrained using NEPA with variable patch sizes from 14 to 32 pixels and variable image resolutions from 192px to 320px, subject to a sequence-length budget of 36–400 image patches.
+A NaFlex ViT B/16 image encoder pretrained using NEPA with variable patch sizes from 14 to 32 pixels and variable image resolutions from 192px to 320px, subject to a sequence-length budget of 36-400 tokens.
 This model has *not* been fine-tuned for a specific classification task and is intended to be used as a general-purpose feature extractor or a backbone for downstream tasks like object detection, segmentation, or custom classification.
 
 ## Model Details

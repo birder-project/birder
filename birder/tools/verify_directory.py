@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 def verify_directory(args: argparse.Namespace) -> None:
     batch_size = 32
     has_errors = False
+    num_verified = 0
+    num_valid = 0
     transform = v2.Compose(
         [
             v2.ToImage(),
@@ -43,8 +45,11 @@ def verify_directory(args: argparse.Namespace) -> None:
             if args.fast is True:
                 idx = 0
                 try:
-                    for idx, (_, _) in enumerate(data_loader):
-                        progress.update(batch_size)
+                    for idx, (images, _) in enumerate(data_loader):
+                        current_batch_size = images.size(0)
+                        num_verified += current_batch_size
+                        num_valid += current_batch_size
+                        progress.update(current_batch_size)
 
                 except (OSError, RuntimeError) as e:
                     logger.warning(
@@ -55,12 +60,15 @@ def verify_directory(args: argparse.Namespace) -> None:
 
             else:
                 for img_path, _ in dataset.samples:
+                    num_verified += 1
                     try:
                         img = dataset.loader(img_path)
                         img = transform(img)
                         if img.size(0) != args.channels:
                             has_errors = True
                             logger.warning(f"File {img_path} failed to load {img.size()}")
+                        else:
+                            num_valid += 1
 
                     except (OSError, RuntimeError) as e:
                         has_errors = True
@@ -70,6 +78,7 @@ def verify_directory(args: argparse.Namespace) -> None:
 
         logger.info(f"Finished {data_path}")
 
+    logger.info(f"Verified {num_verified:,} images, {num_valid:,} valid")
     if has_errors is True:
         raise RuntimeError("Directory verification failed")
 

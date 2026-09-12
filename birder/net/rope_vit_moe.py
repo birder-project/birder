@@ -35,6 +35,7 @@ from birder.layers.rope import RoPERotationType
 from birder.layers.rope import RoPEStyleType
 from birder.model_registry import registry
 from birder.net._vit_configs import BASE
+from birder.net._vit_configs import MEDIUM
 from birder.net._vit_configs import SMALL
 from birder.net._vit_configs import TINY
 from birder.net.base import MaskedTokenOmissionMixin
@@ -186,11 +187,12 @@ class Encoder(nn.Module):
         moe_expert_width: Optional[int] = None,
         moe_ffn_bias: bool = False,
         moe_dropout: float = 0.0,
-        moe_num_experts: int = 8,
+        moe_num_routed_experts: int = 8,
         moe_num_shared_experts: int = 1,
         moe_num_special_token_experts: int = 0,
         moe_routed_scaling_factor: float = 1.0,
         moe_routing_type: Literal["token_choice", "expert_choice"] = "token_choice",
+        moe_grouped_token_choice: bool = False,
         moe_top_k: int = 2,
         router_bias_update_speed: float = 0.001,
         moe_expert_choice_capacity_factor: float = 2.0,
@@ -219,7 +221,7 @@ class Encoder(nn.Module):
             moe_mlp_layer: Callable[..., nn.Module] = partial(
                 VMoE_FFN,
                 act_layer=activation_layer,
-                num_experts=moe_num_experts,
+                num_experts=moe_num_routed_experts,
                 top_k=moe_top_k,
                 capacity_factor=moe_capacity_factor,
                 eval_capacity_factor=moe_eval_capacity_factor,
@@ -241,11 +243,12 @@ class Encoder(nn.Module):
             moe_mlp_layer = partial(
                 MoE_FFN,
                 bias=moe_ffn_bias,
-                num_routed_experts=moe_num_experts - moe_num_shared_experts - moe_num_special_token_experts,
+                num_routed_experts=moe_num_routed_experts,
                 num_shared_experts=moe_num_shared_experts,
                 num_special_token_experts=moe_num_special_token_experts,
                 routed_scaling_factor=moe_routed_scaling_factor,
                 routing_type=moe_routing_type,
+                grouped_token_choice=moe_grouped_token_choice,
                 top_k=moe_top_k,
                 router_bias_update_speed=router_bias_update_speed,
                 expert_choice_capacity_factor=moe_expert_choice_capacity_factor,
@@ -604,16 +607,18 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             moe_every_n_layers=self.config.get("moe_every_n_layers", None),
             moe_last_n_layers=self.config.get("moe_last_n_layers", None),
             moe_last_n_layers_stride=self.config.get("moe_last_n_layers_stride", 1),
+            moe_last_n_layers_offset=self.config.get("moe_last_n_layers_offset", 0),
         )
         moe_ffn_type: Literal["VMoE_FFN", "MoE_FFN"] = self.config.get("moe_ffn_type", "VMoE_FFN")
         moe_expert_width: Optional[int] = self.config.get("moe_expert_width", None)
         moe_ffn_bias: bool = self.config.get("moe_ffn_bias", False)
         moe_dropout: float = self.config.get("moe_dropout", 0.0)
-        moe_num_experts: int = self.config.get("moe_num_experts", 8)
+        moe_num_routed_experts: int = self.config.get("moe_num_routed_experts", 8)
         moe_num_shared_experts: int = self.config.get("moe_num_shared_experts", 0)
         moe_num_special_token_experts: int = self.config.get("moe_num_special_token_experts", 0)
         moe_routed_scaling_factor: float = self.config.get("moe_routed_scaling_factor", 1.0)
         moe_routing_type: Literal["token_choice", "expert_choice"] = self.config.get("moe_routing_type", "token_choice")
+        moe_grouped_token_choice: bool = self.config.get("moe_grouped_token_choice", False)
         moe_top_k: int = self.config.get("moe_top_k", 2)
         router_bias_update_speed: float = self.config.get("router_bias_update_speed", 0.001)
         moe_expert_choice_capacity_factor: float = self.config.get("moe_expert_choice_capacity_factor", 2.0)
@@ -772,11 +777,12 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             moe_expert_width=moe_expert_width,
             moe_ffn_bias=moe_ffn_bias,
             moe_dropout=moe_dropout,
-            moe_num_experts=moe_num_experts,
+            moe_num_routed_experts=moe_num_routed_experts,
             moe_num_shared_experts=moe_num_shared_experts,
             moe_num_special_token_experts=moe_num_special_token_experts,
             moe_routed_scaling_factor=moe_routed_scaling_factor,
             moe_routing_type=moe_routing_type,
+            moe_grouped_token_choice=moe_grouped_token_choice,
             moe_top_k=moe_top_k,
             router_bias_update_speed=router_bias_update_speed,
             moe_expert_choice_capacity_factor=moe_expert_choice_capacity_factor,
@@ -1235,7 +1241,7 @@ registry.register_model_config(
         "class_token": False,
         "moe_ffn_type": "MoE_FFN",
         "moe_expert_width": 384,
-        "moe_num_experts": 4,
+        "moe_num_routed_experts": 4,
         "moe_num_shared_experts": 1,
         "moe_routed_scaling_factor": 1.5,
         "moe_top_k": 2,
@@ -1251,7 +1257,7 @@ registry.register_model_config(
         "class_token": False,
         "moe_ffn_type": "MoE_FFN",
         "moe_expert_width": 192,
-        "moe_num_experts": 4,
+        "moe_num_routed_experts": 4,
         "moe_num_shared_experts": 1,
         "moe_routing_type": "expert_choice",
         "moe_expert_choice_capacity_factor": 2.0,
@@ -1267,7 +1273,7 @@ registry.register_model_config(
         "class_token": False,
         "moe_ffn_type": "MoE_FFN",
         "moe_expert_width": 640,
-        "moe_num_experts": 32,
+        "moe_num_routed_experts": 32,
         "moe_num_shared_experts": 1,
         "moe_routed_scaling_factor": 1.5,
         "moe_top_k": 2,
@@ -1286,7 +1292,7 @@ registry.register_model_config(
         "rope_style": "centered_separate",
         "moe_ffn_type": "MoE_FFN",
         "moe_expert_width": 640,
-        "moe_num_experts": 32,
+        "moe_num_routed_experts": 32,
         "moe_num_shared_experts": 1,
         "moe_routed_scaling_factor": 1.5,
         "moe_top_k": 2,
@@ -1297,6 +1303,47 @@ registry.register_model_config(
 # With registers
 ####################
 
+registry.register_model_config(
+    "rope_cs_vit_moe_reg1_m16_32e1s_2c_last6_nape_ls_ap",
+    RoPE_ViT_MoE,
+    config={
+        "patch_size": 16,
+        **MEDIUM,
+        "abs_pos_embed": False,
+        "num_reg_tokens": 1,
+        "class_token": False,
+        "attn_pool_head": True,
+        "layer_scale_init_value": 1e-5,
+        "rope_style": "centered_separate",
+        "moe_ffn_type": "MoE_FFN",
+        "moe_expert_width": 512,
+        "moe_num_routed_experts": 32,
+        "moe_num_shared_experts": 1,
+        "moe_routing_type": "expert_choice",
+        "moe_expert_choice_capacity_factor": 2.0,
+        "moe_last_n_layers": 6,
+    },
+)
+registry.register_model_config(
+    "rope_cs_vit_moe_reg1_b16_32e1s_2c_last6_nape_ls_avg",
+    RoPE_ViT_MoE,
+    config={
+        "patch_size": 16,
+        **BASE,
+        "abs_pos_embed": False,
+        "num_reg_tokens": 1,
+        "class_token": False,
+        "layer_scale_init_value": 1e-5,
+        "rope_style": "centered_separate",
+        "moe_ffn_type": "MoE_FFN",
+        "moe_expert_width": 640,
+        "moe_num_routed_experts": 32,
+        "moe_num_shared_experts": 1,
+        "moe_routing_type": "expert_choice",
+        "moe_expert_choice_capacity_factor": 2.0,
+        "moe_last_n_layers": 6,
+    },
+)
 registry.register_model_config(
     "rope_cs_vit_moe_reg1_b16_32e1s_2c_last6_nape_ls_ap",
     RoPE_ViT_MoE,
@@ -1311,11 +1358,33 @@ registry.register_model_config(
         "rope_style": "centered_separate",
         "moe_ffn_type": "MoE_FFN",
         "moe_expert_width": 640,
-        "moe_num_experts": 32,
+        "moe_num_routed_experts": 32,
         "moe_num_shared_experts": 1,
         "moe_routing_type": "expert_choice",
         "moe_expert_choice_capacity_factor": 2.0,
         "moe_last_n_layers": 6,
+    },
+)
+registry.register_model_config(
+    "rope_cs_vit_moe_reg1_b16_d14_32e1s_2c_last10_nape_ls_ap",
+    RoPE_ViT_MoE,
+    config={
+        "patch_size": 16,
+        **BASE,
+        "num_layers": 14,
+        "abs_pos_embed": False,
+        "num_reg_tokens": 1,
+        "class_token": False,
+        "attn_pool_head": True,
+        "layer_scale_init_value": 1e-5,
+        "rope_style": "centered_separate",
+        "moe_ffn_type": "MoE_FFN",
+        "moe_expert_width": 640,
+        "moe_num_routed_experts": 32,
+        "moe_num_shared_experts": 1,
+        "moe_routing_type": "expert_choice",
+        "moe_expert_choice_capacity_factor": 2.0,
+        "moe_last_n_layers": 10,
     },
 )
 
@@ -1328,7 +1397,7 @@ registry.register_model_config(
     config={
         "patch_size": 32,
         **V_MOE_SMALL,
-        "moe_num_experts": 8,
+        "moe_num_routed_experts": 8,
         "moe_top_k": 2,
         "moe_last_n_layers": 2,
         "moe_last_n_layers_stride": 2,
@@ -1341,7 +1410,7 @@ registry.register_model_config(
     config={
         "patch_size": 16,
         **SMALL,
-        "moe_num_experts": 8,
+        "moe_num_routed_experts": 8,
         "moe_top_k": 2,
         "moe_last_n_layers": 3,
         "moe_last_n_layers_stride": 2,
@@ -1351,7 +1420,7 @@ registry.register_model_config(
 registry.register_model_config(
     "rope_vit_vmoe_b16_8e_2k_every2",
     RoPE_ViT_MoE,
-    config={"patch_size": 16, **BASE, "moe_num_experts": 8, "moe_top_k": 2, "moe_every_n_layers": 2},
+    config={"patch_size": 16, **BASE, "moe_num_routed_experts": 8, "moe_top_k": 2, "moe_every_n_layers": 2},
 )
 
 
@@ -1365,7 +1434,7 @@ registry.register_model_config(
         "patch_size": 32,
         **V_MOE_SMALL,
         "num_reg_tokens": 1,
-        "moe_num_experts": 8,
+        "moe_num_routed_experts": 8,
         "moe_top_k": 2,
         "moe_last_n_layers": 2,
         "moe_last_n_layers_stride": 2,
@@ -1382,7 +1451,7 @@ registry.register_model_config(
         "layer_scale_init_value": 1e-5,
         "num_reg_tokens": 4,
         "rope_style": "centered_separate",
-        "moe_num_experts": 8,
+        "moe_num_routed_experts": 8,
         "moe_top_k": 2,
         "moe_every_n_layers": 2,
     },

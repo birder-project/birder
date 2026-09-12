@@ -9,6 +9,7 @@ from invoke import Exit
 from invoke import task
 from jinja2 import Template
 
+from birder import layers
 from birder.common import cli
 from birder.common import fs_ops
 from birder.common import lib
@@ -842,6 +843,79 @@ def model_pre_publish(
             echo(f"Writing model card at {model_card_path}...")
             with open(model_card_path, mode="w", encoding="utf-8") as handle:
                 handle.write(model_card)
+
+
+@task
+def convert_moe(_ctx, network, target, tag=None, epoch=None):
+    """
+    Convert token-choice MoE experts to a 'grouped' or 'modulelist' layout
+    """
+
+    if target == "grouped":
+        target_grouped = True
+        output_tag = "grouped"
+    elif target == "modulelist":
+        target_grouped = False
+        output_tag = "ungrouped"
+    else:
+        echo("Target must be either 'grouped' or 'modulelist'", color=COLOR_RED)
+        raise Exit(code=1)
+
+    network_name = lib.get_network_name(network, tag)
+    converted_network_name = lib.get_network_name(network_name, output_tag)
+    path = fs_ops.model_path(converted_network_name, epoch=epoch)
+    if path.exists() is True:
+        echo(f"{path} already exists")
+        echo("Aborting", color=COLOR_RED)
+        raise Exit(code=1)
+
+    device = torch.device("cpu")
+    source_config = {"moe_grouped_token_choice": target_grouped is False}
+    net, model_info = fs_ops.load_model(
+        device,
+        network,
+        config=source_config,
+        tag=tag,
+        epoch=epoch,
+        inference=False,
+    )
+    moe_ffns = [
+        module
+        for module in net.modules()
+        if isinstance(module, layers.MoE_FFN)
+        and module.routing_type == "token_choice"
+        and (
+            isinstance(module.routed_experts, torch.nn.ModuleList)
+            if target_grouped is True
+            else isinstance(module.routed_experts, layers.GroupedSwiGLU_FFN)
+        )
+    ]
+    if len(moe_ffns) == 0:
+        echo(f"No token-choice MoE experts require conversion to '{target}'")
+        echo("Aborting", color=COLOR_RED)
+        raise Exit(code=1)
+
+    for moe_ffn in moe_ffns:
+        if target_grouped is True:
+            moe_ffn.routed_experts = layers.group_experts(moe_ffn.routed_experts)
+        else:
+            moe_ffn.routed_experts = layers.ungroup_experts(moe_ffn.routed_experts)
+
+    model_config = {**(model_info.custom_config or {}), "moe_grouped_token_choice": target_grouped}
+    fs_ops.checkpoint_model(
+        converted_network_name,
+        epoch,
+        net,
+        model_info.signature,
+        model_info.class_to_idx,
+        model_info.rgb_stats,
+        optimizer=None,
+        scheduler=None,
+        scaler=None,
+        model_base=None,
+        external_config=model_config,
+    )
+    echo(f"Converted {len(moe_ffns)} MoE layers to '{target}' and saved {path}", color=COLOR_GREEN)
 
 
 @task

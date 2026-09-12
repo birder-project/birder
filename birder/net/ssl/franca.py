@@ -458,8 +458,14 @@ class FrancaStudent(SSLBaseNet):
         ibot_separate_head: bool = self.config["ibot_separate_head"]
         ibot_out_dim: int = self.config.get("ibot_out_dim", dino_out_dim)
         nesting_levels: int = self.config.get("nesting_levels", 5)
+        image_embedding_norm: bool = self.config.get("image_embedding_norm", False)
 
         assert ibot_separate_head is True or self.backbone.feature_dim == self.backbone.embedding_size
+
+        if image_embedding_norm is True:
+            self.image_embedding_norm = nn.LayerNorm(self.backbone.embedding_size, eps=1e-6, elementwise_affine=False)
+        else:
+            self.image_embedding_norm = nn.Identity()
 
         nesting_list = _get_nesting_list(self.backbone.embedding_size, nesting_levels)
         self.dino_head = DINOHeadMRL(
@@ -526,7 +532,7 @@ class FrancaStudent(SSLBaseNet):
 
         global_features = global_out["features"]
         global_features = global_features.flatten(2).transpose(1, 2)
-        global_embedding = global_out["embedding"]
+        global_embedding = self.image_embedding_norm(global_out["embedding"])
 
         moe_training_output: Optional[MoETrainingOutputType] = None
         if "moe_training_output" in global_out:
@@ -542,7 +548,7 @@ class FrancaStudent(SSLBaseNet):
         else:
             local_features = self.backbone.forward_features(local_crops)
 
-        local_embedding = self.backbone.embedding_from_features(local_features)
+        local_embedding = self.image_embedding_norm(self.backbone.embedding_from_features(local_features))
 
         # DINO head returns tuple of outputs for each nesting level
         global_embedding_after_head = self.dino_head(global_embedding)
@@ -595,8 +601,14 @@ class FrancaTeacher(SSLBaseNet):
         ibot_separate_head: bool = self.config["ibot_separate_head"]
         ibot_out_dim: int = self.config.get("ibot_out_dim", dino_out_dim)
         nesting_levels: int = self.config.get("nesting_levels", 5)
+        image_embedding_norm: bool = self.config.get("image_embedding_norm", False)
 
         assert ibot_separate_head is True or self.backbone.feature_dim == self.backbone.embedding_size
+
+        if image_embedding_norm is True:
+            self.image_embedding_norm = nn.LayerNorm(self.backbone.embedding_size, eps=1e-6, elementwise_affine=False)
+        else:
+            self.image_embedding_norm = nn.Identity()
 
         nesting_list = _get_nesting_list(self.backbone.embedding_size, nesting_levels)
         self.dino_head = DINOHeadMRL(
@@ -635,7 +647,7 @@ class FrancaTeacher(SSLBaseNet):
         out = self.backbone.masked_encoding_retention(x, mask=mask, return_keys="all")
         features = out["features"]
         features = features.flatten(2).transpose(1, 2)
-        embedding = out["embedding"]
+        embedding = self.image_embedding_norm(out["embedding"])
 
         embedding = embedding.chunk(n_crops)
         # NOTE: These are chunked and cat'd in reverse so A is matched to B in the global crops dino loss

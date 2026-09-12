@@ -54,6 +54,35 @@ class TestLayers(unittest.TestCase):
         self.assertFalse(torch.isnan(out).any())
         self.assertEqual(out.size(), (2, 8))
 
+    def test_grouped_expert_conversion(self) -> None:
+        for bias in (False, True):
+            with self.subTest(bias=bias):
+                experts = torch.nn.ModuleList(
+                    [layers.SwiGLU_FFN(7, 11, bias=bias, dropout=0.2) for _ in range(3)]
+                ).double()
+                experts.eval()
+                for expert in experts:
+                    expert.fc1_x.weight.requires_grad_(False)
+
+                grouped = layers.group_experts(experts)
+                restored = layers.ungroup_experts(grouped)
+
+                self.assertFalse(grouped.training)
+                self.assertFalse(restored.training)
+                self.assertEqual(grouped.drop1.p, 0.2)
+                self.assertEqual(grouped.fc1_g.weight.dtype, torch.float64)
+                for expected, actual in zip(experts.parameters(), restored.parameters(), strict=True):
+                    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+                    self.assertEqual(actual.requires_grad, expected.requires_grad)
+
+                inputs = torch.randn(3, 5, 7, dtype=torch.float64)
+                expected = torch.stack([expert(expert_inputs) for expert, expert_inputs in zip(experts, inputs)])
+                torch.testing.assert_close(grouped(inputs), expected)
+                actual = torch.stack(
+                    [expert(expert_inputs) for expert, expert_inputs in zip(restored, inputs, strict=True)]
+                )
+                torch.testing.assert_close(actual, expected)
+
     def test_soft_moe_ffn(self) -> None:
         soft_moe_ffn = layers.SoftMoE_FFN(8, 16, num_experts=3, num_slots=2)
         out = soft_moe_ffn(torch.rand(2, 5, 8))
@@ -238,7 +267,7 @@ class TestLayers(unittest.TestCase):
         inputs = torch.tensor([[[2.0, 1.0], [1.0, 2.0]]], requires_grad=True)
 
         # Test deterministic top-k routing and combine weights
-        expert_indices, buffer_indices, combine_weights = router(inputs)
+        expert_indices, buffer_indices, combine_weights, _ = router(inputs)
         logits = router.gate(inputs)
         expected_indices = logits.topk(2, dim=-1).indices
         expected_weights = logits.softmax(dim=-1).gather(-1, expected_indices)
@@ -508,3 +537,94 @@ class TestLayers(unittest.TestCase):
                     seq_len = grid_size[0] * grid_size[1]
                     expected = rope.get_pos_embed(grid_size)
                     torch.testing.assert_close(batched_pos_embed[batch_idx, :seq_len], expected)
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+class TestGroupedMoE(unittest.TestCase):
+    def test_masked_and_partially_empty_routes(self) -> None:
+        device = torch.device("cuda", torch.cuda.current_device())
+        token_mask = torch.tensor(
+            [[True, True, False, True, False], [False, False, False, False, False]],
+            device=device,
+        )
+        expected_loads = torch.tensor([[3, 3, 0, 0]], device=device)
+        for amp in (False, True):
+            with self.subTest(amp=amp):
+                dtype = torch.float32 if amp is True else torch.bfloat16
+                moe_ffn = layers.MoE_FFN(
+                    32,
+                    64,
+                    bias=True,
+                    num_routed_experts=4,
+                    num_shared_experts=0,
+                    grouped_token_choice=True,
+                    top_k=2,
+                ).to(device=device, dtype=dtype)
+                with torch.no_grad():
+                    moe_ffn.router.gate.weight.zero_()
+                    moe_ffn.router.expert_bias.copy_(torch.tensor([2.0, 1.0, -1.0, -2.0], device=device))
+
+                inputs = torch.randn(2, 5, 32, device=device, dtype=dtype, requires_grad=True)
+                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
+                    output, training_output = moe_ffn(
+                        inputs,
+                        token_mask=token_mask,
+                        return_moe_training_output=True,
+                    )
+
+                self.assertEqual(output.size(), inputs.size())
+                self.assertTrue(torch.isfinite(output).all().item())
+                torch.testing.assert_close(output[~token_mask], torch.zeros_like(output[~token_mask]), rtol=0, atol=0)
+                torch.testing.assert_close(training_output["expert_loads"], expected_loads)
+
+                upstream = torch.linspace(0.1, 1.0, output.numel(), device=device, dtype=output.dtype).reshape_as(
+                    output
+                )
+                output.backward(upstream)
+                self.assertIsNotNone(inputs.grad)
+                self.assertTrue(torch.isfinite(inputs.grad).all().item())
+                torch.testing.assert_close(inputs.grad[~token_mask], torch.zeros_like(inputs.grad[~token_mask]))
+
+                used_expert_grad_sum = 0.0
+                for parameter in moe_ffn.routed_experts.parameters():
+                    self.assertIsNotNone(parameter.grad)
+                    self.assertTrue(torch.isfinite(parameter.grad).all().item())
+                    torch.testing.assert_close(parameter.grad[2:], torch.zeros_like(parameter.grad[2:]), rtol=0, atol=0)
+                    used_expert_grad_sum += parameter.grad[:2].float().abs().sum().item()
+
+                self.assertGreater(used_expert_grad_sum, 0.0)
+
+    def test_globally_empty_routes(self) -> None:
+        device = torch.device("cuda", torch.cuda.current_device())
+        moe_ffn = layers.MoE_FFN(
+            32,
+            64,
+            bias=True,
+            num_routed_experts=4,
+            num_shared_experts=0,
+            grouped_token_choice=True,
+            top_k=2,
+        ).to(device=device, dtype=torch.bfloat16)
+        inputs = torch.randn(2, 5, 32, device=device, dtype=torch.bfloat16, requires_grad=True)
+        token_mask = torch.zeros(2, 5, device=device, dtype=torch.bool)
+
+        output, training_output = moe_ffn(
+            inputs,
+            token_mask=token_mask,
+            return_moe_training_output=True,
+        )
+        torch.testing.assert_close(output, torch.zeros_like(output), rtol=0, atol=0)
+        torch.testing.assert_close(
+            training_output["expert_loads"],
+            torch.zeros((1, 4), device=device, dtype=torch.int64),
+            rtol=0,
+            atol=0,
+        )
+
+        output.backward(torch.ones_like(output))
+        self.assertIsNotNone(inputs.grad)
+        torch.testing.assert_close(inputs.grad, torch.zeros_like(inputs.grad), rtol=0, atol=0)
+        for parameter in moe_ffn.routed_experts.parameters():
+            self.assertIsNotNone(parameter.grad)
+            self.assertTrue(torch.isfinite(parameter.grad).all().item())
+            torch.testing.assert_close(parameter.grad, torch.zeros_like(parameter.grad), rtol=0, atol=0)

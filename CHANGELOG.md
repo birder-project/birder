@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.1 - 2026-09-12
+
+### Added
+
+- **Franca Image Embedding Normalization**: Added opt-in `--image-embedding-norm` to apply LayerNorm to student and teacher image embeddings before the DINO head and KoLeo loss.
+- **Grouped Token-Choice MoE**: Added opt-in `moe_grouped_token_choice` support to ViT and RoPE ViT MoE models, using packed routed-expert parameters and grouped matrix multiplication for compatible CUDA BF16 execution.
+- **MoE Expert Layout Conversion**: Added public `group_experts()` and `ungroup_experts()` utilities for converting token-choice routed experts between grouped and individual-expert layouts.
+- **MoE Layer End Offset**: Added `moe_last_n_layers_offset` to ViT and RoPE ViT MoE models, leaving dense blocks after the selected MoE span. The optional `o{O}` suffix records the offset in model names, e.g. `last6o1` or `last3s2o1`.
+
+### Changed
+
+- **MoE Routed Expert Counts (Breaking)**: Renamed `moe_num_experts` to `moe_num_routed_experts` and redefined `e` in sparse MoE model names to count routed experts. Shared (`s`) and special-token (`p`) experts are now additive, so `32e1s` and `32e1s1p` configurations contain 33 and 34 total experts, respectively, while retaining 32 routed experts.
+- **Expert Choice MoE BMM (Breaking)**: Replaced per-expert loops with batched matrix multiplication (`torch.bmm`) for faster training and inference. Packed routed-expert parameters change `state_dict` keys and tensor shapes, breaking compatibility with existing expert-choice checkpoints.
+
 ## 0.8.0 - 2026-09-06
 
 ### Added

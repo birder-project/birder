@@ -171,7 +171,7 @@ class TestNetMIM(unittest.TestCase):
         batch_size = 8
         size = (32, 32)
         encoder = registry.net_factory(
-            "vit_moe_t16_4e1s1p_2k_last1",
+            "vit_moe_t16_4e1s1p_2k_last1o1",
             0,
             config={
                 "num_layers": 2,
@@ -206,11 +206,11 @@ class TestNetMIM(unittest.TestCase):
         seq_len = (size[0] // encoder.max_stride) * (size[1] // encoder.max_stride)
         self.assertEqual(out["loss"].ndim, 0)
         self.assertEqual(moe_training_output["auxiliary_loss"].ndim, 0)
-        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 2))
+        self.assertEqual(moe_training_output["expert_loads"].size(), (1, 4))
         self.assertEqual(moe_training_output["expert_loads"].sum(), batch_size * seq_len * 2)
 
         (out["loss"] + moe_training_output["auxiliary_loss"]).backward()
-        router_grad = encoder.encoder.block[1].mlp.router.gate.weight.grad
+        router_grad = encoder.encoder.block[0].mlp.router.gate.weight.grad
         self.assertIsNotNone(router_grad)
         self.assertTrue(torch.isfinite(router_grad).all().item())
 
