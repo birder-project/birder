@@ -8,7 +8,6 @@ Supports:
 """
 
 import argparse
-import json
 import logging
 import math
 import sys
@@ -403,7 +402,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         last_accum_steps = grad_accum_steps
 
     last_accum_start_idx = epoch_num_batches - last_accum_steps
-    begin_epoch = 1
+    begin_epoch = 1 if args.resume_epoch is None else args.resume_epoch + 1
     epochs = args.epochs + 1
     args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
 
@@ -411,6 +410,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
     )
+    training_epochs = max(0, args.stop_epoch - begin_epoch)
+
+    # Approximate total: does not account for --drop-last or sampler padding
+    logger.info(f"Training will process {epoch_samples * training_epochs:,} samples over {training_epochs} epochs")
 
     #
     # Initialize networks
@@ -420,7 +423,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     student_name = get_network_name(args.student, tag=args.student_tag)
 
     if args.resume_epoch is not None:
-        begin_epoch = args.resume_epoch + 1
         student, class_to_idx_saved, checkpoint_rgb_stats, training_states = fs_ops.load_checkpoint(
             device,
             args.student,
@@ -736,9 +738,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     signature = get_signature(input_shape=sample_shape, num_outputs=num_outputs)
     file_handler: logging.Handler = logging.NullHandler()
     if training_utils.is_global_primary(args) is True:
-        with torch.no_grad():
-            summary_writer.add_graph(net_for_info, torch.rand(sample_shape, device=device, dtype=model_dtype))
-
         summary_writer.flush()
         fs_ops.write_config(student_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         file_handler = training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
@@ -1192,39 +1191,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         toc = time.time()
         logger.info(f"Total time: {format_duration(toc - tic)}")
         logger.info("---")
-
-    # Save model hyperparameters with metrics
-    if training_utils.is_global_primary(args) is True:
-        # Replace list based args
-        if args.opt_betas is not None:
-            for idx, beta in enumerate(args.opt_betas):
-                setattr(args, f"opt_betas_{idx}", beta)
-
-            del args.opt_betas
-
-        if args.lr_steps is not None:
-            args.lr_steps = json.dumps(args.lr_steps)
-        if args.freeze_modules is not None:
-            args.freeze_modules = json.dumps(args.freeze_modules)
-        if args.student_model_config is not None:
-            args.student_model_config = json.dumps(args.student_model_config)
-        if args.teacher_model_config is not None:
-            args.teacher_model_config = json.dumps(args.teacher_model_config)
-        if args.size is not None:
-            args.size = json.dumps(args.size)
-        if args.naflex_sizes is not None:
-            args.naflex_sizes = json.dumps(args.naflex_sizes)
-        if args.naflex_patch_sizes is not None:
-            args.naflex_patch_sizes = json.dumps(args.naflex_patch_sizes)
-
-        # Save all args
-        summary_writer.add_hparams(
-            {**vars(args), "training_samples": len(training_dataset)},
-            {
-                "hparam/acc": train_accuracy.global_avg,
-                "hparam/val_acc": val_accuracy.global_avg,
-            },
-        )
 
     summary_writer.close()
 

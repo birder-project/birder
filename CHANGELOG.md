@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.2 - 2026-09-14
+
+### Added
+
+- **MoE Active Parameter Counts**: Added nominal per-token active parameter counting for ViT and RoPE ViT MoE models with reporting in `model-info`.
+- **MoE Routing Introspection**: Added `MoERouting` to capture per-layer patch-by-expert scores, selections, dispatch assignments and combine weights for V-MoE, sigmoid top-k and expert-choice routing, with paginated expert-weight image overlays.
+- **Franca Compile Preset**: Added opt-in `--compile-preset` with script-local model and loss/Sinkhorn autotuning options.
+
+### Changed
+
+- **Franca Sinkhorn-Knopp Refactor (Breaking)**: Reworked DINO and iBOT Matryoshka normalization around dedicated tensor-only modules and one packed nesting-level queue per loss. The eager queue boundary fixes pointer-driven recompilation, while compact current-batch targets, bounded packed writes and per-epoch temperature staging reduce training memory and runtime. Franca loss APIs and queue state paths changed, so existing Franca checkpoints are not compatible.
+- **DINOv2 Sinkhorn-Knopp Optimization**: Split DINO and iBOT queue management from stateless, independently compiled normalization, return compact current-batch targets after queued normalization and stage teacher-temperature schedules as device tensors. These changes reduce retained target memory and per-step host overhead in DINOv2, DINOv2-Dist and CAPI-DINO training.
+
 ## 0.8.1 - 2026-09-12
 
 ### Added

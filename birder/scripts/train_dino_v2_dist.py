@@ -231,8 +231,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     if args.compile is True:
         student = torch.compile(student, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
         teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+        dino_loss.sinkhorn_normalizer.compile(fullgraph=args.compile_fullgraph, mode=args.compile_mode)
         dino_loss = torch.compile(dino_loss, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
         koleo_loss = torch.compile(koleo_loss, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+        ibot_patch_loss.sinkhorn_normalizer.compile(fullgraph=args.compile_fullgraph, mode=args.compile_mode)
         ibot_patch_loss = torch.compile(ibot_patch_loss, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
     elif args.compile_teacher is True:
         teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
@@ -366,6 +368,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
     )
+    training_epochs = max(0, args.stop_epoch - begin_epoch)
+
+    # Approximate total: does not account for --drop-last or sampler padding
+    logger.info(f"Training will process {epoch_samples * training_epochs:,} samples over {training_epochs} epochs")
 
     #
     # Optimizer, learning rate scheduler and training parameter groups
@@ -588,6 +594,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             train_sampler.set_epoch(epoch)
 
         epoch_first_step = (epoch - 1) * epoch_num_batches
+        epoch_teacher_temp_schedule = torch.tensor(
+            teacher_temp_schedule[epoch_first_step : epoch_first_step + epoch_num_batches],
+            dtype=torch.float32,
+            device=device,
+        )
         logger.info(f"Epoch teacher temperature: {teacher_temp_schedule[epoch_first_step]}")
         if wd_schedule is not None:
             logger.info(f"Epoch wd: {wd_schedule[epoch_first_step]}")
@@ -622,7 +633,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             else:
                 effective_accum_steps = grad_accum_steps
 
-            teacher_temp = teacher_temp_schedule[global_iter]
+            teacher_temp = epoch_teacher_temp_schedule[i]
 
             global_crops = data["collated_global_crops"].to(device, dtype=model_dtype, non_blocking=True)
             local_crops = data["collated_local_crops"].to(device, dtype=model_dtype, non_blocking=True)

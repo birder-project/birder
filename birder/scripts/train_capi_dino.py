@@ -260,6 +260,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     if args.compile is True:
         student = torch.compile(student, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
         teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+        dino_loss.sinkhorn_normalizer.compile(fullgraph=args.compile_fullgraph, mode=args.compile_mode)
         dino_loss = torch.compile(dino_loss, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
 
     # There is no backpropagation through the teacher backbone or DINO head
@@ -396,6 +397,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
     )
+    training_epochs = max(0, args.stop_epoch - begin_epoch)
+
+    # Approximate total: does not account for --drop-last or sampler padding
+    logger.info(f"Training will process {epoch_samples * training_epochs:,} samples over {training_epochs} epochs")
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -654,6 +659,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             train_sampler.set_epoch(epoch)
 
         epoch_first_step = (epoch - 1) * epoch_num_batches
+        epoch_dino_teacher_temp_schedule = torch.tensor(
+            dino_teacher_temp_schedule[epoch_first_step : epoch_first_step + epoch_num_batches],
+            dtype=torch.float32,
+            device=device,
+        )
         logger.info(f"Epoch momentum: {momentum_schedule[epoch_first_step]}")
         logger.info(f"Epoch DINO teacher temperature: {dino_teacher_temp_schedule[epoch_first_step]}")
 
@@ -693,7 +703,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             else:
                 effective_accum_steps = grad_accum_steps
 
-            dino_teacher_temp = dino_teacher_temp_schedule[global_iter]
+            dino_teacher_temp = epoch_dino_teacher_temp_schedule[i]
             if fsdp_mode is True and grad_accum_steps > 1:
                 student.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
                 teacher.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)

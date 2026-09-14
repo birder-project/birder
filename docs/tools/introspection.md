@@ -24,6 +24,7 @@ The tool supports multiple visualization methods:
 - **Guided Backpropagation**: Visualizes which pixels in the input image contribute most to the model's prediction through modified gradient backpropagation
 - **Attention Rollout**: For transformer-based models, visualizes the attention flow through the network layers to show which image patches the model attends to
 - **Transformer Attribution**: For transformer-based models, computes class-specific attribution maps showing which patches are most relevant for a particular prediction
+- **MoE Routing**: Overlays each routed expert's combine weights on the image's patch grid
 
 Key features include:
 

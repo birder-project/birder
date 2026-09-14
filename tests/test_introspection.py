@@ -7,6 +7,8 @@ from PIL import Image
 from torch import nn
 
 from birder.data.transforms.classification import get_rgb_stats
+from birder.data.transforms.classification import inference_preset
+from birder.introspection import MoERouting
 from birder.introspection import base
 from birder.introspection.attention_rollout import AttentionRollout
 from birder.introspection.feature_pca import FeaturePCA
@@ -331,6 +333,75 @@ class TestInterpreters(unittest.TestCase):
 
         self.assertIs(net.relu, original_relu)
         self.assertTrue(net.relu.inplace)
+
+    def test_moe_routing_result_structure(self) -> None:
+        net = registry.net_factory("vit_moe_t16_4e1s1p_2k_last1o1", 2, size=(32, 48))
+        transform = inference_preset((32, 48), self.rgb_stats)
+        interpreter = MoERouting(net, self.device, transform, self.rgb_stats)
+        result = interpreter(self.test_image)
+
+        self.assertIsInstance(result.logits, torch.Tensor)
+        self.assertEqual(result.logits.shape, (1, 2))
+        self.assertEqual(result.logits.device, self.device)
+        self.assertFalse(result.logits.requires_grad)
+        self.assertEqual(result.patch_grid_shape, (2, 3))
+        self.assertEqual(list(result.layers), [net.num_layers - 2])
+        self.assertIsInstance(result.original_image, np.ndarray)
+        self.assertEqual(result.original_image.shape, (32, 48, 3))
+
+        layer = result.layers[net.num_layers - 2]
+        self.assertEqual(layer.router_type, "SigmoidTopKRouter")
+        for tensor in (layer.scores, layer.selected, layer.assignments, layer.weights):
+            self.assertIsInstance(tensor, torch.Tensor)
+            self.assertEqual(tensor.shape, (1, 2, 3, 4))
+            self.assertEqual(tensor.device, self.device)
+            self.assertFalse(tensor.requires_grad)
+
+        torch.testing.assert_close(layer.selected, layer.assignments)
+        torch.testing.assert_close(layer.assignments.sum(dim=-1), torch.full((1, 2, 3), 2, dtype=torch.int64))
+        torch.testing.assert_close(layer.weights.sum(dim=-1), torch.ones(1, 2, 3))
+
+    def test_moe_routing_expert_choice(self) -> None:
+        net = registry.net_factory("rope_vit_moe_t16_4e1s_2c_last1_avg", 2, size=(32, 32))
+        transform = inference_preset((32, 32), self.rgb_stats)
+        interpreter = MoERouting(net, self.device, transform, self.rgb_stats)
+        result = interpreter(self.test_image)
+
+        self.assertEqual(result.patch_grid_shape, (2, 2))
+        self.assertEqual(list(result.layers), [net.num_layers - 1])
+        layer = result.layers[net.num_layers - 1]
+        self.assertEqual(layer.router_type, "ExpertChoiceRouter")
+        self.assertEqual(layer.assignments.shape, (1, 2, 2, 4))
+
+        # Each expert selects two patches per image
+        torch.testing.assert_close(layer.selected, layer.assignments)
+        torch.testing.assert_close(layer.assignments.sum(dim=(1, 2)), torch.full((1, 4), 2, dtype=torch.int64))
+        torch.testing.assert_close(layer.scores.sum(dim=-1), torch.ones(1, 2, 2))
+        torch.testing.assert_close(layer.weights, layer.scores * layer.assignments)
+
+    def test_moe_routing_vmoe(self) -> None:
+        net = registry.net_factory(
+            "vit_vmoe_vs32_8e_2k_last2s2",
+            2,
+            config={"moe_eval_capacity_factor": 0.25, "moe_capacity_multiple_of": None},
+            size=(64, 64),
+        )
+        transform = inference_preset((64, 64), self.rgb_stats)
+        interpreter = MoERouting(net, self.device, transform, self.rgb_stats)
+        result = interpreter(self.test_image)
+
+        self.assertEqual(result.patch_grid_shape, (2, 2))
+        self.assertEqual(list(result.layers), [net.num_layers - 3, net.num_layers - 1])
+        for layer in result.layers.values():
+            self.assertEqual(layer.router_type, "NoisyTopKRouter")
+            self.assertEqual(layer.assignments.shape, (1, 2, 2, 8))
+
+            # Selected choices include tokens dropped by the capacity limit
+            torch.testing.assert_close(layer.selected.sum(dim=-1), torch.full((1, 2, 2), 2, dtype=torch.int64))
+            self.assertTrue((layer.selected & ~layer.assignments).any().item())
+            torch.testing.assert_close(layer.assignments, layer.weights > 0)
+            torch.testing.assert_close(layer.scores.sum(dim=-1), torch.ones(1, 2, 2))
+            torch.testing.assert_close(layer.weights, layer.scores * layer.assignments)
 
     def test_transformer_attribution_uses_elementwise_attention_gradients(self) -> None:
         attention = torch.full((1, 2, 3, 3), 1.0 / 3.0)

@@ -339,10 +339,12 @@ def wds_size(wds_path: str, device: torch.device, select_suffix: str | tuple[str
         nodesplitter=wds.split_by_node,
         empty_check=False,
     ).batched(64, collation_fn=None, partial=True)
+    # Return only counts from workers, rather than transferring sample payloads to the main process
+    dataset = dataset.map(len)
     dataloader = wds.WebLoader(dataset, batch_size=None, num_workers=8)
     size = 0
-    for batch in dataloader:
-        size += len(batch)
+    for batch_size in dataloader:
+        size += batch_size
 
     size = reduce_across_processes(size, device, op=torch.distributed.ReduceOp.SUM)  # type: ignore
 

@@ -895,6 +895,17 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
 
         return self.rope.get_pos_embed((H // self.patch_size, W // self.patch_size))
 
+    def get_active_params(self) -> float:
+        num_patches = (self.size[0] // self.patch_size) * (self.size[1] // self.patch_size)
+        special_token_fraction = self.num_special_tokens / (num_patches + self.num_special_tokens)
+        num_active_params = float(sum(param.numel() for param in self.parameters()))
+        for module in self.modules():
+            if isinstance(module, BaseSparseMoE_FFN):
+                num_active_params -= sum(param.numel() for param in module.parameters())
+                num_active_params += module.get_active_params(special_token_fraction=special_token_fraction)
+
+        return num_active_params
+
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
         for param in self.parameters():
             param.requires_grad_(False)

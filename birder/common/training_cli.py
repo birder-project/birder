@@ -642,13 +642,19 @@ def add_grad_checkpointing_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def add_compile_args(parser: argparse.ArgumentParser, teacher: bool = False, backbone: bool = False) -> None:
+def add_compile_args(
+    parser: argparse.ArgumentParser, preset: bool = False, teacher: bool = False, backbone: bool = False
+) -> None:
     group = parser.add_argument_group("Compilation parameters")
     group.add_argument("--compile", default=False, action="store_true", help="enable compilation")
     group.add_argument("--compile-fullgraph", default=False, action="store_true", help="compile using fullgraph=True")
     group.add_argument(
         "--compile-mode", type=str, choices=list(torch._inductor.list_mode_options().keys()), help="torch.compile mode"
     )
+    if preset is True:
+        group.add_argument(
+            "--compile-preset", default=False, action="store_true", help="use script-specific compilation options"
+        )
     if teacher is True:
         group.add_argument(
             "--compile-teacher", default=False, action="store_true", help="enable teacher only compilation"
@@ -1056,6 +1062,16 @@ def common_args_validation(args: argparse.Namespace) -> None:
             and (hasattr(args, "compile_backbone") is False or args.compile_backbone is False)
         ):
             raise ValidationError("--compile-mode requires --compile, --compile-teacher or --compile-backbone")
+
+    if hasattr(args, "compile_preset") is True and args.compile_preset is True:
+        if args.compile_mode is not None:
+            raise ValidationError("--compile-preset cannot be used with --compile-mode")
+        if (
+            args.compile is False
+            and (hasattr(args, "compile_teacher") is False or args.compile_teacher is False)
+            and (hasattr(args, "compile_backbone") is False or args.compile_backbone is False)
+        ):
+            raise ValidationError("--compile-preset requires --compile, --compile-teacher or --compile-backbone")
 
     # Checkpoint args, shared by all scripts
     if args.load_states is True and args.resume_epoch is None:

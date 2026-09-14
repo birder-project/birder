@@ -275,6 +275,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
     )
+    training_epochs = max(0, args.stop_epoch - begin_epoch)
+
+    # Approximate total: does not account for --drop-last or sampler padding
+    logger.info(f"Training will process {epoch_samples * training_epochs:,} samples over {training_epochs} epochs")
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups

@@ -443,5 +443,9 @@ def reparameterize_available(net: nn.Module) -> bool:
     return hasattr(net, "reparameterize_model")
 
 
+def active_params_available(net: nn.Module) -> bool:
+    return hasattr(net, "get_active_params")
+
+
 def get_moe_spec(module: nn.Module) -> Optional[MoESpec]:
     return getattr(module, "moe_spec", None)

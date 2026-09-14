@@ -14,6 +14,7 @@ from birder.introspection import AttentionRollout
 from birder.introspection import FeaturePCA
 from birder.introspection import GradCAM
 from birder.introspection import GuidedBackprop
+from birder.introspection import MoERouting
 from birder.introspection import TransformerAttribution
 from birder.net.base import BaseNet
 
@@ -110,6 +111,18 @@ def _show_feature_pca(
     result.show()
 
 
+def _show_moe_routing(
+    args: argparse.Namespace,
+    net: BaseNet,
+    transform: Callable[..., torch.Tensor],
+    rgb_stats: RGBType,
+    device: torch.device,
+) -> None:
+    moe_routing = MoERouting(net, device, transform, rgb_stats)
+    result = moe_routing(args.image_path)
+    result.show(layer_idx=args.moe_layer, page=args.moe_page, experts_per_page=args.moe_experts_per_page)
+
+
 def set_parser(subparsers: Any) -> None:
     subparser = subparsers.add_parser(
         "introspection",
@@ -132,6 +145,8 @@ def set_parser(subparsers: Any) -> None:
             " data/validation/Bluethroat/000013.jpeg\n"
             "python -m birder.tools introspection -n deit3_t16 -t il-common --method transformer-attribution "
             "--target 'Black-crowned night heron' data/detection_data/training/0002/000544.jpeg\n"
+            "python -m birder.tools introspection -n vit_moe_reg1_m16_32e1s_2c_last6_ls_ap --method moe-routing "
+            "data/validation/Bluethroat/000013.jpeg\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
     )
@@ -154,7 +169,7 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--method",
         type=str,
-        choices=["attn-rollout", "feature-pca", "gradcam", "guided-backprop", "transformer-attribution"],
+        choices=["attn-rollout", "feature-pca", "gradcam", "guided-backprop", "moe-routing", "transformer-attribution"],
         help="introspection method",
     )
     subparser.add_argument(
@@ -211,6 +226,15 @@ def set_parser(subparsers: Any) -> None:
         default=0.9,
         help="how many of the lowest attention paths should be discarded (attn-rollout only)",
     )
+    subparser.add_argument(
+        "--moe-layer", type=int, help="zero-based encoder layer index (moe-routing only, defaults to last MoE layer)"
+    )
+    subparser.add_argument(
+        "--moe-page", type=int, help="show only this one-based expert page (moe-routing only, defaults to all pages)"
+    )
+    subparser.add_argument(
+        "--moe-experts-per-page", type=int, default=18, help="number of experts per page (moe-routing only)"
+    )
     subparser.add_argument("image_path", type=str, help="input image path")
     subparser.set_defaults(func=main)
 
@@ -250,5 +274,7 @@ def main(args: argparse.Namespace) -> None:
         _show_grad_cam(args, net, model_info.class_to_idx, transform, model_info.rgb_stats, device)
     elif args.method == "guided-backprop":
         _show_guided_backprop(args, net, model_info.class_to_idx, transform, model_info.rgb_stats, device)
+    elif args.method == "moe-routing":
+        _show_moe_routing(args, net, transform, model_info.rgb_stats, device)
     elif args.method == "transformer-attribution":
         _show_transformer_attribution(args, net, model_info.class_to_idx, transform, model_info.rgb_stats, device)

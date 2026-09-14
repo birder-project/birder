@@ -412,15 +412,39 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         net["teacher"] = teacher
 
     # Compile networks
+    model_compile_kwargs: dict[str, Any] = {"mode": args.compile_mode}
+    loss_compile_kwargs: dict[str, Any] = {"mode": args.compile_mode}
+    if args.compile_preset is True:
+        model_compile_kwargs = {
+            "options": {
+                "reorder_for_locality_in_training": True,
+                "shape_padding": True,
+                "triton.cudagraphs": False,
+            }
+        }
+        loss_compile_kwargs = {
+            "options": {
+                "max_autotune_pointwise": True,
+                "coordinate_descent_tuning": False,
+                "triton.cudagraphs": False,
+            }
+        }
+        logger.debug(
+            "Using compile preset options: "
+            f"{ {'model': model_compile_kwargs['options'],'loss': loss_compile_kwargs['options']} }"
+        )
+
     teacher_compile_flag = args.compile is True or args.compile_teacher is True
     if args.compile is True:
-        student = torch.compile(student, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
-        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
-        dino_loss = torch.compile(dino_loss, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
-        koleo_loss = torch.compile(koleo_loss, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
-        ibot_patch_loss = torch.compile(ibot_patch_loss, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+        student = torch.compile(student, fullgraph=args.compile_fullgraph, **model_compile_kwargs)
+        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph, **model_compile_kwargs)
+        dino_loss.teacher_sinkhorn.normalizer.compile(fullgraph=args.compile_fullgraph, **loss_compile_kwargs)
+        dino_loss = torch.compile(dino_loss, fullgraph=args.compile_fullgraph, **loss_compile_kwargs)
+        koleo_loss = torch.compile(koleo_loss, fullgraph=args.compile_fullgraph, **loss_compile_kwargs)
+        ibot_patch_loss.teacher_sinkhorn.normalizer.compile(fullgraph=args.compile_fullgraph, **loss_compile_kwargs)
+        ibot_patch_loss = torch.compile(ibot_patch_loss, fullgraph=args.compile_fullgraph, **loss_compile_kwargs)
     elif args.compile_teacher is True:
-        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph, mode=args.compile_mode)
+        teacher = torch.compile(teacher, fullgraph=args.compile_fullgraph, **model_compile_kwargs)
 
     # There is no backpropagation through the teacher
     for p in teacher.parameters():
@@ -553,6 +577,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
     )
+    training_epochs = max(0, args.stop_epoch - begin_epoch)
+
+    # Approximate total: does not account for --drop-last or sampler padding
+    logger.info(f"Training will process {epoch_samples * training_epochs:,} samples over {training_epochs} epochs")
 
     #
     # Optimizer, learning rate scheduler and training parameter groups
@@ -611,10 +639,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     scaler, amp_dtype = training_utils.get_amp_scaler(device, args.amp, args.amp_dtype)
 
     if amp_dtype is not None and args.sinkhorn_queue_size is not None:
-        assert dino_loss.sinkhorn_queue is not None
-        assert ibot_patch_loss.sinkhorn_queue is not None
-        dino_loss.sinkhorn_queue.to(amp_dtype)
-        ibot_patch_loss.sinkhorn_queue.to(amp_dtype)
+        assert dino_loss.teacher_sinkhorn.sinkhorn_queue is not None
+        assert ibot_patch_loss.teacher_sinkhorn.sinkhorn_queue is not None
+        dino_loss.teacher_sinkhorn.sinkhorn_queue.to(amp_dtype)
+        ibot_patch_loss.teacher_sinkhorn.sinkhorn_queue.to(amp_dtype)
         logger.debug(f"Using {amp_dtype} storage for Sinkhorn queues")
 
     # Load states
@@ -769,14 +797,19 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         if args.sinkhorn_queue_size is not None:
             queue_active = epoch > args.sinkhorn_queue_warmup_epochs
-            dino_loss.set_queue_active(queue_active)
-            ibot_patch_loss.set_queue_active(queue_active)
+            dino_loss.teacher_sinkhorn.set_queue_active(queue_active)
+            ibot_patch_loss.teacher_sinkhorn.set_queue_active(queue_active)
             logger.debug(f"Sinkhorn queue active: {queue_active}")
 
         if args.distributed is True or virtual_epoch_mode is True:
             train_sampler.set_epoch(epoch)
 
         epoch_first_step = (epoch - 1) * epoch_num_batches
+        epoch_teacher_temp_schedule = torch.tensor(
+            teacher_temp_schedule[epoch_first_step : epoch_first_step + epoch_num_batches],
+            dtype=torch.float32,
+            device=device,
+        )
         logger.info(f"Epoch momentum: {momentum_schedule[epoch_first_step]}")
         logger.info(f"Epoch teacher temperature: {teacher_temp_schedule[epoch_first_step]}")
         if wd_schedule is not None:
@@ -812,7 +845,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             else:
                 effective_accum_steps = grad_accum_steps
 
-            teacher_temp = teacher_temp_schedule[global_iter]
+            teacher_temp = epoch_teacher_temp_schedule[i]
             if fsdp_mode is True and grad_accum_steps > 1:
                 student.set_requires_gradient_sync(requires_gradient_sync=optimizer_update)
             if fsdp_mode is True and args.no_broadcast_buffers is False:
@@ -840,13 +873,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         )
 
                         # Sinkhorn-Knopp
-                        teacher_dino_softmax_centered_list = dino_loss.sinkhorn_knopp_teacher(
+                        teacher_dino_softmax_centered_list = dino_loss.teacher_sinkhorn(
                             teacher_embedding_after_head, teacher_temp=teacher_temp
                         )
 
-                        masked_teacher_ibot_softmax_centered = ibot_patch_loss.sinkhorn_knopp_teacher(
-                            teacher_masked_patch_tokens_after_head,
-                            teacher_temp=teacher_temp,
+                        masked_teacher_ibot_softmax_centered = ibot_patch_loss.teacher_sinkhorn(
+                            teacher_masked_patch_tokens_after_head, teacher_temp=teacher_temp
                         )
 
                     # Student
@@ -1286,7 +1318,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     training_cli.add_dataloader_args(parser, default_drop_last=True)
     training_cli.add_precision_args(parser)
     training_cli.add_grad_checkpointing_args(parser)
-    training_cli.add_compile_args(parser, teacher=True)
+    training_cli.add_compile_args(parser, preset=True, teacher=True)
     training_cli.add_checkpoint_args(parser)
     training_cli.add_distributed_args(parser, fsdp=True)
     training_cli.add_logging_and_debug_args(parser, default_log_interval=100)

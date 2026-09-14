@@ -162,6 +162,48 @@ class SinkhornQueue(nn.Module):
         self._queue_full |= end >= self.queue_size
 
 
+class SinkhornKnoppNormalization(nn.Module):
+    @torch.no_grad()  # type: ignore[untyped-decorator]
+    def forward(
+        self,
+        teacher_output: torch.Tensor,
+        queue_output: Optional[torch.Tensor],
+        teacher_temp: torch.Tensor,
+        n_iterations: int = 3,
+    ) -> torch.Tensor:
+        if queue_output is None:
+            work_output = teacher_output.to(dtype=torch.float32, copy=True)
+        else:
+            work_output = torch.concat([teacher_output, queue_output], dim=0).float()
+
+        work_output.div_(teacher_temp).exp_()
+        q = work_output.t()  # Q is K-by-B for consistency with notations from the paper
+
+        for iteration in range(n_iterations):
+            sum_of_rows = torch.sum(q, dim=1, keepdim=True)
+            if training_utils.is_dist_available_and_initialized() is True:
+                dist.all_reduce(sum_of_rows)
+
+            if queue_output is not None and iteration == n_iterations - 1:
+                # Queue rows have already contributed to the final prototype sums and can now be discarded
+                current_output = q.t()[: teacher_output.size(0)] / sum_of_rows.t()
+                current_output /= torch.sum(current_output, dim=1, keepdim=True)
+
+                return current_output
+
+            # Normalize each prototype globally
+            q /= sum_of_rows
+
+            # Normalize each sample locally
+            q /= torch.sum(q, dim=0, keepdim=True)
+
+        if queue_output is None:
+            return q.t()
+
+        # Preserve the current-batch-only return contract when no Sinkhorn iterations are requested
+        return q.t()[: teacher_output.size(0)].clone()
+
+
 class DINOLoss(nn.Module):
     def __init__(
         self, out_dim: int, student_temp: float, center_momentum: float, queue_size: Optional[int] = None
@@ -170,6 +212,7 @@ class DINOLoss(nn.Module):
         self.student_temp = student_temp
         self.center_momentum = center_momentum
         self.center = nn.Buffer(torch.zeros(1, out_dim))
+        self.sinkhorn_normalizer = SinkhornKnoppNormalization()
         if queue_size is None:
             self.sinkhorn_queue = None
         else:
@@ -207,49 +250,25 @@ class DINOLoss(nn.Module):
             self.sinkhorn_queue.set_active(active)
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
-    def softmax_center_teacher(self, teacher_output: torch.Tensor, teacher_temp: float) -> torch.Tensor:
+    def softmax_center_teacher(self, teacher_output: torch.Tensor, teacher_temp: torch.Tensor) -> torch.Tensor:
         self.apply_center_update()
         return F.softmax((teacher_output - self.center) / teacher_temp, dim=-1)
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def sinkhorn_knopp_teacher(
-        self, teacher_output: torch.Tensor, teacher_temp: float, n_iterations: int = 3
+        self, teacher_output: torch.Tensor, teacher_temp: torch.Tensor, n_iterations: int = 3
     ) -> torch.Tensor:
-        current_output = teacher_output
         if self.sinkhorn_queue is not None:
             queue = self.sinkhorn_queue.get()
         else:
             queue = None
 
-        if queue is not None:
-            # NOTE: Concat created a new tensor, can modify in-place
-            teacher_output = torch.concat([teacher_output, queue], dim=0)
-            teacher_output = teacher_output.float()
-        else:
-            teacher_output = teacher_output.float().clone()
-
-        teacher_output.div_(teacher_temp).exp_()
-        q = teacher_output.t()  # Q is K-by-B for consistency with notations from the paper
-
-        for _ in range(n_iterations):
-            # Normalize each prototype globally
-            sum_of_rows = torch.sum(q, dim=1, keepdim=True)
-            if training_utils.is_dist_available_and_initialized() is True:
-                dist.all_reduce(sum_of_rows)
-
-            q /= sum_of_rows
-
-            # Normalize each sample locally
-            q /= torch.sum(q, dim=0, keepdim=True)
-
-        out = q.t()
-        if queue is not None:
-            out = out[: current_output.size(0)]
+        normalized_output = self.sinkhorn_normalizer(teacher_output, queue, teacher_temp, n_iterations)
 
         if self.sinkhorn_queue is not None:
-            self.sinkhorn_queue(current_output.detach())
+            self.sinkhorn_queue(teacher_output)
 
-        return out
+        return normalized_output
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def update_center(self, teacher_output: torch.Tensor) -> None:
@@ -283,6 +302,7 @@ class iBOTPatchLoss(nn.Module):
         self.student_temp = student_temp
         self.center_momentum = center_momentum
         self.center = nn.Buffer(torch.zeros(1, 1, patch_out_dim))
+        self.sinkhorn_normalizer = SinkhornKnoppNormalization()
         if queue_size is None:
             self.sinkhorn_queue = None
         else:
@@ -327,7 +347,7 @@ class iBOTPatchLoss(nn.Module):
             self.sinkhorn_queue.set_active(active)
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
-    def softmax_center_teacher(self, teacher_patch_tokens: torch.Tensor, teacher_temp: float) -> torch.Tensor:
+    def softmax_center_teacher(self, teacher_patch_tokens: torch.Tensor, teacher_temp: torch.Tensor) -> torch.Tensor:
         self.apply_center_update()
         return F.softmax((teacher_patch_tokens - self.center) / teacher_temp, dim=-1)
 
@@ -335,44 +355,20 @@ class iBOTPatchLoss(nn.Module):
     def sinkhorn_knopp_teacher(
         self,
         teacher_output: torch.Tensor,
-        teacher_temp: float,
+        teacher_temp: torch.Tensor,
         n_iterations: int = 3,
     ) -> torch.Tensor:
-        current_output = teacher_output
         if self.sinkhorn_queue is not None:
             queue = self.sinkhorn_queue.get()
         else:
             queue = None
 
-        if queue is not None:
-            # NOTE: Concat created a new tensor, can modify in-place
-            teacher_output = torch.concat([teacher_output, queue], dim=0)
-            teacher_output = teacher_output.float()
-        else:
-            teacher_output = teacher_output.float().clone()
-
-        teacher_output.div_(teacher_temp).exp_()
-        q = teacher_output.t()  # Q is K-by-B for consistency with notations from the paper
-
-        for _ in range(n_iterations):
-            # Normalize each prototype globally
-            sum_of_rows = torch.sum(q, dim=1, keepdim=True)
-            if training_utils.is_dist_available_and_initialized() is True:
-                dist.all_reduce(sum_of_rows)
-
-            q /= sum_of_rows
-
-            # Normalize each sample locally
-            q /= torch.sum(q, dim=0, keepdim=True)
-
-        out = q.t()
-        if queue is not None:
-            out = out[: current_output.size(0)]
+        normalized_output = self.sinkhorn_normalizer(teacher_output, queue, teacher_temp, n_iterations)
 
         if self.sinkhorn_queue is not None:
-            self.sinkhorn_queue(current_output.detach())
+            self.sinkhorn_queue(teacher_output)
 
-        return out
+        return normalized_output
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def update_center(self, teacher_patch_tokens: torch.Tensor) -> None:

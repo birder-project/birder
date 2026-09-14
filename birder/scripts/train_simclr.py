@@ -238,7 +238,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         last_accum_steps = grad_accum_steps
 
     last_accum_start_idx = epoch_num_batches - last_accum_steps
-    begin_epoch = 1
+    begin_epoch = 1 if args.resume_epoch is None else args.resume_epoch + 1
     epochs = args.epochs + 1
     args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
 
@@ -246,6 +246,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
     )
+    training_epochs = max(0, args.stop_epoch - begin_epoch)
+
+    # Approximate total: does not account for --drop-last or sampler padding
+    logger.info(f"Training will process {epoch_samples * training_epochs:,} samples over {training_epochs} epochs")
 
     #
     # Initialize network
@@ -269,7 +273,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     )
 
     if args.resume_epoch is not None:
-        begin_epoch = args.resume_epoch + 1
         net, training_states = fs_ops.load_simple_checkpoint(
             device, net, network_name, epoch=args.resume_epoch, strict=not args.non_strict_weights
         )

@@ -1,5 +1,4 @@
 import argparse
-import json
 import logging
 import math
 import sys
@@ -451,6 +450,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
     )
+    training_epochs = max(0, args.stop_epoch - begin_epoch)
+
+    # Approximate total: does not account for --drop-last or sampler padding
+    logger.info(f"Training will process {epoch_samples * training_epochs:,} samples over {training_epochs} epochs")
 
     #
     # Loss criteria, optimizer, learning rate scheduler and training parameter groups
@@ -613,9 +616,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     signature = get_signature(input_shape=sample_shape, num_outputs=num_outputs)
     file_handler: logging.Handler = logging.NullHandler()
     if training_utils.is_global_primary(args) is True:
-        with torch.no_grad():
-            summary_writer.add_graph(net_for_info, torch.rand(sample_shape, device=device, dtype=model_dtype))
-
         summary_writer.flush()
         fs_ops.write_config(network_name, net_for_info, signature=signature, rgb_stats=rgb_stats)
         file_handler = training_utils.setup_file_logging(training_log_path.joinpath("training.log"))
@@ -1022,37 +1022,6 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         toc = time.time()
         logger.info(f"Total time: {format_duration(toc - tic)}")
         logger.info("---")
-
-    # Save model hyperparameters with metrics
-    if training_utils.is_global_primary(args) is True:
-        # Replace list/dict based args
-        if args.opt_betas is not None:
-            for idx, beta in enumerate(args.opt_betas):
-                setattr(args, f"opt_betas_{idx}", beta)
-
-            del args.opt_betas
-
-        if args.lr_steps is not None:
-            args.lr_steps = json.dumps(args.lr_steps)
-        if args.freeze_modules is not None:
-            args.freeze_modules = json.dumps(args.freeze_modules)
-        if args.model_config is not None:
-            args.model_config = json.dumps(args.model_config)
-        if args.size is not None:
-            args.size = json.dumps(args.size)
-        if args.naflex_sizes is not None:
-            args.naflex_sizes = json.dumps(args.naflex_sizes)
-        if args.naflex_patch_sizes is not None:
-            args.naflex_patch_sizes = json.dumps(args.naflex_patch_sizes)
-
-        # Save all args
-        summary_writer.add_hparams(
-            {**vars(args), "training_samples": len(training_dataset)},
-            {
-                "hparam/acc": train_accuracy.global_avg,
-                "hparam/val_acc": val_accuracy.global_avg,
-            },
-        )
 
     summary_writer.close()
 

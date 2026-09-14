@@ -11,6 +11,7 @@ from birder.common.lib import class_list_from_class_to_idx
 from birder.model_registry import registry
 from birder.net.base import DetectorBackbone
 from birder.net.base import SignatureType
+from birder.net.base import active_params_available
 from birder.net.detection.base import DetectionSignatureType
 
 
@@ -27,7 +28,15 @@ def get_model_info(net: torch.nn.Module) -> dict[str, float]:
         num_buffers += buffer.numel()
         buffer_size += buffer.numel() * buffer.element_size()
 
-    return {"num_params": num_params, "num_buffers": num_buffers, "model_size": param_size + buffer_size}
+    model_info: dict[str, float] = {
+        "num_params": num_params,
+        "num_buffers": num_buffers,
+        "model_size": param_size + buffer_size,
+    }
+    if active_params_available(net) is True:
+        model_info["num_active_params"] = round(net.get_active_params())
+
+    return model_info
 
 
 def set_parser(subparsers: Any) -> None:
@@ -136,6 +145,9 @@ def main(args: argparse.Namespace) -> None:
         console.print(f"Network backbone has saved custom config: {backbone_custom_config}")
 
     console.print(f"Number of parameters: {model_info['num_params']:,}")
+    if "num_active_params" in model_info:
+        console.print(f"Active parameters (nominal per token): {model_info['num_active_params']:,}")
+
     console.print(f"Model size (inc. buffers): {(model_info['model_size']) / 1024**2:,.2f} [bold]MB[/bold]")
     console.print()
     if args.classes is True:

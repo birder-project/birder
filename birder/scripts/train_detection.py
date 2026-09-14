@@ -477,7 +477,7 @@ def train(args: argparse.Namespace) -> None:
         last_accum_steps = grad_accum_steps
 
     last_accum_start_idx = epoch_num_batches - last_accum_steps
-    begin_epoch = 1
+    begin_epoch = 1 if args.resume_epoch is None else args.resume_epoch + 1
     epochs = args.epochs + 1
     args.stop_epoch = training_utils.normalize_stop_epoch(epochs, args.stop_epoch)
 
@@ -485,6 +485,10 @@ def train(args: argparse.Namespace) -> None:
         f"Epoch has {epoch_num_batches} iterations ({optimizer_steps_per_epoch} steps), "
         f"virtual mode={virtual_epoch_mode}"
     )
+    training_epochs = max(0, args.stop_epoch - begin_epoch)
+
+    # Approximate total: does not account for --drop-last or sampler padding
+    logger.info(f"Training will process {epoch_samples * training_epochs:,} samples over {training_epochs} epochs")
 
     #
     # Initialize network
@@ -496,7 +500,6 @@ def train(args: argparse.Namespace) -> None:
     )
 
     if args.resume_epoch is not None:
-        begin_epoch = args.resume_epoch + 1
         net, class_to_idx_saved, checkpoint_rgb_stats, training_states = fs_ops.load_detection_checkpoint(
             device,
             args.network,
@@ -1103,35 +1106,6 @@ def train(args: argparse.Namespace) -> None:
         toc = time.time()
         logger.info(f"Total time: {lib.format_duration(toc - tic)}")
         logger.info("---")
-
-    # Save model hyperparameters with metrics
-    if training_utils.is_global_primary(args) is True:
-        # Replace list based args
-        if args.opt_betas is not None:
-            for idx, beta in enumerate(args.opt_betas):
-                setattr(args, f"opt_betas_{idx}", beta)
-
-            del args.opt_betas
-
-        if args.lr_steps is not None:
-            args.lr_steps = json.dumps(args.lr_steps)
-        if args.freeze_modules is not None:
-            args.freeze_modules = json.dumps(args.freeze_modules)
-        if args.freeze_backbone_modules is not None:
-            args.freeze_backbone_modules = json.dumps(args.freeze_backbone_modules)
-        if args.model_config is not None:
-            args.model_config = json.dumps(args.model_config)
-        if args.backbone_model_config is not None:
-            args.backbone_model_config = json.dumps(args.backbone_model_config)
-        if args.size is not None:
-            args.size = json.dumps(args.size)
-
-        # Save all args
-        val_metrics = validation_metrics.compute()
-        summary_writer.add_hparams(
-            {**vars(args), "training_samples": len(training_dataset)},
-            {"hparam/val_map": val_metrics["map"]},
-        )
 
     summary_writer.close()
 

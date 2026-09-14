@@ -110,8 +110,18 @@ class SoftMoE_FFN(nn.Module):
 
 class BaseSparseMoE_FFN(nn.Module):
     """
-    Common interface for sparse FFNs that optionally emit MoE training data
+    Common interface for sparse FFNs with active-parameter accounting and optional MoE training data
     """
+
+    def get_active_params(self, *, special_token_fraction: float = 0.0) -> float:
+        """
+        Return nominal active parameters per token, including frozen parameters and excluding buffers
+
+        special_token_fraction is the fraction of the reference sequence occupied by special tokens. It is used
+        when the FFN has a dedicated special-token expert path, otherwise all tokens follow the routed path.
+        """
+
+        raise NotImplementedError
 
     def forward(
         self, x: torch.Tensor, token_mask: Optional[torch.Tensor] = None, *, return_moe_training_output: bool = False
@@ -346,6 +356,17 @@ class VMoE_FFN(BaseSparseMoE_FFN):
                     nn.init.normal_(m.bias, std=1e-6)
 
         self.experts = _get_clones(expert, num_experts)
+
+    def get_active_params(self, *, special_token_fraction: float = 0.0) -> float:
+        """
+        Count the router and top_k experts per token, before capacity-related token dropping
+        """
+
+        num_active_params = sum(param.numel() for param in self.parameters())
+        expert_params = sum(param.numel() for param in self.experts.parameters())
+        num_active_params -= expert_params
+        num_active_params += self.top_k * (expert_params / self.num_experts)
+        return float(num_active_params)
 
     def _group_size(self, seq_length: int) -> int:
         images_per_group = V_MOE_TRAIN_IMAGES_PER_GROUP if self.training is True else V_MOE_EVAL_IMAGES_PER_GROUP
@@ -766,6 +787,31 @@ class MoE_FFN(BaseSparseMoE_FFN):
                     for _ in range(num_routed_experts)
                 ]
             )
+
+    def get_active_params(self, *, special_token_fraction: float = 0.0) -> float:
+        """
+        Count shared experts fully and average the routed and special-token expert paths
+
+        Token-choice uses top_k, while expert-choice uses its capacity factor directly, without capacity rounding.
+        """
+
+        num_active_params = sum(param.numel() for param in self.parameters())
+        routed_params = sum(param.numel() for param in self.routed_experts.parameters())
+        router_params = sum(param.numel() for param in self.router.parameters())
+        special_params = sum(param.numel() for param in self.special_token_experts.parameters())
+        if isinstance(self.router, ExpertChoiceRouter):
+            active_experts = self.router.capacity_factor
+        else:
+            active_experts = float(self.router.top_k)
+
+        active_routed_params = active_experts * (routed_params / self.num_routed_experts)
+        if self.has_special_token_experts is False:
+            special_token_fraction = 0.0
+
+        num_active_params -= routed_params + router_params + special_params
+        num_active_params += (1.0 - special_token_fraction) * (router_params + active_routed_params)
+        num_active_params += special_token_fraction * special_params
+        return float(num_active_params)
 
     def _route_token_choice(
         self, x: torch.Tensor, token_mask: Optional[torch.Tensor]
