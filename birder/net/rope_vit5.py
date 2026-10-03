@@ -540,6 +540,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
         attention_dropout: float = self.config.get("attention_dropout", 0.0)
         projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         if norm_layer_type == "LayerNorm":
             norm_layer = nn.LayerNorm
@@ -590,7 +591,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             pt_grid_size = tuple(pt_grid_size)  # type: ignore[unreachable]
 
         self.pt_grid_size = pt_grid_size
-        dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers, constant=drop_path_uniform)
 
         self.conv_proj = nn.Conv2d(
             self.input_channels,

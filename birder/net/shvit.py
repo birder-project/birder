@@ -25,6 +25,8 @@ from birder.net.base import make_divisible
 
 
 class Conv2dBN(nn.Sequential):
+    # pylint: disable=access-member-before-definition
+
     def __init__(
         self,
         in_channels: int,
@@ -108,6 +110,8 @@ class NormLinear(nn.Sequential):
         nn.init.zeros_(self.li.bias)
 
     def reparameterize(self) -> None:
+        # pylint: disable=access-member-before-definition
+
         if self.reparameterized is True:
             return
 

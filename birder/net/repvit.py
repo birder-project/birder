@@ -30,6 +30,8 @@ from birder.net.base import make_divisible
 
 
 class RepConvBN(nn.Sequential):
+    # pylint: disable=access-member-before-definition
+
     def __init__(
         self,
         in_channels: int,
@@ -99,6 +101,8 @@ class RepConvBN(nn.Sequential):
 
 
 class RepNormLinear(nn.Sequential):
+    # pylint: disable=access-member-before-definition
+
     def __init__(self, in_dim: int, out_dim: int, reparameterized: bool) -> None:
         super().__init__()
         self.li: nn.Module

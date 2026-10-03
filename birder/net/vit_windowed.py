@@ -352,6 +352,7 @@ class ViT_Windowed(DetectorBackbone):
         mask_padded_attn: bool = self.config.get("mask_padded_attn", True)
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         if pos_embed_interpolation_mode not in ("bilinear", "bicubic"):
             raise ValueError(f"Unknown pos_embed_interpolation_mode '{pos_embed_interpolation_mode}'")
@@ -371,7 +372,7 @@ class ViT_Windowed(DetectorBackbone):
         self.num_reg_tokens = num_reg_tokens
         self.mask_padded_attn = mask_padded_attn
         self.out_indices = normalize_out_indices(out_indices, num_layers)
-        dpr = stochastic_depth_rates(drop_path_rate, num_layers)
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers, constant=drop_path_uniform)
 
         self.conv_proj = nn.Conv2d(
             self.input_channels,

@@ -374,6 +374,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        training_utils.register_ddp_comm_hook(net, args.ddp_comm_dtype)
         no_sync_cm = net.no_sync
         net_without_ddp = net.module
 
@@ -530,7 +531,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     optimizer.step()
 
                 if moe_expert_load_accumulator is not None:
-                    moe_expert_load_accumulator.flush(moe_expert_bias_updater)  # pylint: disable=used-before-assignment
+                    moe_expert_load_accumulator.flush(
+                        moe_expert_bias_updater  # pylint: disable=possibly-used-before-assignment
+                    )
 
                 optimizer.zero_grad()
                 if step_update is True:
@@ -750,7 +753,7 @@ def validate_args(args: argparse.Namespace) -> None:
         if args.drop_last is False:
             raise cli.ValidationError("--moe-training requires --drop-last")
 
-    if 0.0 >= args.rotation_prob and args.rotation_prob >= 1.0:
+    if 0.0 >= args.rotation_prob or args.rotation_prob > 1.0:
         raise cli.ValidationError("--rotation-prob must be between 0.0 and 1.0")
     if args.freeze_stages is not None and registry.exists(args.network, net_type=DetectorBackbone) is False:
         raise cli.ValidationError(

@@ -519,6 +519,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
         attention_dropout: float = self.config.get("attention_dropout", 0.0)
         projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         if pos_embed_interpolation_mode not in ("bilinear", "bicubic"):
             raise ValueError(f"Unknown pos_embed_interpolation_mode '{pos_embed_interpolation_mode}'")
@@ -608,7 +609,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             pt_grid_size = tuple(pt_grid_size)  # type: ignore[unreachable]
 
         self.pt_grid_size = pt_grid_size
-        dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers, constant=drop_path_uniform)
 
         self.patch_embed = PatchEmbed()
 

@@ -593,6 +593,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         attention_dropout: float = self.config.get("attention_dropout", 0.0)
         projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         if pos_embed_interpolation_mode not in ("bilinear", "bicubic"):
             raise ValueError(f"Unknown pos_embed_interpolation_mode '{pos_embed_interpolation_mode}'")
@@ -667,7 +668,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
         self.num_reg_tokens = num_reg_tokens
         self.attn_pool_special_tokens = attn_pool_special_tokens
         self.out_indices = normalize_out_indices(out_indices, num_layers)
-        dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers, constant=drop_path_uniform)
 
         self.patch_embed = PatchEmbed()
 

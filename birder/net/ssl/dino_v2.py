@@ -32,7 +32,7 @@ class DINOHead(nn.Module):
     def __init__(
         self,
         in_dim: int,
-        out_dim: int,
+        out_dim: Optional[int],
         use_bn: bool,
         num_layers: int,
         hidden_dim: int,
@@ -57,8 +57,12 @@ class DINOHead(nn.Module):
             layers.append(nn.Linear(hidden_dim, bottleneck_dim))
             self.mlp = nn.Sequential(*layers)
 
-        self.last_layer = nn.utils.parametrizations.weight_norm(nn.Linear(bottleneck_dim, out_dim, bias=False))
-        self.last_layer.parametrizations.weight.original0.data.fill_(1)
+        if out_dim is None:
+            # Use the normalized bottleneck directly, without prototypes (SimDINO v2)
+            self.last_layer = nn.Identity()
+        else:
+            self.last_layer = nn.utils.parametrizations.weight_norm(nn.Linear(bottleneck_dim, out_dim, bias=False))
+            self.last_layer.parametrizations.weight.original0.data.fill_(1)
 
         # Weight initialization
         for m in self.mlp.modules():
@@ -439,13 +443,13 @@ class DINOv2Student(SSLBaseNet):
         assert self.config is not None, "must set config"
         assert isinstance(self.backbone, MaskedTokenRetentionMixin)
 
-        dino_out_dim: int = self.config["dino_out_dim"]
+        dino_out_dim: Optional[int] = self.config["dino_out_dim"]
         use_bn: bool = self.config["use_bn"]
         num_layers: int = self.config["num_layers"]
         hidden_dim: int = self.config["hidden_dim"]
         head_bottleneck_dim: int = self.config["head_bottleneck_dim"]
         ibot_separate_head: bool = self.config["ibot_separate_head"]
-        ibot_out_dim: int = self.config.get("ibot_out_dim", dino_out_dim)
+        ibot_out_dim: Optional[int] = self.config.get("ibot_out_dim", dino_out_dim)
 
         assert ibot_separate_head is True or self.backbone.feature_dim == self.backbone.embedding_size
 
@@ -568,13 +572,13 @@ class DINOv2Teacher(SSLBaseNet):
         assert self.config is not None, "must set config"
         assert isinstance(self.backbone, MaskedTokenRetentionMixin)
 
-        dino_out_dim: int = self.config["dino_out_dim"]
+        dino_out_dim: Optional[int] = self.config["dino_out_dim"]
         use_bn: bool = self.config["use_bn"]
         num_layers: int = self.config["num_layers"]
         hidden_dim: int = self.config["hidden_dim"]
         head_bottleneck_dim: int = self.config["head_bottleneck_dim"]
         ibot_separate_head: bool = self.config["ibot_separate_head"]
-        ibot_out_dim: int = self.config.get("ibot_out_dim", dino_out_dim)
+        ibot_out_dim: Optional[int] = self.config.get("ibot_out_dim", dino_out_dim)
 
         assert ibot_separate_head is True or self.backbone.feature_dim == self.backbone.embedding_size
 

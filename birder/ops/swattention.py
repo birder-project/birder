@@ -22,7 +22,7 @@ def set_swattention_num_threads(num_threads: int) -> None:
 def swattention_qk_rpb_op(
     query: torch.Tensor, key: torch.Tensor, rpb: torch.Tensor, height: int, width: int, kernel_size: int
 ) -> torch.Tensor:
-    return SWATTENTION.qk_rpb_forward(  # type: ignore[attr-defined]
+    return SWATTENTION.qk_rpb_forward(  # type: ignore[union-attr]
         query, key, rpb, height, width, kernel_size, SWATTENTION_CUDA_NUM_THREADS
     )
 
@@ -84,7 +84,7 @@ def _swattention_qk_rpb_backward_fake(  # pylint: disable=unused-argument
 def swattention_av_op(
     attn_weight: torch.Tensor, value: torch.Tensor, height: int, width: int, kernel_size: int
 ) -> torch.Tensor:
-    return SWATTENTION.av_forward(  # type: ignore[attr-defined]
+    return SWATTENTION.av_forward(  # type: ignore[union-attr]
         attn_weight, value, height, width, kernel_size, SWATTENTION_CUDA_NUM_THREADS
     )
 

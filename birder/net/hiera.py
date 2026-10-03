@@ -343,6 +343,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         attn_pool_num_heads: Optional[int] = self.config.get("attn_pool_num_heads", None)
         attn_pool_act_layer_type: str = self.config.get("attn_pool_act_layer_type", "gelu")
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         self.grad_checkpointing = False
         self.grad_checkpointing_segments: Optional[int] = None
@@ -384,7 +385,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         self.reroll = Reroll(image_size, patch_stride, [q_stride] * len(self.stage_ends[:-1]), self.stage_ends, q_pool)
 
         q_pool_blocks = [x + 1 for x in self.stage_ends[:q_pool]]
-        dpr = stochastic_depth_rates(drop_path_rate, self.num_layers)  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, self.num_layers, constant=drop_path_uniform)
 
         cur_stage = 0
         layers = []

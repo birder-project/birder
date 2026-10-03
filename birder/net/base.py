@@ -68,9 +68,14 @@ def make_divisible(v: float, divisor: int, min_value: Optional[int] = None, roun
     return new_v
 
 
-def stochastic_depth_rates(drop_path_rate: float, num_blocks: int, endpoint: bool = True) -> list[float]:
+def stochastic_depth_rates(
+    drop_path_rate: float, num_blocks: int, endpoint: bool = True, constant: bool = False
+) -> list[float]:
     if num_blocks == 0:
         return []
+
+    if constant is True:
+        return [drop_path_rate] * num_blocks
 
     num_steps = num_blocks if endpoint is True else num_blocks + 1
     rates: list[float] = torch.linspace(0.0, drop_path_rate, steps=num_steps, device="cpu").tolist()
@@ -81,9 +86,9 @@ def stochastic_depth_rates(drop_path_rate: float, num_blocks: int, endpoint: boo
 
 
 def staged_stochastic_depth_rates(
-    drop_path_rate: float, depths: Sequence[int], endpoint: bool = True
+    drop_path_rate: float, depths: Sequence[int], endpoint: bool = True, constant: bool = False
 ) -> list[list[float]]:
-    rates = stochastic_depth_rates(drop_path_rate, sum(depths), endpoint=endpoint)
+    rates = stochastic_depth_rates(drop_path_rate, sum(depths), endpoint=endpoint, constant=constant)
 
     staged_rates = []
     offset = 0

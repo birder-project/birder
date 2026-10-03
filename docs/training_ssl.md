@@ -21,6 +21,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 - [NEPA](#nepa)
 - [RotNet](#rotnet)
 - [SimCLR](#simclr)
+- [SimDINO v2](#simdino-v2)
 - [VICReg](#vicreg)
 
 ### Barlow Twins
@@ -391,10 +392,28 @@ Distillation, ViT reg1 s14 LS (2500x8x4x96 = 7.68M epoch, 7.68Mx300 = 2.3B)
 torchrun --nproc_per_node=8 -m birder.scripts.train_dino_v2_dist --network vit_reg1_s14_ls --tag bio --teacher vit_reg4_so150m_p14_ls --teacher-tag bio-252px --teacher-epoch 250 --dino-out-dim 98304 --head-bottleneck-dim 320 --ibot-separate-head --ibot-out-dim 98304 --warmup-teacher-temp-epochs 20 --local-crop-size 112 --batch-size 96 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 4 --lr 0.0004 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 300 --steps-per-epoch 2500 --size 252 --warmup-epochs 50 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_bio_packed/_info.json
 ```
 
-#### DINO v2: RoPE SoViT Reg8 150M/14 AP
+Intermediate training: first stage - linear probing (quick)
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train_dino_v2 --network rope_vit_reg8_so150m_p14_ap --model-config drop_path_rate=0.3 --dino-out-dim 131072 --head-bottleneck-dim 384 --ibot-separate-head --ibot-out-dim 131072 --local-crop-size 98 --centering sinkhorn_knopp --sinkhorn-queue-size 768 --batch-size 32 --opt adamw --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0002 --wd 0.04 --wd-end 0.2 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 200 --warmup-epochs 10 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --wds --wds-info data/ssl_packed/_info.json
+torchrun --nproc_per_node=2 -m birder.scripts.train --network vit_reg4_so150m_p14_ls --tag dino-v2-bio-intermediate --reset-head --freeze-body --batch-size 256 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 10 --size 252 --aug-level 2 --smoothing-alpha 0.1 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
+```
+
+Intermediate training: full fine-tuning with layer-wise learning rate decay
+
+```sh
+torchrun --nproc_per_node=2 train.py --network vit_reg4_so150m_p14_ls --tag dino-v2-bio-intermediate --batch-size 128 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 4 --lr 0.0004 --wd 0.05 --norm-wd 0 --layer-decay 0.75 --layer-decay-no-opt-scale 0.075 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 100 --warmup-epochs 5 --model-ema --size 252 --aug-level 9 --smoothing-alpha 0.1 --mixup-alpha 0.8 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
+```
+
+Intermediate training with NaFlex: full fine-tuning with layer-wise learning rate decay
+
+```sh
+torchrun --nproc_per_node=2 train.py --network naflex_vit_reg4_so150m_p14_ls --tag dino-v2-bio-intermediate --batch-size 128 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 4 --lr 0.0005 --wd 0.05 --norm-wd 0 --layer-decay 0.75 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 100 --warmup-epochs 5 --model-ema --size 252 --naflex --naflex-sizes 196 224 252 280 --aug-level 9 --smoothing-alpha 0.1 --mixup-alpha 0.8 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
+```
+
+Intermediate training with NaFlex: full fine-tuning with layer-wise learning rate decay (336px version)
+
+```sh
+torchrun --nproc_per_node=2 train.py --network naflex_vit_reg4_so150m_p14_ls --tag dino-v2-bio-intermediate --mesa --mesa-start-epoch 10 --batch-size 64 --opt adamw --opt-fused --clip-grad-norm 3 --grad-accum-steps 8 --lr 0.0005 --wd 0.075 --norm-wd 0 --layer-decay 0.7 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 0 --epochs 100 --steps-per-epoch 1000 --warmup-epochs 5 --model-ema --model-ema-steps 1 --model-ema-decay 0.9998 --size 336 --naflex --naflex-sizes 224 252 280 308 336 350 364 --aug-level 9 --smoothing-alpha 0.1 --mixup-alpha 0.8 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
 ### DINO v2 Dist
@@ -635,6 +654,14 @@ torchrun --nproc_per_node=2 -m birder.scripts.train_simclr --network resnet_v1_5
 
 ```sh
 torchrun --nproc_per_node=2 -m birder.scripts.train_simclr --network convnext_v1_small --batch-size 128 --opt lars --lr 0.075 --lr-scale 4096 --lr-scale-type sqrt --wd 0.0001 --lr-scheduler cosine --epochs 100 --warmup-epochs 10 --fast-matmul --compile --distributed-mode fsdp --fsdp-sharding-strategy full-shard --fsdp-param-dtype bfloat16 --fsdp-reduce-dtype bfloat16 --no-broadcast-buffers --data-path data/training
+```
+
+### SimDINO v2
+
+#### SimDINO v2: ViT Reg4 B/16
+
+```sh
+torchrun --nproc_per_node=2 -m birder.scripts.train_simdino_v2 --network vit_reg4_b16 --model-config drop_path_rate=0.2 --batch-size 128 --opt adamw --clip-grad-norm 3 --lr 0.004 --lr-scale 1024 --lr-scale-type sqrt --wd 0.04 --wd-end 0.4 --norm-wd 0 --bias-weight-decay 0 --backbone-layer-decay 0.9 --lr-scheduler-update step --lr-scheduler cosine --lr-cosine-min 1e-6 --epochs 100 --warmup-epochs 10 --size 224 --amp --amp-dtype bfloat16 --compile --data-path data/training
 ```
 
 ### VICReg

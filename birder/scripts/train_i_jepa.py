@@ -413,11 +413,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        training_utils.register_ddp_comm_hook(encoder, args.ddp_comm_dtype)
         predictor = torch.nn.parallel.DistributedDataParallel(
             predictor,
             device_ids=training_utils.get_ddp_device_ids(device, device_id),
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        training_utils.register_ddp_comm_hook(predictor, args.ddp_comm_dtype)
         encoder_no_sync_cm = encoder.no_sync
         predictor_no_sync_cm = predictor.no_sync
         encoder_without_ddp = encoder.module

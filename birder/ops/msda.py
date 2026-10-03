@@ -17,7 +17,7 @@ def ms_deform_attn_op(
     attention_weights: torch.Tensor,
     im2col_step: int,
 ) -> torch.Tensor:
-    return MSDA.ms_deform_attn_forward(  # type: ignore[attr-defined]
+    return MSDA.ms_deform_attn_forward(  # type: ignore[union-attr]
         value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step
     )
 
@@ -53,7 +53,7 @@ def ms_deform_attn_packed_op(
     num_points_per_level: torch.Tensor,
     im2col_step: int,
 ) -> torch.Tensor:
-    return MSDA.ms_deform_attn_packed_forward(  # type: ignore[attr-defined]
+    return MSDA.ms_deform_attn_packed_forward(  # type: ignore[union-attr]
         value,
         value_spatial_shapes,
         value_level_start_index,
@@ -75,7 +75,7 @@ def ms_deform_attn_packed_backward_op(
     grad_output: torch.Tensor,
     im2col_step: int,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    return MSDA.ms_deform_attn_packed_backward(  # type: ignore[attr-defined,no-any-return]
+    return MSDA.ms_deform_attn_packed_backward(  # type: ignore[union-attr,no-any-return]
         value,
         value_spatial_shapes,
         value_level_start_index,

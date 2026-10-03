@@ -222,6 +222,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
         depths: list[int] = self.config["depths"]
         num_heads: list[int] = self.config["num_heads"]
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
         self.window_scale_factor: int = self.config["window_scale_factor"]
         mlp_ratio = 4.0
         window_size_h = int(self.size[0] / (2**5)) * self.window_scale_factor
@@ -244,7 +245,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
 
         resolution = (self.size[0] // patch_size, self.size[1] // patch_size)
         total_stage_blocks = sum(depths)
-        dpr = stochastic_depth_rates(drop_path_rate, total_stage_blocks)
+        dpr = stochastic_depth_rates(drop_path_rate, total_stage_blocks, constant=drop_path_uniform)
         stage_block_id = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []

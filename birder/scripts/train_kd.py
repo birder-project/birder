@@ -658,6 +658,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        training_utils.register_ddp_comm_hook(train_student, args.ddp_comm_dtype)
         no_sync_cm = train_student.no_sync
         if distillation_type != "embedding":
             net_without_ddp = train_student.module
@@ -672,6 +673,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 find_unused_parameters=args.find_unused_parameters,
                 broadcast_buffers=False,
             )
+            training_utils.register_ddp_comm_hook(embedding_projection, args.ddp_comm_dtype)
             projection_no_sync_cm = embedding_projection.no_sync
             embedding_projection_to_save = embedding_projection.module
         else:
@@ -921,7 +923,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     target_loss = criterion(outputs, targets)
                     student_loss = (1 - args.lambda_param) * target_loss + (args.lambda_param * dist_loss)
                     if moe_spec is not None and moe_spec.has_auxiliary_loss is True:
-                        raw_loss = student_loss + moe_aux_loss  # pylint: disable=used-before-assignment
+                        raw_loss = student_loss + moe_aux_loss  # pylint: disable=possibly-used-before-assignment
                     else:
                         raw_loss = student_loss
 
@@ -954,7 +956,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     optimizer.step()
 
                 if moe_expert_load_accumulator is not None:
-                    moe_expert_load_accumulator.flush(moe_expert_bias_updater)  # pylint: disable=used-before-assignment
+                    moe_expert_load_accumulator.flush(
+                        moe_expert_bias_updater  # pylint: disable=possibly-used-before-assignment
+                    )
 
                 optimizer.zero_grad()
                 if step_update is True:

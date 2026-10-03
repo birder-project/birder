@@ -17,7 +17,7 @@ Before running any training scripts, set the `OMP_NUM_THREADS` environment varia
 Intermediate training: first stage - linear probing (quick)
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train --network hieradet_d_small --tag dino-v2-intermediate --reset-head --freeze-body --batch-size 384 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 5 --size 224 --aug-level 1 --smoothing-alpha 0.1 --rgb-mode birder --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
+torchrun --nproc_per_node=2 -m birder.scripts.train --network hieradet_d_small --tag dino-v2-intermediate --reset-head --freeze-body --batch-size 384 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 5 --size 224 --aug-level 1 --smoothing-alpha 0.1 --rgb-mode birder --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
 Fine-tuning, first stage - linear probing, region (quick)
@@ -37,7 +37,7 @@ torchrun --nproc_per_node=2 -m birder.scripts.train --network hieradet_d_small -
 Intermediate training: first stage - attentive probing (quick)
 
 ```sh
-torchrun --nproc_per_node=2 -m birder.scripts.train --network vit_reg4_so150m_p14_aps --tag mim-intermediate --reset-head --freeze-body --unfreeze-features --batch-size 384 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 5 --size 224 --aug-level 1 --smoothing-alpha 0.1 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --non-strict-weights --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
+torchrun --nproc_per_node=2 -m birder.scripts.train --network vit_reg4_so150m_p14_aps --tag mim-intermediate --reset-head --freeze-body --unfreeze-features --batch-size 384 --opt adamw --lr 0.0005 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 5 --size 224 --aug-level 1 --smoothing-alpha 0.1 --rgb-mode centered --amp --amp-dtype bfloat16 --compile --save-frequency 1 --resume-epoch 0 --non-strict-weights --wds --wds-info data/intermediate_packed/_info.json --wds-class-file data/intermediate_packed/classes.txt
 ```
 
 Fine-tuning, first stage - attentive probing, region (quick)

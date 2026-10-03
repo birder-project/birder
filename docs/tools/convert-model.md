@@ -1,6 +1,6 @@
 # Convert Model
 
-The `convert-model` tool allows you to convert PyTorch models to various formats, including TorchScript, TorchScript lite interpreter, pt2 standardized model representation, Torch-TensorRT pt2, ONNX, Safetensors and reparameterized models. This tool is essential for deployment in different environments and for optimizing model performance.
+The `convert-model` tool allows you to convert PyTorch models to various formats, including TorchScript, TorchScript lite interpreter, pt2 standardized model representation, ExecuTorch PTE, Torch-TensorRT pt2, ONNX, Safetensors and reparameterized models. This tool is essential for deployment in different environments and for optimizing model performance.
 
 ## Usage
 
@@ -23,6 +23,7 @@ Birder provides flexibility in converting models to different formats, each serv
 - **TorchScript (--pts)**: For deployment in production environments that support TorchScript
 - **TorchScript lite interpreter (--lite)**: For deployment on mobile or edge devices with limited resources
 - **pt2 (--pt2)**: The standardized model representation in PyTorch 2.0, offering improved performance and compatibility
+- **ExecuTorch (--pte)**: A full precision `.pte` model lowered for the XNNPACK CPU backend
 - **Torch-TensorRT (--trt)**: For TensorRT-accelerated CUDA deployment, saved as an exported-program pt2 file
 - **ONNX (--onnx)**: For cross-platform machine learning interoperability
 - **Safetensors (--st)**: For a safer and potentially faster model storage format

@@ -29,6 +29,7 @@ Most networks train more effectively with growing resolution and augmentation as
 - [ConvNeXt v1](#convnext-v1)
 - [ConvNeXt v1 Isotropic](#convnext-v1-isotropic)
 - [ConvNeXt v2](#convnext-v2)
+- [CPUBone](#cpubone)
 - [CrossFormer](#crossformer)
 - [CrossViT](#crossvit)
 - [CSPNet](#cspnet)
@@ -481,6 +482,50 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_large --batch-size 16
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network convnext_v2_huge --batch-size 4 --opt adamw --lr 0.0008 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 100 --warmup-epochs 10 --model-ema --size 384 --aug-level 8 --smoothing-alpha 0.1 --mixup-alpha 0.8 --cutmix --ra-sampler --ra-reps 2 --amp --compile
+```
+
+### CPUBone
+
+#### CPUBone: Nano
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cpubone_n --batch-size 256 --opt adamw --clip-grad-norm 2 --lr 0.001 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 320 --warmup-epochs 20 --model-ema --model-ema-steps 1 --model-ema-decay 0.9998 --size 256 --aug-level 5 --smoothing-alpha 0.1 --mixup-alpha 0.1 --cutmix --mixup-cutmix-prob 1 --compile
+```
+
+#### CPUBone: Tiny
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cpubone_t --batch-size 256 --opt adamw --clip-grad-norm 2 --lr 0.001 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 320 --warmup-epochs 20 --model-ema --model-ema-steps 1 --model-ema-decay 0.9998 --size 256 --aug-level 5 --smoothing-alpha 0.1 --mixup-alpha 0.1 --cutmix --mixup-cutmix-prob 1 --compile
+```
+
+#### CPUBone: Small
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cpubone_s --batch-size 256 --opt adamw --clip-grad-norm 2 --lr 0.001 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 320 --warmup-epochs 20 --model-ema --model-ema-steps 1 --model-ema-decay 0.9998 --size 256 --aug-level 5 --smoothing-alpha 0.1 --mixup-alpha 0.1 --cutmix --mixup-cutmix-prob 1 --compile
+```
+
+#### CPUBone: B0
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cpubone_b0 --batch-size 256 --opt adamw --clip-grad-norm 2 --lr 0.001 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 320 --warmup-epochs 20 --model-ema --model-ema-steps 1 --model-ema-decay 0.9998 --size 256 --aug-level 5 --smoothing-alpha 0.1 --mixup-alpha 0.1 --cutmix --mixup-cutmix-prob 1 --compile
+```
+
+#### CPUBone: B1
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cpubone_b1 --batch-size 256 --opt adamw --clip-grad-norm 2 --lr 0.001 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 320 --warmup-epochs 20 --model-ema --model-ema-steps 1 --model-ema-decay 0.9998 --size 256 --aug-level 5 --smoothing-alpha 0.1 --mixup-alpha 0.1 --cutmix --mixup-cutmix-prob 1 --compile
+```
+
+#### CPUBone: B2
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cpubone_b2 --batch-size 128 --opt adamw --clip-grad-norm 2 --grad-accum-steps 4 --lr 0.002 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 320 --warmup-epochs 20 --model-ema --model-ema-steps 1 --model-ema-decay 0.9998 --size 256 --aug-level 6 --smoothing-alpha 0.1 --mixup-alpha 0.3 --cutmix --mixup-cutmix-prob 1 --compile
+```
+
+#### CPUBone: B3
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cpubone_b3 --mesa --mesa-start-epoch 100 --batch-size 64 --opt adamw --clip-grad-norm 2 --grad-accum-steps 8 --lr 0.003 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 320 --warmup-epochs 20 --model-ema --model-ema-steps 1 --model-ema-decay 0.9998 --size 256 --aug-level 7 --re-prob 0.2 --smoothing-alpha 0.1 --mixup-alpha 0.2 --cutmix --mixup-cutmix-prob 1 --compile
 ```
 
 ### CrossFormer

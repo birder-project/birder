@@ -9,6 +9,7 @@ Examples use repo-root script names (e.g., `train.py`). If you installed Birder 
 - [CoaT](#coat)
 - [Conv2Former](#conv2former)
 - [ConvNeXt v2](#convnext-v2)
+- [CPUBone](#cpubone)
 - [CrossViT](#crossvit)
 - [DeiT](#deit)
 - [DeiT3](#deit3)
@@ -125,6 +126,14 @@ torchrun --nproc_per_node=2 train.py --network convnext_v2_atto --tag il-common 
 
 ```sh
 torchrun --nproc_per_node=2 train.py --network convnext_v2_femto --tag il-common --batch-size 256 --opt adamw --lr 0.0002 --wd 0.05 --norm-wd 0 --lr-scheduler cosine --lr-cosine-min 1e-7 --epochs 600 --size 256 --aug-level 8 --smoothing-alpha 0.2 --mixup-alpha 0.3 --cutmix --ra-sampler --ra-reps 2 --fast-matmul --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
+```
+
+### CPUBone
+
+#### CPUBone: Nano
+
+```sh
+torchrun --nproc_per_node=2 train.py --network cpubone_n --tag il-common --batch-size 256 --opt adamw --clip-grad-norm 2 --lr 0.001 --wd 0.1 --norm-wd 0 --bias-weight-decay 0 --lr-scheduler cosine --epochs 320 --warmup-epochs 20 --model-ema --model-ema-steps 1 --model-ema-decay 0.9998 --size 256 --aug-level 5 --smoothing-alpha 0.1 --mixup-alpha 0.1 --cutmix --mixup-cutmix-prob 1 --compile --data-path data/training_il-common_packed --val-path data/validation_il-common_packed
 ```
 
 ### CrossViT

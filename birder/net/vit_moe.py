@@ -286,10 +286,10 @@ class Encoder(nn.Module):
 
         if moe_ffn_type == "VMoE_FFN":
             self.moe_spec = MoESpec(has_auxiliary_loss=True, requires_expert_bias_update=False)
-            if moe_expert_width is not None:
-                raise ValueError("moe_expert_width is only supported with moe_ffn_type='MoE_FFN'")
+            if moe_expert_width is None:
+                moe_expert_width = mlp_dim
 
-            moe_mlp_dim = mlp_dim
+            moe_mlp_dim = moe_expert_width
             moe_mlp_layer: Callable[..., nn.Module] = partial(
                 VMoE_FFN,
                 act_layer=activation_layer,
@@ -640,6 +640,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         attention_dropout: float = self.config.get("attention_dropout", 0.0)
         projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         moe_layers = _resolve_moe_layers(
             num_layers,
@@ -734,7 +735,7 @@ class ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetentionMix
         self.num_reg_tokens = num_reg_tokens
         self.attn_pool_special_tokens = attn_pool_special_tokens
         self.mlp_head = mlp_head
-        dpr = stochastic_depth_rates(drop_path_rate, num_layers)
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers, constant=drop_path_uniform)
 
         self.patch_embed = PatchEmbed()
 

@@ -286,6 +286,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         norm_layer_eps: float = self.config.get("norm_layer_eps", 1e-6)
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         if norm_layer_type == "LayerNorm":
             norm_layer = nn.LayerNorm
@@ -303,7 +304,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
         self.hidden_dim = hidden_dim
         self.num_reg_tokens = num_reg_tokens
         self.out_indices = normalize_out_indices(out_indices, num_layers)
-        dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers, constant=drop_path_uniform)
 
         self.conv_proj = nn.Conv2d(
             self.input_channels,

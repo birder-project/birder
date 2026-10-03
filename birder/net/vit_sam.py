@@ -239,6 +239,7 @@ class ViT_SAM(DetectorBackbone):
         neck_channels: Optional[int] = self.config.get("neck_channels", None)
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         if norm_layer_type == "LayerNorm":
             norm_layer = nn.LayerNorm
@@ -271,7 +272,7 @@ class ViT_SAM(DetectorBackbone):
         self.grad_checkpointing_segments: Optional[int] = None
         self.grad_checkpointing_preserve_rng_state = True
         self.grad_checkpointing_use_reentrant = False
-        dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers, constant=drop_path_uniform)
 
         self.patch_embed = PatchEmbed(
             in_channels=self.input_channels,

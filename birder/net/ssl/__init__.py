@@ -15,6 +15,8 @@ from birder.net.ssl.lejepa import LeJEPA
 from birder.net.ssl.mmcr import MMCR
 from birder.net.ssl.nepa import NEPA
 from birder.net.ssl.simclr import SimCLR
+from birder.net.ssl.simdino_v2 import SimDINOv2Student
+from birder.net.ssl.simdino_v2 import SimDINOv2Teacher
 from birder.net.ssl.sscd import SSCD
 from birder.net.ssl.vicreg import VICReg
 
@@ -36,6 +38,8 @@ __all__ = [
     "MMCR",
     "NEPA",
     "SimCLR",
+    "SimDINOv2Student",
+    "SimDINOv2Teacher",
     "SSCD",
     "VICReg",
 ]

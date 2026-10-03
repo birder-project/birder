@@ -16,7 +16,7 @@ import torch
 import webdataset as wds
 from PIL import Image
 from torch.utils.data import ConcatDataset
-from torchvision.datasets import ImageFolder
+from torchvision.datasets.folder import find_classes
 from tqdm import tqdm
 
 from birder.common import cli
@@ -37,8 +37,8 @@ QUEUE_TIMEOUT = 1.0
 def _get_class_to_idx(paths: list[str]) -> dict[str, int]:
     class_list: list[str] = []
     for path in paths:
-        dataset = ImageFolder(path)
-        class_list.extend(class_list_from_class_to_idx(dataset.class_to_idx))
+        classes, _ = find_classes(os.path.expanduser(path))
+        class_list.extend(classes)
 
     class_list = sorted(list(set(class_list)))
     class_to_idx = {k: v for v, k in enumerate(class_list)}
@@ -63,12 +63,35 @@ def _canonical_image_format(file_format: str) -> str:
     return file_format
 
 
+def _normalize_image_mode(image: Image.Image, file_format: str) -> Image.Image:
+    is_16_bit = image.mode in ("I;16", "I;16L", "I;16B", "I;16N")
+    if is_16_bit is True:
+        if file_format in ("jpeg", "webp"):
+            # Scale the full 0..65535 range to 0..255 with rounding, rather than clipping at 255
+            image = image.convert("I").point(lambda value: value / 257 + 0.5).convert("L")
+            image.info.pop("transparency", None)
+        elif file_format == "png" and image.mode != "I;16":
+            # Convert through I to preserve values when normalizing 16-bit byte order
+            image = image.convert("I").convert("I;16")
+
+    if file_format == "jpeg":
+        if image.mode == "LA":
+            return image.convert("L")
+        if image.mode not in ("1", "L", "RGB", "RGBX", "CMYK", "YCbCr"):
+            return image.convert("RGB")
+
+    elif file_format == "png":
+        if image.mode not in ("1", "L", "LA", "I", "I;16", "P", "RGB", "RGBA"):
+            return image.convert("RGB")
+
+    return image
+
+
 def _encode_image(path: str, file_format: str, size: Optional[int] = None) -> bytes:
     file_format = _canonical_image_format(file_format)
     image: Image.Image
     with Image.open(path) as image:
-        if file_format == "jpeg" and image.mode in ("RGBA", "P"):
-            image = image.convert("RGB")
+        image = _normalize_image_mode(image, file_format)
 
         if size is not None and size < min(image.size):
             if image.size[0] > image.size[1]:

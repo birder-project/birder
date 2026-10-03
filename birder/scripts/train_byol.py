@@ -351,6 +351,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        training_utils.register_ddp_comm_hook(net, args.ddp_comm_dtype)
         no_sync_cm = net.no_sync
         net_without_ddp = net.module
 
@@ -509,7 +510,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
                 if moe_expert_load_accumulator is not None:
                     moe_expert_load_accumulator.flush(
-                        update_moe_expert_biases  # pylint: disable=used-before-assignment
+                        update_moe_expert_biases  # pylint: disable=possibly-used-before-assignment
                     )
 
                 optimizer.zero_grad()

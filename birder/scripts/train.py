@@ -556,6 +556,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        training_utils.register_ddp_comm_hook(net, args.ddp_comm_dtype)
         no_sync_cm = net.no_sync
         net_without_ddp = net.module
 
@@ -572,6 +573,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             assert training_states.extra_states is not None
             model_ema.n_averaged.copy_(training_states.extra_states["ema_state"]["n_averaged"])
 
+        model_ema.eval()
         model_to_save = model_ema.module  # Save EMA model weights as default weights
         eval_model = model_ema  # Use EMA for evaluation
 
@@ -656,6 +658,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
     top_k = args.top_k
     running_loss = training_utils.SmoothedValue(window_size=64)
+    running_mesa_loss: Optional[training_utils.SmoothedValue] = None
+    if args.mesa is True:
+        running_mesa_loss = training_utils.SmoothedValue(window_size=64)
+
     running_moe_aux_loss: Optional[training_utils.SmoothedValue] = None
     if moe_spec is not None and moe_spec.has_auxiliary_loss is True:
         running_moe_aux_loss = training_utils.SmoothedValue(window_size=64)
@@ -673,12 +679,15 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
     for epoch in range(begin_epoch, args.stop_epoch):
         tic = time.time()
         net.train()
+        mesa_active = args.mesa is True and epoch >= args.mesa_start_epoch
 
         if naflex_batch_processor is not None and virtual_epoch_mode is False:
             naflex_batch_processor.set_epoch(epoch)
 
         # Clear metrics
         running_loss.clear()
+        if running_mesa_loss is not None:
+            running_mesa_loss.clear()
         if running_moe_aux_loss is not None:
             running_moe_aux_loss.clear()
 
@@ -743,7 +752,14 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             else:
                 effective_accum_steps = grad_accum_steps
 
+            mesa_targets: Optional[torch.Tensor] = None
+            if mesa_active is True:
+                with torch.no_grad():
+                    with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
+                        mesa_targets = model_ema(inputs, **batch_kwargs).sigmoid()
+
             # Forward and backward
+            mesa_loss: Optional[torch.Tensor] = None
             with sync_context():
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):
                     if return_moe_training_output is True:
@@ -759,6 +775,10 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         outputs = net(inputs, **batch_kwargs)
                         classification_loss = criterion(outputs, loss_targets)
                         raw_loss = classification_loss
+
+                    if mesa_targets is not None:
+                        mesa_loss = F.binary_cross_entropy_with_logits(outputs, mesa_targets)
+                        raw_loss = raw_loss + args.mesa_weight * mesa_loss
 
                 loss = raw_loss / effective_accum_steps
                 if scaler is not None:
@@ -782,7 +802,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     optimizer.step()
 
                 if moe_expert_load_accumulator is not None:
-                    moe_expert_load_accumulator.flush(moe_expert_bias_updater)  # pylint: disable=used-before-assignment
+                    moe_expert_load_accumulator.flush(
+                        moe_expert_bias_updater  # pylint: disable=possibly-used-before-assignment
+                    )
 
                 optimizer.zero_grad()
                 if step_update is True:
@@ -800,6 +822,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
             # Statistics
             running_loss.update(classification_loss.detach())
+            if running_mesa_loss is not None and mesa_loss is not None:
+                running_mesa_loss.update(mesa_loss.detach())
             if running_moe_aux_loss is not None:
                 running_moe_aux_loss.update(moe_aux_loss.detach())
 
@@ -829,6 +853,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 cur_lr = float(max(scheduler.get_last_lr()))
 
                 running_loss.synchronize_between_processes(device)
+                if running_mesa_loss is not None and mesa_active is True:
+                    running_mesa_loss.synchronize_between_processes(device)
                 if running_moe_aux_loss is not None:
                     running_moe_aux_loss.synchronize_between_processes(device)
 
@@ -846,6 +872,11 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         f"R: {rate:.1f} samples/s  "
                         f"LR: {cur_lr:.4e}"
                     )
+                    if running_mesa_loss is not None and mesa_active is True:
+                        log.info(
+                            f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
+                            f"MESA loss: {running_mesa_loss.avg:.4f}"
+                        )
                     if running_moe_aux_loss is not None:
                         log.info(
                             f"[Trn] Epoch {epoch}/{epochs-1}, iter {i+1}/{last_batch_idx+1}  "
@@ -871,6 +902,12 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                         {"training": running_loss.avg},
                         ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
                     )
+                    if running_mesa_loss is not None and mesa_active is True:
+                        summary_writer.add_scalars(
+                            "loss",
+                            {"mesa": running_mesa_loss.avg},
+                            ((epoch - 1) * epoch_samples) + ((i + 1) * batch_size * args.world_size),
+                        )
                     if running_moe_aux_loss is not None:
                         summary_writer.add_scalars(
                             "loss",
@@ -890,6 +927,8 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
         # Epoch training metrics
         logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_loss: {running_loss.global_avg:.4f}")
+        if running_mesa_loss is not None and mesa_active is True:
+            logger.info(f"[Trn] Epoch {epoch}/{epochs-1} training_mesa_loss: {running_mesa_loss.global_avg:.4f}")
         if running_moe_aux_loss is not None:
             logger.info(
                 f"[Trn] Epoch {epoch}/{epochs-1} training_moe_auxiliary_loss: {running_moe_aux_loss.global_avg:.4f}"
@@ -1116,6 +1155,14 @@ def get_args_parser() -> argparse.ArgumentParser:
     group = parser.add_argument_group("Loss parameters")
     group.add_argument("--bce-loss", default=False, action="store_true", help="enable BCE loss")
     group.add_argument("--bce-threshold", type=float, default=0.0, help="threshold for binarizing soft BCE targets")
+    group.add_argument("--mesa", default=False, action="store_true", help="enable EMA-teacher MESA regularization")
+    group.add_argument(
+        "--mesa-start-epoch",
+        type=int,
+        metavar="N",
+        help="first epoch to apply MESA regularization (required with --mesa)",
+    )
+    group.add_argument("--mesa-weight", type=float, default=2.0, help="weight of the MESA loss")
     group.add_argument(
         "--moe-training",
         default=False,
@@ -1159,6 +1206,17 @@ def validate_args(args: argparse.Namespace) -> None:
         raise cli.ValidationError(f"--smoothing-alpha must be in range of [0, 0.5), got {args.smoothing_alpha}")
     if args.bce_loss is True and args.smoothing_alpha != 0.0:
         raise cli.ValidationError("--bce-loss can only be used with --smoothing-alpha 0.0")
+    if args.mesa is True:
+        if args.model_ema is False:
+            raise cli.ValidationError("--mesa requires --model-ema")
+        if args.mesa_start_epoch is None:
+            raise cli.ValidationError("--mesa requires --mesa-start-epoch")
+        if args.mesa_start_epoch < 1 or args.mesa_start_epoch > args.epochs:
+            raise cli.ValidationError(f"--mesa-start-epoch must be in range of [1, {args.epochs}]")
+        if args.mesa_weight <= 0.0:
+            raise cli.ValidationError("--mesa-weight must be greater than 0")
+    elif args.mesa_start_epoch is not None:
+        raise cli.ValidationError("--mesa-start-epoch requires --mesa")
     if args.moe_training is True:
         if args.batch_size % 8 != 0:
             raise cli.ValidationError("--moe-training requires local --batch-size to be divisible by 8")

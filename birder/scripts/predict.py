@@ -319,7 +319,7 @@ def predict(args: argparse.Namespace) -> None:
         config=args.model_config,
         tag=args.tag,
         epoch=args.epoch,
-        new_size=args.size,
+        new_size=None if args.naflex is True else args.size,  # NaFlex uses the inference size as a token budget
         quantized=args.quantized,
         inference=True,
         reparameterized=args.reparameterized,
@@ -337,7 +337,7 @@ def predict(args: argparse.Namespace) -> None:
 
     if args.naflex is True:
         max_seq_len = (args.size[0] // net.stem_stride) * (args.size[1] // net.stem_stride)
-        inference_transform = naflex_inference_preset(net.stem_stride, max_seq_len, rgb_stats)
+        inference_transform = naflex_inference_preset(net.stem_stride, max_seq_len, rgb_stats, args.center_crop)
         inference_collate_fn = NaFlexPathCollator(net.stem_stride)
     else:
         inference_transform = inference_preset(args.size, rgb_stats, args.center_crop, args.simple_crop)
@@ -467,6 +467,8 @@ def predict(args: argparse.Namespace) -> None:
 
     if args.naflex is True:
         size_str = f"na_{args.size[0]}px"
+        if args.center_crop != 1.0:
+            size_str = f"{size_str}_crop{args.center_crop}"
     else:
         size_str = f"{args.size[0]}px_crop{args.center_crop}"
 
@@ -916,8 +918,6 @@ def validate_args(args: argparse.Namespace) -> None:
             raise cli.ValidationError("--naflex cannot be used with --quantized")
         if args.simple_crop is True:
             raise cli.ValidationError("--naflex cannot be used with --simple-crop")
-        if args.center_crop != 1.0:
-            raise cli.ValidationError("--naflex requires --center-crop 1.0")
 
     if args.save_results is True and args.save_sparse_results is True:
         raise cli.ValidationError("--save-results cannot be used with --save-sparse-results")

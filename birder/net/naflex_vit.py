@@ -590,7 +590,6 @@ registry.register_model_config(
         "num_reg_tokens": 1,
     },
 )
-
 registry.register_weights(
     "naflex_vit_b16_nepa-generic",
     {
@@ -607,6 +606,48 @@ registry.register_weights(
             },
         },
         "net": {"network": "naflex_vit_b16", "tag": "nepa-generic"},
+    },
+)
+registry.register_weights(
+    "naflex_vit_reg4_so150m_p14_ls_dino-v2-bio-intermediate-eu-common",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/"
+            "naflex_vit_reg4_so150m_p14_ls_dino-v2-bio-intermediate-eu-common/resolve/main"
+        ),
+        "description": (
+            "NaFlex SoViT Reg4 150M/14 model pretrained using DINO v2 on natural biological images, followed by "
+            "intermediate training on world species, then fine-tuned on the eu-common dataset"
+        ),
+        "resolution": (336, 336),
+        "formats": {
+            "pt": {
+                "file_size": 513.4,
+                "sha256": "31940434aedb4431e1e73a4bdb2f692e2f42d5650cc80e33453a30b2c16d4c24",
+            },
+        },
+        "net": {"network": "naflex_vit_reg4_so150m_p14_ls", "tag": "dino-v2-bio-intermediate-eu-common"},
+    },
+)
+registry.register_weights(
+    "naflex_vit_reg4_so150m_p14_ls_dino-v2-bio-intermediate-il-all",
+    {
+        "url": (
+            "https://huggingface.co/birder-project/"
+            "naflex_vit_reg4_so150m_p14_ls_dino-v2-bio-intermediate-il-all/resolve/main"
+        ),
+        "description": (
+            "NaFlex SoViT Reg4 150M/14 model pretrained using DINO v2 on natural biological images, followed by "
+            "intermediate training on world species, then fine-tuned on the il-all dataset"
+        ),
+        "resolution": (336, 336),
+        "formats": {
+            "pt": {
+                "file_size": 512.8,
+                "sha256": "b360668afb052bf3b9a93981cc10e44ddfd48da47bbdba77cf81b2dec2b120e1",
+            },
+        },
+        "net": {"network": "naflex_vit_reg4_so150m_p14_ls", "tag": "dino-v2-bio-intermediate-il-all"},
     },
 )
 registry.register_weights(  # SigLIP 2: https://arxiv.org/abs/2502.14786

@@ -736,6 +736,7 @@ def train(args: argparse.Namespace) -> None:
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        training_utils.register_ddp_comm_hook(net, args.ddp_comm_dtype)
         no_sync_cm = net.no_sync
         net_without_ddp = net.module
 

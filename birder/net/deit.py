@@ -52,6 +52,7 @@ class DeiT(DetectorBackbone):
         attention_dropout: float = self.config.get("attention_dropout", 0.0)
         projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         torch._assert(image_size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(image_size[1] % patch_size == 0, "Input shape indivisible by patch size!")
@@ -62,7 +63,7 @@ class DeiT(DetectorBackbone):
         self.hidden_dim = hidden_dim
         self.num_special_tokens = 2
         self.out_indices = normalize_out_indices(out_indices, num_layers)
-        dpr = stochastic_depth_rates(drop_path_rate, num_layers)  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers, constant=drop_path_uniform)
 
         self.conv_proj = nn.Conv2d(
             self.input_channels,

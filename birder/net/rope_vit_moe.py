@@ -214,10 +214,10 @@ class Encoder(nn.Module):
 
         if moe_ffn_type == "VMoE_FFN":
             self.moe_spec = MoESpec(has_auxiliary_loss=True, requires_expert_bias_update=False)
-            if moe_expert_width is not None:
-                raise ValueError("moe_expert_width is only supported with moe_ffn_type='MoE_FFN'")
+            if moe_expert_width is None:
+                moe_expert_width = mlp_dim
 
-            moe_mlp_dim = mlp_dim
+            moe_mlp_dim = moe_expert_width
             moe_mlp_layer: Callable[..., nn.Module] = partial(
                 VMoE_FFN,
                 act_layer=activation_layer,
@@ -600,6 +600,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
         attention_dropout: float = self.config.get("attention_dropout", 0.0)
         projection_dropout: float = self.config.get("projection_dropout", 0.0)
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         moe_layers = _resolve_moe_layers(
             num_layers,
@@ -710,7 +711,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             pt_grid_size = tuple(pt_grid_size)  # type: ignore[unreachable]
 
         self.pt_grid_size = pt_grid_size
-        dpr = stochastic_depth_rates(drop_path_rate, num_layers)
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers, constant=drop_path_uniform)
 
         self.patch_embed = PatchEmbed()
 
@@ -1374,6 +1375,49 @@ registry.register_model_config(
         "moe_routing_type": "expert_choice",
         "moe_expert_choice_capacity_factor": 2.0,
         "moe_last_n_layers": 6,
+    },
+)
+registry.register_model_config(
+    "rope_cs_vit_moe_reg1_b16_d14_16e1s_2c_last10_nape_ls_ap",
+    RoPE_ViT_MoE,
+    config={
+        "patch_size": 16,
+        **BASE,
+        "num_layers": 14,
+        "abs_pos_embed": False,
+        "num_reg_tokens": 1,
+        "class_token": False,
+        "attn_pool_head": True,
+        "layer_scale_init_value": 1e-5,
+        "rope_style": "centered_separate",
+        "moe_ffn_type": "MoE_FFN",
+        "moe_expert_width": 1280,
+        "moe_num_routed_experts": 16,
+        "moe_num_shared_experts": 1,
+        "moe_routing_type": "expert_choice",
+        "moe_expert_choice_capacity_factor": 2.0,
+        "moe_last_n_layers": 10,
+    },
+)
+registry.register_model_config(
+    "rope_cs_vit_moe_reg1_b16_d14_16e1s_2k_last10_nape_ls_ap",
+    RoPE_ViT_MoE,
+    config={
+        "patch_size": 16,
+        **BASE,
+        "num_layers": 14,
+        "abs_pos_embed": False,
+        "num_reg_tokens": 1,
+        "class_token": False,
+        "attn_pool_head": True,
+        "layer_scale_init_value": 1e-5,
+        "rope_style": "centered_separate",
+        "moe_ffn_type": "MoE_FFN",
+        "moe_expert_width": 1280,
+        "moe_num_routed_experts": 16,
+        "moe_num_shared_experts": 1,
+        "moe_top_k": 2,
+        "moe_last_n_layers": 10,
     },
 )
 registry.register_model_config(

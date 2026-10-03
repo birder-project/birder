@@ -100,6 +100,29 @@ def resolve_patch_grid(image_size: tuple[int, int], max_seq_len: int) -> tuple[i
     return (grid_h, grid_w)
 
 
+class CenterCropRatio(nn.Module):
+    """
+    Center crop an image by retaining a fraction of each source dimension
+
+    Parameters
+    ----------
+    ratio
+        Fraction of each source image dimension to retain.
+    """
+
+    def __init__(self, ratio: float) -> None:
+        super().__init__()
+        if not 0.0 < ratio <= 1.0:
+            raise ValueError(f"Crop ratio must be in range of (0, 1.0], got {ratio}")
+
+        self.ratio = ratio
+
+    def forward(self, x: Any) -> Any:
+        crop_size = [max(1, round(dim * self.ratio)) for dim in F.get_size(x)]
+
+        return F.center_crop(x, crop_size)
+
+
 class NativeAspectRatioResize(nn.Module):
     """
     Resize an image to a patch-aligned size under a sequence-length limit
@@ -179,10 +202,13 @@ def training_preset(
     re_prob: Optional[float] = None,
     use_grayscale: bool = False,
     ra_num_ops: int = 2,
-    ra_magnitude: int = 9,
+    ra_magnitude: int = 12,
     augmix_severity: int = 3,
     clip_color_jitter_prob: float = 0.8,
     clip_gray_prob: float = 0.2,
+    timm_magnitude: int = 9,
+    timm_num_ops: int = 2,
+    timm_magnitude_std: float = 0.5,
 ) -> Callable[..., torch.Tensor]:
     resize = NativeAspectRatioResize(patch_size, max_seq_len)
     if aug_type == "birder" and level == 0:
@@ -216,18 +242,24 @@ def training_preset(
             augmix_severity,
             clip_color_jitter_prob,
             clip_gray_prob,
+            timm_magnitude,
+            timm_num_ops,
+            timm_magnitude_std,
         )
     )
 
     return v2.Compose(transforms)  # type: ignore
 
 
-def inference_preset(patch_size: int, max_seq_len: int, rgv_values: RGBType) -> Callable[..., torch.Tensor]:
+def inference_preset(
+    patch_size: int, max_seq_len: int, rgv_values: RGBType, center_crop: float = 1.0
+) -> Callable[..., torch.Tensor]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
 
     return v2.Compose(  # type: ignore
         [
+            CenterCropRatio(center_crop) if center_crop != 1.0 else v2.Identity(),
             NativeAspectRatioResize(patch_size, max_seq_len),
             v2.PILToTensor(),
             v2.ToDtype(torch.float32, scale=True),

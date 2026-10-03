@@ -1,3 +1,4 @@
+import math
 import random
 from collections.abc import Callable
 from typing import Any
@@ -282,6 +283,115 @@ class RandomSaturationWithVariation(nn.Module):
         return F.adjust_saturation(x, factor)
 
 
+class TimmAugment(nn.Module):
+    """
+    RandAugment variant used by timm, with increasing-severity transforms and magnitude noise
+    https://github.com/huggingface/pytorch-image-models/blob/main/timm/data/auto_augment.py
+    """
+
+    def __init__(self, magnitude: int, fill: list[int], num_ops: int = 2, magnitude_std: float = 0.5) -> None:
+        super().__init__()
+        assert magnitude <= 10
+
+        self.magnitude = magnitude
+        self.fill = fill
+        self.num_ops = num_ops
+        self.magnitude_std = magnitude_std
+        self.p = 0.5
+
+    @staticmethod
+    def _randomly_negate(value: float) -> float:
+        return -value if torch.rand(()) > 0.5 else value
+
+    def _enhance_factor(self, magnitude: float) -> float:
+        magnitude = (magnitude / 10.0) * 0.9
+        return max(0.1, 1.0 + self._randomly_negate(magnitude))
+
+    def _apply_op(self, x: torch.Tensor, op_idx: int, magnitude: float) -> torch.Tensor:
+        if op_idx == 0:
+            return F.autocontrast(x)
+        if op_idx == 1:
+            return F.equalize(x)
+        if op_idx == 2:
+            return F.invert(x)
+        if op_idx == 3:
+            degrees = self._randomly_negate((magnitude / 10.0) * 30.0)
+            return F.rotate(x, degrees, interpolation=v2.InterpolationMode.BILINEAR, fill=self.fill)
+        if op_idx == 4:
+            bits = 4 - int((magnitude / 10.0) * 4)
+            return F.posterize(x, bits)
+        if op_idx == 5:
+            threshold = 256 - min(256, int((magnitude / 10.0) * 256))
+            return x if threshold == 256 else F.solarize(x, threshold)
+        if op_idx == 6:
+            addition = min(128, int((magnitude / 10.0) * 110))
+            adjusted = torch.clamp(x.to(torch.int16) + addition, max=255).to(x.dtype)
+            return torch.where(x < 128, adjusted, x)
+        if op_idx == 7:
+            return F.adjust_saturation(x, self._enhance_factor(magnitude))
+        if op_idx == 8:
+            return F.adjust_contrast(x, self._enhance_factor(magnitude))
+        if op_idx == 9:
+            return F.adjust_brightness(x, self._enhance_factor(magnitude))
+        if op_idx == 10:
+            return F.adjust_sharpness(x, self._enhance_factor(magnitude))
+
+        image_h, image_w = F.get_size(x)
+        if op_idx == 11:
+            shear = self._randomly_negate((magnitude / 10.0) * 0.3)
+            shear = math.degrees(math.atan(shear))
+            return F.affine(
+                x,
+                angle=0.0,
+                translate=[0, 0],
+                scale=1.0,
+                shear=[shear, 0.0],
+                interpolation=v2.InterpolationMode.BILINEAR,
+                fill=self.fill,
+                center=[0, 0],
+            )
+        if op_idx == 12:
+            shear = self._randomly_negate((magnitude / 10.0) * 0.3)
+            shear = math.degrees(math.atan(shear))
+            return F.affine(
+                x,
+                angle=0.0,
+                translate=[0, 0],
+                scale=1.0,
+                shear=[0.0, shear],
+                interpolation=v2.InterpolationMode.BILINEAR,
+                fill=self.fill,
+                center=[0, 0],
+            )
+        if op_idx == 13:
+            offset = round(self._randomly_negate((magnitude / 10.0) * 0.45) * image_w)
+            translate = [offset, 0]
+        else:
+            offset = round(self._randomly_negate((magnitude / 10.0) * 0.45) * image_h)
+            translate = [0, offset]
+
+        return F.affine(
+            x,
+            angle=0.0,
+            translate=translate,
+            scale=1.0,
+            shear=[0.0, 0.0],
+            interpolation=v2.InterpolationMode.BILINEAR,
+            fill=self.fill,
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        for _ in range(self.num_ops):
+            if torch.rand(()) > self.p:
+                continue
+
+            magnitude = torch.normal(float(self.magnitude), self.magnitude_std, size=()).clamp_(0.0, 10.0).item()
+            op_idx = torch.randint(15, ()).item()
+            x = self._apply_op(x, op_idx, magnitude)
+
+        return x
+
+
 class BirderAugment(nn.Module):
     def __init__(self, level: int, re_prob: Optional[float] = None, use_grayscale: bool = False):
         super().__init__()
@@ -338,7 +448,7 @@ class BirderAugment(nn.Module):
         return x
 
 
-AugType = Literal["birder", "aa", "ra", "ta_wide", "augmix", "3aug", "clip"]
+AugType = Literal["birder", "aa", "ra", "ta_wide", "augmix", "3aug", "clip", "timm"]
 
 
 def get_training_augmentations(
@@ -348,10 +458,13 @@ def get_training_augmentations(
     re_prob: Optional[float] = None,
     use_grayscale: bool = False,
     ra_num_ops: int = 2,
-    ra_magnitude: int = 9,
+    ra_magnitude: int = 12,
     augmix_severity: int = 3,
     clip_color_jitter_prob: float = 0.8,
     clip_gray_prob: float = 0.2,
+    timm_magnitude: int = 9,
+    timm_num_ops: int = 2,
+    timm_magnitude_std: float = 0.5,
 ) -> list[nn.Module]:
     mean = rgv_values["mean"]
     std = rgv_values["std"]
@@ -393,12 +506,18 @@ def get_training_augmentations(
                         [
                             v2.RandomGrayscale(p=1.0),
                             v2.RandomSolarize(128, p=1.0),
-                            v2.GaussianBlur(kernel_size=(3, 3)),
+                            v2.GaussianBlur(kernel_size=(13, 13)),
                         ]
                     ),
-                    v2.ColorJitter(brightness=0.3, contrast=0.3, hue=0.3),
+                    v2.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3),
                 ]
             )
+        elif aug_type == "timm":
+            if 0 > timm_magnitude or timm_magnitude > 10:
+                raise ValueError("Unsupported timm magnitude")
+
+            fill = [min(255, round(255 * value)) for value in mean]
+            transforms.append(TimmAugment(timm_magnitude, fill, timm_num_ops, timm_magnitude_std))
         else:
             raise ValueError("Unsupported augmentation type")
 
@@ -432,10 +551,13 @@ def training_preset(
     re_prob: Optional[float] = None,
     use_grayscale: bool = False,
     ra_num_ops: int = 2,
-    ra_magnitude: int = 9,
+    ra_magnitude: int = 12,
     augmix_severity: int = 3,
     clip_color_jitter_prob: float = 0.8,
     clip_gray_prob: float = 0.2,
+    timm_magnitude: int = 9,
+    timm_num_ops: int = 2,
+    timm_magnitude_std: float = 0.5,
 ) -> Callable[..., torch.Tensor]:
     if aug_type == "birder":
         if 0 > level or level > 10:
@@ -518,6 +640,9 @@ def training_preset(
             augmix_severity,
             clip_color_jitter_prob,
             clip_gray_prob,
+            timm_magnitude,
+            timm_num_ops,
+            timm_magnitude_std,
         )
     )
 

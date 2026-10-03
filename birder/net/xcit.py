@@ -269,6 +269,7 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         eta: float = self.config["eta"]
         tokens_norm: bool = self.config["tokens_norm"]
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         if depth == 12:
             out_indices = [3, 5, 7, 11]
@@ -280,7 +281,7 @@ class XCiT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         out_indices = normalize_out_indices(out_indices, depth)
         self.patch_embed = ConvPatchEmbed(patch_size, self.input_channels, dim=embed_dim)
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        dpr = stochastic_depth_rates(drop_path_rate, depth)  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, depth, constant=drop_path_uniform)
 
         cur_stage = 0
         block1: OrderedDict[str, nn.Module] = OrderedDict()

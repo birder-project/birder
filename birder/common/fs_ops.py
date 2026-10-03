@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import os
@@ -479,7 +480,14 @@ def load_checkpoint(
     #   The base_state contain the non-EMA weights
     if training_states.model_base_state is not None:
         net.load_state_dict(training_states.model_base_state, strict=strict)
-        training_states = training_states._replace(ema_model_state=model_dict["state"])
+        ema_model_state = model_dict["state"]
+        if new_size is not None and new_size != size:
+            ema_net = copy.deepcopy(net)
+            ema_net.load_state_dict(ema_model_state, strict=strict)
+            ema_net.adjust_size(new_size)
+            ema_model_state = ema_net.state_dict()
+
+        training_states = training_states._replace(ema_model_state=ema_model_state)
     else:
         net.load_state_dict(model_dict["state"], strict=strict)
 

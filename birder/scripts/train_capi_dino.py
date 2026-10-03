@@ -539,11 +539,13 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        training_utils.register_ddp_comm_hook(student, args.ddp_comm_dtype)
         teacher = torch.nn.parallel.DistributedDataParallel(
             teacher,
             device_ids=training_utils.get_ddp_device_ids(device, device_id),
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        training_utils.register_ddp_comm_hook(teacher, args.ddp_comm_dtype)
         student_no_sync_cm = student.no_sync
         teacher_no_sync_cm = teacher.no_sync
         student_without_ddp = student.module
@@ -761,7 +763,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 raw_capi_loss = raw_capi_loss.double().sum() / len(raw_capi_loss)
                 capi_dino_loss = raw_capi_loss + (args.dino_loss_weight * raw_dino_loss)
                 if moe_spec is not None and moe_spec.has_auxiliary_loss is True:
-                    raw_loss = capi_dino_loss + moe_aux_loss  # pylint: disable=used-before-assignment
+                    raw_loss = capi_dino_loss + moe_aux_loss  # pylint: disable=possibly-used-before-assignment
                 else:
                     raw_loss = capi_dino_loss
 
@@ -793,7 +795,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
 
                 if moe_expert_load_accumulator is not None:
                     moe_expert_load_accumulator.flush(
-                        update_moe_expert_biases  # pylint: disable=used-before-assignment
+                        update_moe_expert_biases  # pylint: disable=possibly-used-before-assignment
                     )
 
                 optimizer.zero_grad()

@@ -349,6 +349,7 @@ class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         norm_layer_names: list[str] = self.config["norm_layer_names"]
         downsample_norm_name: str = self.config["downsample_norm_name"]
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
         mlp_head: bool = self.config["mlp_head"]
         mlp_head_dropout: float = self.config["mlp_head_dropout"]
 
@@ -405,7 +406,7 @@ class MetaFormer(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []
         prev_dim = dims[0]
-        dp_rates = staged_stochastic_depth_rates(drop_path_rate, depths)
+        dp_rates = staged_stochastic_depth_rates(drop_path_rate, depths, constant=drop_path_uniform)
         for i in range(num_stages):
             stages[f"stage{i+1}"] = MetaFormerStage(
                 prev_dim,

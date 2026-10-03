@@ -26,6 +26,7 @@ import torch
 import torch.amp
 import torch.distributed as dist
 import torch.utils.data.distributed
+from torch.distributed.algorithms.ddp_comm_hooks import default_hooks
 from torchvision.ops import FrozenBatchNorm2d
 
 from birder.common import fs_ops
@@ -45,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 OptimizerType = Literal["sgd", "rmsprop", "adam", "adamw", "nadam", "nadamw", "lamb", "lambw", "lars"]
 SchedulerType = Literal["constant", "step", "multistep", "cosine", "polynomial", "reciprocal-sqrt"]
+DDPCommDType = Literal["float16", "bfloat16"]
 
 ###############################################################################
 # Core Utilities
@@ -1056,6 +1058,9 @@ def get_training_transform(args: argparse.Namespace) -> Callable[..., torch.Tens
         augmix_severity=args.augmix_severity,
         clip_color_jitter_prob=args.clip_color_jitter_prob,
         clip_gray_prob=args.clip_gray_prob,
+        timm_magnitude=args.timm_magnitude,
+        timm_num_ops=args.timm_num_ops,
+        timm_magnitude_std=args.timm_magnitude_std,
     )
 
 
@@ -1074,6 +1079,9 @@ def get_naflex_training_transform(args: argparse.Namespace, spec: NaFlexBatchSpe
         augmix_severity=args.augmix_severity,
         clip_color_jitter_prob=args.clip_color_jitter_prob,
         clip_gray_prob=args.clip_gray_prob,
+        timm_magnitude=args.timm_magnitude,
+        timm_num_ops=args.timm_num_ops,
+        timm_magnitude_std=args.timm_magnitude_std,
     )
 
 
@@ -1191,6 +1199,22 @@ def get_ddp_device_ids(device: torch.device, device_id: int) -> Optional[list[in
         return [device_id]
 
     return None
+
+
+def register_ddp_comm_hook(
+    model: torch.nn.parallel.DistributedDataParallel, comm_dtype: Optional[DDPCommDType]
+) -> None:
+    if comm_dtype is None:
+        return
+
+    if comm_dtype == "float16":
+        model.register_comm_hook(state=None, hook=default_hooks.fp16_compress_hook)
+    elif comm_dtype == "bfloat16":
+        model.register_comm_hook(state=None, hook=default_hooks.bf16_compress_hook)
+    else:
+        raise ValueError(f"Unsupported DDP communication dtype: {comm_dtype}")
+
+    logger.info(f"Compressing DDP gradient communication to {comm_dtype}")
 
 
 def init_distributed_mode(args: argparse.Namespace, device: torch.device) -> None:

@@ -9,6 +9,7 @@ from birder.net.convmixer import ConvMixer
 from birder.net.convnext_v1 import ConvNeXt_v1
 from birder.net.convnext_v1_iso import ConvNeXt_v1_Isotropic
 from birder.net.convnext_v2 import ConvNeXt_v2
+from birder.net.cpubone import CPUBone
 from birder.net.crossformer import CrossFormer
 from birder.net.crossvit import CrossViT
 from birder.net.cspnet import CSPNet
@@ -141,6 +142,7 @@ __all__ = [
     "ConvNeXt_v1",
     "ConvNeXt_v1_Isotropic",
     "ConvNeXt_v2",
+    "CPUBone",
     "CrossFormer",
     "CrossViT",
     "CSPNet",

@@ -220,6 +220,7 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         global_att_blocks: list[int] = self.config["global_att_blocks"]
         window_spec: list[int] = self.config["window_spec"]
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         self.grad_checkpointing = False
         self.grad_checkpointing_segments: Optional[int] = None
@@ -238,7 +239,7 @@ class HieraDet(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.pos_embed_win = nn.Parameter(torch.zeros(1, embed_dim, window_spec[0], window_spec[0]))
 
         depth = sum(depths)
-        dpr = stochastic_depth_rates(drop_path_rate, depth)  # Stochastic depth decay rule
+        dpr = stochastic_depth_rates(drop_path_rate, depth, constant=drop_path_uniform)
 
         cur_stage = 1
         layers = []

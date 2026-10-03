@@ -10,6 +10,7 @@ import torch
 
 from birder.common.cli import FlexibleDictAction
 from birder.common.cli import ValidationError
+from birder.common.training_utils import DDPCommDType
 from birder.common.training_utils import OptimizerType
 from birder.common.training_utils import SchedulerType
 from birder.conf import settings
@@ -418,7 +419,27 @@ def add_data_aug_args(
         metavar="N",
         help="number of augmentation transformations to apply sequentially",
     )
-    group.add_argument("--ra-magnitude", type=int, default=9, help="magnitude for all the RandAugment transformations")
+    group.add_argument("--ra-magnitude", type=int, default=12, help="magnitude for all the RandAugment transformations")
+    group.add_argument(
+        "--timm-num-ops",
+        type=int,
+        default=2,
+        metavar="N",
+        help="number of timm-style RandAugment transformations to select sequentially",
+    )
+    group.add_argument(
+        "--timm-magnitude",
+        type=int,
+        choices=list(range(10 + 1)),
+        default=9,
+        help="magnitude of timm-style RandAugment transformations",
+    )
+    group.add_argument(
+        "--timm-magnitude-std",
+        type=float,
+        default=0.5,
+        help="standard deviation of timm-style RandAugment magnitude noise",
+    )
     group.add_argument("--augmix-severity", type=int, default=3, help="severity of AugMix policy")
     group.add_argument("--clip-color-jitter-prob", type=float, default=0.8, help="CLIP color jitter probability")
     group.add_argument("--clip-gray-prob", type=float, default=0.2, help="CLIP grayscale probability")
@@ -775,6 +796,12 @@ def add_distributed_args(parser: argparse.ArgumentParser, fsdp: bool = False) ->
         )
 
     group.add_argument(
+        "--ddp-comm-dtype",
+        type=str,
+        choices=list(get_args(DDPCommDType)),
+        help="compress DDP gradient communication to the specified dtype (DDP only)",
+    )
+    group.add_argument(
         "--find-unused-parameters",
         default=False,
         action="store_true",
@@ -1027,6 +1054,8 @@ def common_args_validation(args: argparse.Namespace) -> None:
             )
         if args.lr_cosine_fraction <= 0.0 or args.lr_cosine_fraction > 1.0:
             raise ValidationError("--lr-cosine-fraction must be in the range (0, 1]")
+        if args.lr_warmup_decay <= 0.0 or args.lr_warmup_decay > 1.0:
+            raise ValidationError("--lr-warmup-decay must be in the range (0, 1]")
 
     # EMA
     if hasattr(args, "model_ema_steps") is True:
@@ -1235,6 +1264,10 @@ def common_args_validation(args: argparse.Namespace) -> None:
             raise ValidationError("--sync-bn cannot be used with --distributed-mode fsdp")
         if args.find_unused_parameters is True:
             raise ValidationError("--find-unused-parameters cannot be used with --distributed-mode fsdp")
+        if args.ddp_comm_dtype is not None:
+            raise ValidationError(
+                "--ddp-comm-dtype cannot be used with --distributed-mode fsdp, use --fsdp-reduce-dtype instead"
+            )
         if args.compile_opt is True:
             raise ValidationError("--compile-opt cannot be used with --distributed-mode fsdp")
         if hasattr(args, "compile_fullgraph") is True and args.compile_fullgraph is True:

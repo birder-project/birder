@@ -123,6 +123,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         augmix_severity=args.augmix_severity,
         clip_color_jitter_prob=args.clip_color_jitter_prob,
         clip_gray_prob=args.clip_gray_prob,
+        timm_magnitude=args.timm_magnitude,
+        timm_num_ops=args.timm_num_ops,
+        timm_magnitude_std=args.timm_magnitude_std,
     )
     local_transform = training_preset(
         args.local_crop_size,
@@ -139,6 +142,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
         augmix_severity=args.augmix_severity,
         clip_color_jitter_prob=args.clip_color_jitter_prob,
         clip_gray_prob=args.clip_gray_prob,
+        timm_magnitude=args.timm_magnitude,
+        timm_num_ops=args.timm_num_ops,
+        timm_magnitude_std=args.timm_magnitude_std,
     )
     if overrides.training_transform is not None:
         training_transform = overrides.training_transform(args)
@@ -402,6 +408,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             find_unused_parameters=args.find_unused_parameters,
             broadcast_buffers=not args.no_broadcast_buffers,
         )
+        training_utils.register_ddp_comm_hook(net, args.ddp_comm_dtype)
         no_sync_cm = net.no_sync
         net_without_ddp = net.module
 
@@ -562,7 +569,9 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                     optimizer.step()
 
                 if moe_expert_load_accumulator is not None:
-                    moe_expert_load_accumulator.flush(moe_expert_bias_updater)  # pylint: disable=used-before-assignment
+                    moe_expert_load_accumulator.flush(
+                        moe_expert_bias_updater  # pylint: disable=possibly-used-before-assignment
+                    )
 
                 optimizer.zero_grad()
                 if step_update is True:

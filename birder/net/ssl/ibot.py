@@ -17,6 +17,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from birder.common import training_utils
+from birder.layers.moe import MoETrainingOutputType
 from birder.net.base import MaskedTokenRetentionMixin
 from birder.net.base import PreTrainEncoder
 from birder.net.ssl.base import SSLBaseNet
@@ -255,18 +256,35 @@ class iBOT(SSLBaseNet):
         self.mask_token = nn.Parameter(torch.zeros(1, 1, 1, self.backbone.stem_width))
 
     def forward(  # type: ignore[override]  # pylint: disable=arguments-differ
-        self, x: torch.Tensor, masks: Optional[torch.Tensor], return_keys: Literal["all", "embedding"] = "all"
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        self,
+        x: torch.Tensor,
+        masks: Optional[torch.Tensor],
+        return_keys: Literal["all", "embedding"] = "all",
+        *,
+        return_moe_training_output: bool = False,
+    ) -> (
+        tuple[torch.Tensor, Optional[torch.Tensor]] | tuple[torch.Tensor, Optional[torch.Tensor], MoETrainingOutputType]
+    ):
         if masks is not None:
             input_mask = masks
         else:
             seq_len = (x.size(2) // self.backbone.max_stride) * (x.size(3) // self.backbone.max_stride)
             input_mask = torch.zeros([x.size(0), seq_len], device=x.device)
 
-        outs = self.backbone.masked_encoding_retention(
-            x, input_mask, mask_token=self.mask_token, return_keys=return_keys
-        )
-        if return_keys == "embedding":
-            outs["features"] = None
+        moe_training_output: Optional[MoETrainingOutputType] = None
+        if return_moe_training_output is True:
+            out = self.backbone.masked_encoding_retention(
+                x, input_mask, mask_token=self.mask_token, return_keys=return_keys, return_moe_training_output=True
+            )
+            moe_training_output = out["moe_training_output"]
+        else:
+            out = self.backbone.masked_encoding_retention(
+                x, input_mask, mask_token=self.mask_token, return_keys=return_keys
+            )
 
-        return self.head(outs["embedding"], outs["features"])  # type: ignore[no-any-return]
+        features = out["features"] if return_keys == "all" else None
+        embedding, features = self.head(out["embedding"], features)
+        if moe_training_output is not None:
+            return (embedding, features, moe_training_output)
+
+        return (embedding, features)

@@ -70,6 +70,7 @@ class ConvNeXt_v1_Isotropic(DetectorBackbone, PreTrainEncoder, MaskedTokenRetent
         num_layers: int = self.config["num_layers"]
         out_indices: Optional[list[int]] = self.config.get("out_indices", None)
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
 
         torch._assert(self.size[0] % patch_size == 0, "Input shape indivisible by patch size!")
         torch._assert(self.size[1] % patch_size == 0, "Input shape indivisible by patch size!")
@@ -85,7 +86,7 @@ class ConvNeXt_v1_Isotropic(DetectorBackbone, PreTrainEncoder, MaskedTokenRetent
             padding=(0, 0),
         )
 
-        dpr = stochastic_depth_rates(drop_path_rate, num_layers)
+        dpr = stochastic_depth_rates(drop_path_rate, num_layers, constant=drop_path_uniform)
         layers = [ConvNeXtBlock(dim, dpr[idx]) for idx in range(num_layers)]
 
         self.body = nn.Sequential(*layers)

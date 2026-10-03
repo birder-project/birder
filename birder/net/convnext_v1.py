@@ -80,6 +80,7 @@ class ConvNeXt_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         in_channels: list[int] = self.config["in_channels"]
         num_layers: list[int] = self.config["num_layers"]
         drop_path_rate: float = self.config["drop_path_rate"]
+        drop_path_uniform: bool = self.config.get("drop_path_uniform", False)
         out_channels = in_channels[1:] + [-1]
 
         self.grad_checkpointing = False
@@ -100,7 +101,7 @@ class ConvNeXt_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         )
 
         total_stage_blocks = sum(num_layers)
-        dpr = stochastic_depth_rates(drop_path_rate, total_stage_blocks)
+        dpr = stochastic_depth_rates(drop_path_rate, total_stage_blocks, constant=drop_path_uniform)
         stage_block_id = 0
         stages: OrderedDict[str, nn.Module] = OrderedDict()
         return_channels: list[int] = []

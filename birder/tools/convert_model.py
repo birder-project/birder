@@ -38,6 +38,14 @@ try:
 except (ImportError, RuntimeError):
     _HAS_TORCH_TENSORRT = False
 
+try:
+    from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
+    from executorch.exir import to_edge_transform_and_lower
+
+    _HAS_EXECUTORCH = True
+except ImportError:
+    _HAS_EXECUTORCH = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -76,10 +84,18 @@ def _pt2_export_input(
     net: torch.nn.Module,
     signature: SignatureType | DetectionSignatureType,
     device: torch.device,
-    dynamic_size: bool,
-    trace_size: Optional[tuple[int, int]],
+    *,
+    dtype: torch.dtype = torch.float32,
+    dynamic_batch: bool = False,
+    dynamic_size: bool = False,
+    trace_size: Optional[tuple[int, int]] = None,
+    max_batch_size: Optional[int] = None,
+    max_size: Optional[tuple[int, int]] = None,
 ) -> tuple[torch.Tensor, Optional[dict[str, Any]]]:
     input_shape = signature["inputs"][0]["data_shape"]
+    if trace_size is None:
+        trace_size = (input_shape[2], input_shape[3])
+
     dynamic_shapes = None
     if net.task == Task.OBJECT_DETECTION:
         logger.info("Exporting with constant batch size of 1")
@@ -87,30 +103,50 @@ def _pt2_export_input(
         batch_size = 1
         if dynamic_size is True:
             logger.info("Exporting with dynamic H x W")
+            if max_size is not None:
+                height_dim = 16 * torch.export.Dim("height_tokens", min=1, max=max_size[0] // 16)
+                width_dim = 16 * torch.export.Dim("width_tokens", min=1, max=max_size[1] // 16)
+            else:
+                height_dim = 16 * torch.export.Dim("height_tokens", min=1)
+                width_dim = 16 * torch.export.Dim("width_tokens", min=1)
+
             net.set_dynamic_size()
-            height_dim = 16 * torch.export.Dim("height_tokens", min=1)
-            width_dim = 16 * torch.export.Dim("width_tokens", min=1)
             dynamic_shapes = {"x": {2: height_dim, 3: width_dim}}
     else:
-        logger.info("Exporting with dynamic batch size")
-        signature["inputs"][0]["data_shape"][0] = 2  # Set batch size
-        batch_size = 2
-        batch_dim = torch.export.Dim.DYNAMIC
-        dynamic_shapes = {"x": {0: batch_dim}}
+        if dynamic_batch is True:
+            logger.info("Exporting with dynamic batch size")
+            signature["inputs"][0]["data_shape"][0] = 2  # Set batch size
+            batch_size = 2
+            if max_batch_size is None:
+                batch_dim = torch.export.Dim.DYNAMIC
+            else:
+                batch_dim = torch.export.Dim("batch", min=1, max=max_batch_size)
+
+            dynamic_shapes = {"x": {0: batch_dim}}
+        else:
+            logger.info("Exporting with constant batch size of 1")
+            signature["inputs"][0]["data_shape"][0] = 1
+            batch_size = 1
+
         if dynamic_size is True:
             logger.info("Exporting with dynamic H x W")
             net.set_dynamic_size()
-            height_dim = torch.export.Dim.DYNAMIC
-            width_dim = torch.export.Dim.DYNAMIC
+            if max_size is None:
+                height_dim = torch.export.Dim.DYNAMIC
+                width_dim = torch.export.Dim.DYNAMIC
+            else:
+                height_dim = torch.export.Dim.DYNAMIC(max=max_size[0])
+                width_dim = torch.export.Dim.DYNAMIC(max=max_size[1])
+
+            if dynamic_shapes is None:
+                dynamic_shapes = {"x": {}}
+
             dynamic_shapes["x"][2] = height_dim
             dynamic_shapes["x"][3] = width_dim
 
-    if trace_size is None:
-        trace_size = (input_shape[2], input_shape[3])
-
     sample_shape = [batch_size, input_shape[1], trace_size[0], trace_size[1]]
 
-    return (torch.randn(*sample_shape, device=device), dynamic_shapes)
+    return (torch.randn(*sample_shape, device=device, dtype=dtype), dynamic_shapes)
 
 
 def pt2_export(
@@ -120,10 +156,21 @@ def pt2_export(
     rgb_stats: RGBType,
     device: torch.device,
     model_path: str | Path,
+    *,
+    dtype: torch.dtype,
+    dynamic_batch: bool,
     dynamic_size: bool,
     trace_size: Optional[tuple[int, int]],
 ) -> None:
-    sample_input, dynamic_shapes = _pt2_export_input(net, signature, device, dynamic_size, trace_size)
+    sample_input, dynamic_shapes = _pt2_export_input(
+        net,
+        signature,
+        device,
+        dtype=dtype,
+        dynamic_batch=dynamic_batch,
+        dynamic_size=dynamic_size,
+        trace_size=trace_size,
+    )
 
     with torch.no_grad():
         exported_net = torch.export.export(net, (sample_input,), dynamic_shapes=dynamic_shapes, strict=True)
@@ -132,12 +179,68 @@ def pt2_export(
     fs_ops.save_pt2(exported_net, model_path, net.task, class_to_idx, signature, rgb_stats)
 
 
+def pte_export(
+    net: torch.nn.Module,
+    signature: SignatureType | DetectionSignatureType,
+    class_to_idx: dict[str, int],
+    rgb_stats: RGBType,
+    device: torch.device,
+    model_path: str | Path,
+    *,
+    dynamic_batch: bool,
+    dynamic_size: bool,
+    trace_size: Optional[tuple[int, int]],
+    max_batch_size: Optional[int] = None,
+    max_size: Optional[tuple[int, int]] = None,
+) -> None:
+    assert _HAS_EXECUTORCH, "'pip install executorch' to use --pte"
+    if dynamic_batch is True and max_batch_size is None:
+        raise cli.ValidationError("--pte --dynamic-batch requires --max-batch-size")
+    if dynamic_size is True and max_size is None:
+        raise cli.ValidationError("--pte --dynamic-size requires --max-size")
+
+    sample_input, dynamic_shapes = _pt2_export_input(
+        net,
+        signature,
+        device,
+        dynamic_batch=dynamic_batch,
+        dynamic_size=dynamic_size,
+        trace_size=trace_size,
+        max_batch_size=max_batch_size,
+        max_size=max_size,
+    )
+    metadata = {
+        "birder_version": __version__,
+        "task": net.task,
+        "class_to_idx": class_to_idx,
+        "signature": signature,
+        "rgb_stats": rgb_stats,
+    }
+
+    with torch.no_grad():
+        exported_net = torch.export.export(net, (sample_input,), dynamic_shapes=dynamic_shapes, strict=True)
+        edge_program = to_edge_transform_and_lower(
+            exported_net,
+            partitioner=[XnnpackPartitioner()],
+            constant_methods={"get_metadata": json.dumps(metadata)},
+        )
+        executorch_program = edge_program.to_executorch()
+
+    with open(model_path, "wb") as handle:
+        handle.write(executorch_program.buffer)
+
+    with open(f"{model_path}_metadata.json", "w", encoding="utf-8") as handle:
+        json.dump(metadata, handle, indent=2)
+
+
 def trt_export(
     net: torch.nn.Module,
     signature: SignatureType | DetectionSignatureType,
     class_to_idx: dict[str, int],
     rgb_stats: RGBType,
     model_path: str | Path,
+    *,
+    dynamic_batch: bool,
     dynamic_size: bool,
     trace_size: Optional[tuple[int, int]],
     require_full_compilation: bool,
@@ -146,7 +249,9 @@ def trt_export(
 
     device = torch.device("cuda")
     net.to(device)
-    sample_input, dynamic_shapes = _pt2_export_input(net, signature, device, dynamic_size, trace_size)
+    sample_input, dynamic_shapes = _pt2_export_input(
+        net, signature, device, dynamic_batch=dynamic_batch, dynamic_size=dynamic_size, trace_size=trace_size
+    )
 
     compile_kwargs: dict[str, Any] = {"require_full_compilation": require_full_compilation}
 
@@ -177,6 +282,7 @@ def onnx_export(
     class_to_idx: dict[str, int],
     rgb_stats: RGBType,
     model_path: str | Path,
+    dtype: torch.dtype,
     dynamic_size: bool,
     trace_size: Optional[tuple[int, int]],
     opset: int,
@@ -216,7 +322,7 @@ def onnx_export(
     with torch.no_grad():
         torch.onnx.export(
             net,
-            torch.randn(sample_shape),
+            torch.randn(sample_shape, dtype=dtype),
             str(model_path),
             export_params=True,
             opset_version=opset,
@@ -322,10 +428,21 @@ def set_parser(subparsers: Any) -> None:
         help="trace instead of script (applies only to TorchScript conversions)",
     )
     subparser.add_argument(
+        "--dynamic-batch",
+        action="store_true",
+        help="export with dynamic batch size (classification --pt2, --pte and --trt)",
+    )
+    subparser.add_argument(
+        "--max-batch-size",
+        type=int,
+        metavar="N",
+        help="upper batch-size bound for --pte --dynamic-batch",
+    )
+    subparser.add_argument(
         "--dynamic-size",
         default=False,
         action="store_true",
-        help="export with dynamic input H/W (applies to --pt2, --trt and --onnx)",
+        help="export with dynamic input H/W (applies to --pt2, --pte, --trt and --onnx)",
     )
     subparser.add_argument(
         "--trace-size",
@@ -333,6 +450,9 @@ def set_parser(subparsers: Any) -> None:
         nargs="+",
         metavar=("H", "W"),
         help="sample H/W used for export tracing, does not resize the model",
+    )
+    subparser.add_argument(
+        "--max-size", type=int, nargs="+", metavar=("H", "W"), help="upper H/W bounds for --pte --dynamic-size"
     )
     subparser.add_argument("--opset", type=int, default=20, help="ONNX opset version (applies only to --onnx)")
     subparser.add_argument(
@@ -347,7 +467,13 @@ def set_parser(subparsers: Any) -> None:
         action="store_true",
         help="require full Torch-TensorRT compilation with no PyTorch fallback",
     )
-    subparser.add_argument("--force", action="store_true", help="override existing model")
+    subparser.add_argument("-f", "--force", action="store_true", help="override existing model")
+    subparser.add_argument(
+        "--export-dtype",
+        choices=["float32", "float16", "bfloat16"],
+        default="float32",
+        help="floating-point dtype to save in the exported model",
+    )
 
     format_group = subparser.add_mutually_exclusive_group(required=True)
     format_group.add_argument("--resize", type=int, nargs="+", metavar=("H", "W"), help="resize model (pt)")
@@ -368,6 +494,7 @@ def set_parser(subparsers: Any) -> None:
     format_group.add_argument(
         "--pt2", default=False, action="store_true", help="convert to standardized model representation"
     )
+    format_group.add_argument("--pte", default=False, action="store_true", help="convert to ExecuTorch PTE format")
     format_group.add_argument(
         "--trt", "--tensorrt", default=False, action="store_true", help="convert to Torch-TensorRT PT2 format"
     )
@@ -386,6 +513,12 @@ def set_parser(subparsers: Any) -> None:
 def main(args: argparse.Namespace) -> None:
     args.resize = cli.parse_size(args.resize)
     args.trace_size = cli.parse_size(args.trace_size)
+    args.max_size = cli.parse_size(args.max_size)
+
+    if args.export_dtype != "float32" and not any((args.pts, args.lite, args.pt2, args.st, args.onnx)):
+        raise cli.ValidationError("--export-dtype float16/bfloat16 supports --pts, --lite, --pt2, --st and --onnx")
+
+    export_dtype: torch.dtype = getattr(torch, args.export_dtype)
 
     if args.backbone is not None and registry.exists(args.backbone, net_type=DetectorBackbone) is False:
         raise cli.ValidationError(
@@ -393,8 +526,25 @@ def main(args: argparse.Namespace) -> None:
         )
     if args.trace is True and args.pts is False and args.lite is False and args.onnx is False:
         raise cli.ValidationError("--trace requires one of --pts, --lite --onnx to be set")
-    if args.trace_size is not None and args.pt2 is False and args.trt is False and args.onnx is False:
-        raise cli.ValidationError("--trace-size applies only to --pt2, --trt and --onnx")
+    if args.dynamic_batch is True and args.pt2 is False and args.pte is False and args.trt is False:
+        raise cli.ValidationError("--dynamic-batch applies only to --pt2, --pte and --trt")
+    if args.max_batch_size is not None and (args.pte is False or args.dynamic_batch is False):
+        raise cli.ValidationError("--max-batch-size requires --pte --dynamic-batch")
+    if args.pte is True and args.dynamic_batch is True:
+        if args.max_batch_size is None:
+            raise cli.ValidationError("--pte --dynamic-batch requires --max-batch-size")
+    if args.max_size is not None and (args.pte is False or args.dynamic_size is False):
+        raise cli.ValidationError("--max-size requires --pte --dynamic-size")
+    if args.pte is True and args.dynamic_size is True and args.max_size is None:
+        raise cli.ValidationError("--pte --dynamic-size requires --max-size")
+    if (
+        args.trace_size is not None
+        and args.pt2 is False
+        and args.pte is False
+        and args.trt is False
+        and args.onnx is False
+    ):
+        raise cli.ValidationError("--trace-size applies only to --pt2, --pte, --trt and --onnx")
     if args.trace_size is not None and args.dynamic_size is False:
         raise cli.ValidationError("--trace-size requires --dynamic-size")
 
@@ -412,6 +562,7 @@ def main(args: argparse.Namespace) -> None:
             new_size=args.resize,
             inference=True,
             reparameterized=args.reparameterized,
+            dtype=export_dtype,
         )
         network_name = lib.get_network_name(args.network, tag=args.tag)
 
@@ -429,11 +580,15 @@ def main(args: argparse.Namespace) -> None:
             epoch=args.epoch,
             new_size=args.resize,
             inference=True,
+            dtype=export_dtype,
             export_mode=True,
         )
         network_name = lib.get_detection_network_name(
             args.network, tag=args.tag, backbone=args.backbone, backbone_tag=args.backbone_tag
         )
+
+    if args.dynamic_batch is True and net.task == Task.OBJECT_DETECTION:
+        raise cli.ValidationError("--dynamic-batch is not supported for detection models")
 
     if args.resize is not None:
         network_name = f"{network_name}_{args.resize[0]}px"
@@ -455,8 +610,12 @@ def main(args: argparse.Namespace) -> None:
         st=args.st,
         onnx=args.onnx,
     )
+    if args.pte is True:
+        model_path = model_path.with_suffix(".pte")
     if args.head_only is True:
         model_path = model_path.with_suffix(".head.pt")
+    if args.export_dtype != "float32":
+        model_path = model_path.with_name(f"{model_path.stem}_{args.export_dtype}{model_path.suffix}")
 
     if model_path.exists() is True and args.force is False and args.config is False:
         logger.warning("Converted model already exists... aborting")
@@ -557,7 +716,7 @@ def main(args: argparse.Namespace) -> None:
     elif args.lite is True:
         if args.trace is True:
             sample_shape = [1] + signature["inputs"][0]["data_shape"][1:]  # C, H, W
-            scripted_module = torch.jit.trace(net, example_inputs=torch.randn(sample_shape))
+            scripted_module = torch.jit.trace(net, example_inputs=torch.randn(sample_shape, dtype=export_dtype))
             optimized_scripted_module = scripted_module
         else:
             scripted_module = torch.jit.script(net)
@@ -575,11 +734,45 @@ def main(args: argparse.Namespace) -> None:
         )
 
     elif args.pt2 is True:
-        pt2_export(net, signature, class_to_idx, rgb_stats, device, model_path, args.dynamic_size, args.trace_size)
+        pt2_export(
+            net,
+            signature,
+            class_to_idx,
+            rgb_stats,
+            device,
+            model_path,
+            dtype=export_dtype,
+            dynamic_batch=args.dynamic_batch,
+            dynamic_size=args.dynamic_size,
+            trace_size=args.trace_size,
+        )
+
+    elif args.pte is True:
+        pte_export(
+            net,
+            signature,
+            class_to_idx,
+            rgb_stats,
+            device,
+            model_path,
+            dynamic_batch=args.dynamic_batch,
+            dynamic_size=args.dynamic_size,
+            trace_size=args.trace_size,
+            max_batch_size=args.max_batch_size,
+            max_size=args.max_size,
+        )
 
     elif args.trt is True:
         trt_export(
-            net, signature, class_to_idx, rgb_stats, model_path, args.dynamic_size, args.trace_size, args.trt_full
+            net,
+            signature,
+            class_to_idx,
+            rgb_stats,
+            model_path,
+            dynamic_batch=args.dynamic_batch,
+            dynamic_size=args.dynamic_size,
+            trace_size=args.trace_size,
+            require_full_compilation=args.trt_full,
         )
 
     elif args.st is True:
@@ -601,6 +794,7 @@ def main(args: argparse.Namespace) -> None:
             class_to_idx,
             rgb_stats,
             model_path,
+            export_dtype,
             args.dynamic_size,
             args.trace_size,
             args.opset,
@@ -624,7 +818,7 @@ def main(args: argparse.Namespace) -> None:
     elif args.pts is True:
         if args.trace is True:
             sample_shape = [1] + signature["inputs"][0]["data_shape"][1:]  # C, H, W
-            scripted_module = torch.jit.trace(net, example_inputs=torch.randn(sample_shape))
+            scripted_module = torch.jit.trace(net, example_inputs=torch.randn(sample_shape, dtype=export_dtype))
         else:
             scripted_module = torch.jit.script(net)
 

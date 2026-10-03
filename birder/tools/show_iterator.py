@@ -102,6 +102,9 @@ def show_iterator(args: argparse.Namespace) -> None:
                     augmix_severity=args.augmix_severity,
                     clip_color_jitter_prob=args.clip_color_jitter_prob,
                     clip_gray_prob=args.clip_gray_prob,
+                    timm_magnitude=args.timm_magnitude,
+                    timm_num_ops=args.timm_num_ops,
+                    timm_magnitude_std=args.timm_magnitude_std,
                 )
 
             naflex_specs = resolve_naflex_batch_specs(
@@ -116,7 +119,9 @@ def show_iterator(args: argparse.Namespace) -> None:
                 fixed_naflex_patch_size = spec.patch_size
                 transform = make_naflex_transform(spec)
         elif args.mode == "inference":
-            transform = naflex.inference_preset(inference_spec.patch_size, inference_spec.max_seq_len, rgb_stats)
+            transform = naflex.inference_preset(
+                inference_spec.patch_size, inference_spec.max_seq_len, rgb_stats, args.center_crop
+            )
         else:
             raise ValueError(f"Unknown mode={args.mode}")
     elif args.mode == "training":
@@ -134,6 +139,9 @@ def show_iterator(args: argparse.Namespace) -> None:
             augmix_severity=args.augmix_severity,
             clip_color_jitter_prob=args.clip_color_jitter_prob,
             clip_gray_prob=args.clip_gray_prob,
+            timm_magnitude=args.timm_magnitude,
+            timm_num_ops=args.timm_num_ops,
+            timm_magnitude_std=args.timm_magnitude_std,
         )
     elif args.mode == "inference":
         transform = inference_preset(args.size, rgb_stats, args.center_crop, args.simple_crop)

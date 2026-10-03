@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.3 - 2026-10-03
+
+### Added
+
+- **ExecuTorch PTE Export**: Added `--pte` to `convert-model` for full-precision `.pte` exports, with metadata embedded via `get_metadata`.
+- **SimDINOv2 SSL**: Added [SimDINOv2](https://arxiv.org/abs/2502.10385) self-supervised pretraining with coding-rate regularization, prototype-free normalized heads and masked-patch cosine alignment.
+- **Sparse MoE iBOT**: Added opt-in MoE training support to iBOT pretraining with multi-crop routing outputs, auxiliary losses, accumulated expert-load balancing and synchronized student-teacher expert-bias updates.
+- **MESA Training**: Added optional BCE-based [MESA regularization](https://arxiv.org/abs/2205.14083) using EMA model predictions.
+- **CPUBone**: Added [CPUBone](https://arxiv.org/abs/2603.26425) image classification model.
+- **DDP Gradient Compression**: Added opt-in `--ddp-comm-dtype {float16,bfloat16}` support across all training scripts to reduce DistributedDataParallel gradient communication bandwidth using PyTorch's communication hooks.
+- **timm-Style RandAugment**: Added the `timm` classification augmentation type with increasing-severity transformations, Gaussian magnitude noise and independent `--timm-magnitude` control.
+- **Pretrained Models**:
+    - `naflex_vit_reg4_so150m_p14_ls_dino-v2-bio-intermediate-eu-common` and `naflex_vit_reg4_so150m_p14_ls_dino-v2-bio-intermediate-il-all`: Added Bio-DINO NaFlex SoViT Reg4 150M/14 pretrained weights with intermediate training on world bird species, then fine-tuned on the `eu-common` and `il-all` datasets, respectively.
+
+### Fixed
+
+- **Dataset Packing**: Fixed image-mode compatibility in `pack`, including full-range unsigned 16-bit grayscale scaling for JPEG/WebP and 16-bit PNG preservation.
+
 ## 0.8.2 - 2026-09-14
 
 ### Added
