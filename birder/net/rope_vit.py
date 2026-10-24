@@ -121,7 +121,7 @@ class RoPEAttention(nn.Module):
         q = torch.concat([q[:, :, :n, :], self.apply_rot_fn(q[:, :, n:, :], rope)], dim=2).type_as(v)
         k = torch.concat([k[:, :, :n, :], self.apply_rot_fn(k[:, :, n:, :], rope)], dim=2).type_as(v)
 
-        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
+        x = F.scaled_dot_product_attention(
             q,
             k,
             v,
@@ -753,6 +753,13 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
             if self.classifier.bias is not None:
                 nn.init.zeros_(self.classifier.bias)
 
+    def _get_input_conv(self) -> nn.Conv2d:
+        if isinstance(self.conv_proj, nn.Conv2d):
+            return self.conv_proj
+
+        conv = self.conv_proj[0]
+        return conv
+
     def _get_pos_embed(self, H: int, W: int) -> Optional[torch.Tensor]:
         if self.pos_embedding is None:
             return None
@@ -1099,7 +1106,7 @@ class RoPE_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mask
                     interpolation_mode=self.pos_embed_interpolation_mode,
                 )
 
-            self.pos_embedding = nn.Parameter(pos_embedding)
+            self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=self.pos_embedding.requires_grad)
 
         grid_size = (new_size[0] // self.patch_size, new_size[1] // self.patch_size)
         self.rope.set_grid_size(grid_size)

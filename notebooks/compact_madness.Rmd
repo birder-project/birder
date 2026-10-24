@@ -46,7 +46,7 @@ from birder.tools.model_info import get_model_info
 ```
 
 ```{python}
-PATTERN = "il-common"
+PATTERN = "eu-common"
 SUMMARY_PATH = f"results/summary_{PATTERN}.csv"
 BENCHMARK_PATH = f"results/benchmark_{PATTERN}.csv"
 MODEL_NAME_ATTR = "architecture_id"
@@ -58,8 +58,8 @@ RESULT_FILE_RE = re.compile(
     r"^(?P<model_id>.+?)_"
     r"(?P<num_classes>\d+)"
     r"(?:_e(?P<epoch>\d+))?"
-    r"_(?P<resolution>\d+)px"
-    r"_crop(?P<center_crop>[0-9.]+)"
+    r"_(?:na_)?(?P<resolution>\d+)px"
+    r"(?:_crop(?P<center_crop>[0-9.]+))?"
     r"_(?P<num_samples>\d+)"
     r"(?P<options>(?:_[A-Za-z0-9.]+)*)$"
 )
@@ -155,6 +155,8 @@ def parse_result_file_name(file_name: str) -> ParsedResultName:
 
     options = [item for item in match.group("options").split("_") if item != ""]
     epoch = match.group("epoch")
+    # NaFlex filenames omit the crop ratio when it is the default 1.0.
+    center_crop = match.group("center_crop")
 
     return ParsedResultName(
         file_name=Path(file_name).name,
@@ -162,7 +164,7 @@ def parse_result_file_name(file_name: str) -> ParsedResultName:
         num_classes=int(match.group("num_classes")),
         epoch=int(epoch) if epoch is not None else None,
         resolution=int(match.group("resolution")),
-        center_crop=float(match.group("center_crop")),
+        center_crop=float(center_crop) if center_crop is not None else 1.0,
         num_samples=int(match.group("num_samples")),
         options=options,
     )

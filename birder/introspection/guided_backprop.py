@@ -79,7 +79,7 @@ class GuidedBackpropGELU(Function):
 
     @staticmethod
     def forward(ctx: Any, input_img: torch.Tensor) -> torch.Tensor:
-        result = F.gelu(input_img, approximate="none")  # pylint:disable=not-callable
+        result = F.gelu(input_img, approximate="none")
         ctx.save_for_backward(input_img)
         return result
 

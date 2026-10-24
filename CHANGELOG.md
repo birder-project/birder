@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.4 - 2026-10-24
+
+### Added
+
+- **Input Channel Adaptation**: Added `convert-model --input-channels` for pretrained ResNet v1, ConvNeXt, Swin Transformer and ViT-family checkpoints, including normalization metadata and supported detection backbones.
+- **Dataset Packing**: Added `pack --format original` to preserve JPEG, PNG, and WebP images without resizing or re-encoding.
+
+### Changed
+
+- **Compatibility**: Raised the minimum supported Polars version to 2.0.
+
+### Fixed
+
+- **Model Resizing**: Preserved parameter trainability when resizing positional embeddings, attention biases and patch projections.
+- **Low-Precision Resizing**: Fixed low-precision resizing in Swin, MaxViT, Hiera and PiT.
+- **Swin Transformer v2**: Avoided NaN relative-position biases when either attention window dimension is one.
+- **LAMB and LARS**: Preserved parameter gradients during optimizer updates instead of modifying them in place.
+
 ## 0.8.3 - 2026-10-03
 
 ### Added

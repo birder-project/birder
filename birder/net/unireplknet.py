@@ -106,7 +106,7 @@ class GRN(nn.Module):
             self.register_parameter("beta", None)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        gx = torch.linalg.vector_norm(x, ord=2, dim=(1, 2), keepdim=True)  # pylint: disable=not-callable
+        gx = torch.linalg.vector_norm(x, ord=2, dim=(1, 2), keepdim=True)
         nx = gx / (gx.mean(dim=-1, keepdim=True) + 1e-6)
         x = self.gamma * (x * nx) + x
         if self.beta is not None:
@@ -198,7 +198,7 @@ class DilatedReparamBlock(nn.Module):
             return kernel
 
         identity_kernel = torch.ones((1, 1, 1, 1), dtype=kernel.dtype, device=kernel.device)
-        return F.conv_transpose2d(kernel, identity_kernel, stride=dilation)  # pylint: disable=not-callable
+        return F.conv_transpose2d(kernel, identity_kernel, stride=dilation)
 
     @torch.no_grad()  # type: ignore[untyped-decorator]
     def reparameterize(self) -> None:

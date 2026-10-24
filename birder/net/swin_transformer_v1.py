@@ -115,7 +115,7 @@ def shifted_window_attention(
         length = qkv_bias.numel() // 3
         qkv_bias[length : 2 * length].zero_()
 
-    qkv = F.linear(x, qkv_weight, qkv_bias)  # pylint: disable=not-callable
+    qkv = F.linear(x, qkv_weight, qkv_bias)
     qkv = qkv.reshape(x.size(0), x.size(1), 3, num_heads, C // num_heads).permute(2, 0, 3, 1, 4)
     q = qkv[0]
     k = qkv[1]
@@ -155,7 +155,7 @@ def shifted_window_attention(
     attn = F.softmax(attn, dim=-1)
 
     x = attn.matmul(v).transpose(1, 2).reshape(x.size(0), x.size(1), C)
-    x = F.linear(x, proj_weight, proj_bias)  # pylint: disable=not-callable
+    x = F.linear(x, proj_weight, proj_bias)
 
     # Reverse windows
     x = x.view(B, pad_h // window_size[0], pad_w // window_size[1], window_size[0], window_size[1], C)
@@ -387,6 +387,10 @@ class Swin_Transformer_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
+    def _get_input_conv(self) -> nn.Conv2d:
+        conv = self.stem[0]
+        return conv
+
     def set_grad_checkpointing(
         self,
         enable: bool = True,
@@ -523,7 +527,11 @@ class Swin_Transformer_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
                     dst_size = (2 * new_window_size[0] - 1, 2 * new_window_size[1] - 1)
                     rel_pos_bias = m.attn.relative_position_bias_table.detach()
                     rel_pos_device = rel_pos_bias.device
+                    rel_pos_dtype = rel_pos_bias.dtype
                     rel_pos_bias = rel_pos_bias.cpu()
+                    if rel_pos_dtype in (torch.float16, torch.bfloat16):
+                        rel_pos_bias = rel_pos_bias.float()
+
                     num_attn_heads = rel_pos_bias.size(1)
 
                     def _calc(src: int, dst: int) -> list[float]:
@@ -560,13 +568,15 @@ class Swin_Transformer_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
                         rgi = interpolate.RegularGridInterpolator(
                             (x, y), z.numpy().T, method="cubic", bounds_error=False, fill_value=None
                         )
-                        r = torch.tensor(rgi(dxy), device=rel_pos_device, dtype=rel_pos_bias.dtype).T.contiguous()
+                        r = torch.tensor(rgi(dxy), device=rel_pos_device, dtype=rel_pos_dtype).T.contiguous()
 
                         r = r.view(-1, 1)
                         all_rel_pos_bias.append(r)
 
                     rel_pos_bias = torch.concat(all_rel_pos_bias, dim=-1)
-                    m.attn.relative_position_bias_table = nn.Parameter(rel_pos_bias)
+                    m.attn.relative_position_bias_table = nn.Parameter(
+                        rel_pos_bias, requires_grad=m.attn.relative_position_bias_table.requires_grad
+                    )
 
 
 registry.register_model_config(

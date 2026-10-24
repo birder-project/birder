@@ -110,16 +110,8 @@ class HungarianMatcher:
                     probabilities = focal_logits.sigmoid()
                     alpha = 0.25
                     gamma = 2.0
-                    negative_class_cost = (
-                        (1 - alpha)
-                        * (probabilities**gamma)
-                        * (-F.logsigmoid(-focal_logits))  # pylint: disable=not-callable
-                    )
-                    class_cost = (
-                        alpha
-                        * ((1 - probabilities) ** gamma)
-                        * (-F.logsigmoid(focal_logits))  # pylint: disable=not-callable
-                    )
+                    negative_class_cost = (1 - alpha) * (probabilities**gamma) * (-F.logsigmoid(-focal_logits))
+                    class_cost = alpha * ((1 - probabilities) ** gamma) * (-F.logsigmoid(focal_logits))
                     class_cost.sub_(negative_class_cost)
                     if gather_before_focal is False:
                         class_cost = torch.gather(class_cost, dim=-1, index=target_index)

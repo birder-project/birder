@@ -85,7 +85,7 @@ class CrossAttention(nn.Module):
         # BNC -> BNH(C/H) -> BHN(C/H)
         v = self.wv(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
-        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
+        x = F.scaled_dot_product_attention(
             q, k, v, dropout_p=self.attention_dropout if self.training else 0.0, scale=self.scale
         )
         x = x.transpose(1, 2).reshape(B, 1, C)  # (BH1N @ BHN(C/H)) -> BH1(C/H) -> B1H(C/H) -> B1C
@@ -401,7 +401,7 @@ class CrossViT(BaseNet):
             with torch.no_grad():
                 pos_embed = adjust_position_embedding(self.pos_embed[i], (old_h, old_w), (h, w), num_prefix_tokens=1)
 
-            self.pos_embed[i] = nn.Parameter(pos_embed)
+            self.pos_embed[i] = nn.Parameter(pos_embed, requires_grad=self.pos_embed[i].requires_grad)
 
 
 registry.register_model_config(

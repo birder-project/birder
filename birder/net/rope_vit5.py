@@ -146,7 +146,7 @@ class RoPEAttention(nn.Module):
         q = self._apply_split_rope(q, patch_rope, reg_rope).type_as(v)
         k = self._apply_split_rope(k, patch_rope, reg_rope).type_as(v)
 
-        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
+        x = F.scaled_dot_product_attention(
             q,
             k,
             v,
@@ -746,6 +746,9 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
             if self.classifier.bias is not None:
                 nn.init.zeros_(self.classifier.bias)
 
+    def _get_input_conv(self) -> nn.Conv2d:
+        return self.conv_proj
+
     def _get_pos_embed(self, H: int, W: int) -> Optional[torch.Tensor]:
         if self.pos_embedding is None:
             return None
@@ -1067,7 +1070,7 @@ class RoPE_ViT5(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, Mas
                     0,
                 )
 
-            self.pos_embedding = nn.Parameter(pos_embedding)
+            self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=self.pos_embedding.requires_grad)
 
         grid_size = (new_size[0] // self.patch_size, new_size[1] // self.patch_size)
         self.rope.set_grid_size(grid_size)

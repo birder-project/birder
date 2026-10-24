@@ -176,7 +176,7 @@ class NoisyTopKRouter(nn.Module):
     ) -> torch.Tensor:
         mean_gates_per_expert = _masked_mean(gates, token_mask)
         # Match dispatch even when topk and argmax break ties differently.
-        top1 = F.one_hot(top1_index, num_classes=self.num_experts).to(dtype=gates.dtype)  # pylint: disable=not-callable
+        top1 = F.one_hot(top1_index, num_classes=self.num_experts).to(dtype=gates.dtype)
         mean_top1_per_expert = _masked_mean(top1, token_mask)
         return (mean_top1_per_expert * mean_gates_per_expert).mean(dim=-1) * (self.num_experts**2)
 
@@ -271,7 +271,7 @@ class NoisyTopKRouter(nn.Module):
         # Match the V-MoE "vanilla" priority rule: all top-1 choices get capacity before top-2 choices, and so on.
         # Use top_k=1 for causal training, later tokens can otherwise displace earlier lower-ranked choices.
         expert_index_flat = expert_index.permute(0, 2, 1).reshape(G, S * self.top_k)
-        expert_one_hot = F.one_hot(expert_index_flat, num_classes=self.num_experts)  # pylint: disable=not-callable
+        expert_one_hot = F.one_hot(expert_index_flat, num_classes=self.num_experts)
         if token_mask is not None:
             expert_one_hot = expert_one_hot.reshape(G, self.top_k, S, self.num_experts)
             expert_one_hot.mul_(token_mask[:, None, :, None])

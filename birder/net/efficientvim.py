@@ -487,7 +487,7 @@ class EfficientViM(DetectorBackbone):
         z = torch.zeros((x.size(0), self.num_classes), device=x.device)
         for i, (norm, classifier) in enumerate(zip(self.state_norms, self.state_classifiers)):
             h = norm(hs[i])
-            h = F.adaptive_avg_pool1d(h, 1).flatten(1)  # pylint: disable=not-callable
+            h = F.adaptive_avg_pool1d(h, 1).flatten(1)
             z = z + weights[i] * classifier(h)
 
         z = z + weights[3] * self.classifier(x)

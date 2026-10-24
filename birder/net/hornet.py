@@ -66,11 +66,11 @@ class GlobalLocalFilter(nn.Module):
 
         x2 = x2.to(torch.float32)
         B, C, a, b = x2.size()
-        x2 = torch.fft.rfft2(x2, dim=(2, 3), norm="ortho")  # pylint: disable=not-callable
+        x2 = torch.fft.rfft2(x2, dim=(2, 3), norm="ortho")
 
         weight = torch.view_as_complex(self.complex_weight.contiguous())
         x2 = x2 * weight
-        x2 = torch.fft.irfft2(x2, s=(a, b), dim=(2, 3), norm="ortho")  # pylint: disable=not-callable
+        x2 = torch.fft.irfft2(x2, s=(a, b), dim=(2, 3), norm="ortho")
 
         x = torch.concat([x1.unsqueeze(2), x2.unsqueeze(2)], dim=2).reshape(B, 2 * C, a, b)
         x = self.post_norm(x)
@@ -350,7 +350,9 @@ class HorNet(DetectorBackbone):
                                     align_corners=True,
                                 ).permute(1, 2, 3, 0)
 
-                            m.gn_conv.dwconv.complex_weight = nn.Parameter(weight)
+                            m.gn_conv.dwconv.complex_weight = nn.Parameter(
+                                weight, requires_grad=m.gn_conv.dwconv.complex_weight.requires_grad
+                            )
 
 
 registry.register_model_config(

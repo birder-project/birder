@@ -388,6 +388,8 @@ def set_parser(subparsers: Any) -> None:
             "python -m birder.tools convert-model -n mobilevit_v2_1_5 -t intermediate -e 80 --pt2\n"
             "python -m birder.tools convert-model -n efficientnet_v2_s -e 100 --trt --trt-full\n"
             "python -m birder.tools convert-model -n efficientnet_v2_m -e 0 --lite\n"
+            "python -m birder.tools convert-model -n resnet_v1_50 -e 0 "
+            "--input-channels 1 --rgb-mean 0.45 --rgb-std 0.225\n"
             "python -m birder.tools convert-model --network faster_rcnn --backbone resnext_101 -e 0 --pts\n"
         ),
         formatter_class=cli.ArgumentHelpFormatter,
@@ -454,6 +456,20 @@ def set_parser(subparsers: Any) -> None:
     subparser.add_argument(
         "--max-size", type=int, nargs="+", metavar=("H", "W"), help="upper H/W bounds for --pte --dynamic-size"
     )
+    subparser.add_argument(
+        "--rgb-mean",
+        type=float,
+        nargs="+",
+        metavar=("R", "G"),
+        help="normalization mean values, one per channel (applies only to --input-channels)",
+    )
+    subparser.add_argument(
+        "--rgb-std",
+        type=float,
+        nargs="+",
+        metavar=("R", "G"),
+        help="normalization std values, one per channel (applies only to --input-channels)",
+    )
     subparser.add_argument("--opset", type=int, default=20, help="ONNX opset version (applies only to --onnx)")
     subparser.add_argument(
         "--optimize", default=False, action="store_true", help="enable ONNX optimization (applies only to --onnx)"
@@ -478,6 +494,9 @@ def set_parser(subparsers: Any) -> None:
     format_group = subparser.add_mutually_exclusive_group(required=True)
     format_group.add_argument("--resize", type=int, nargs="+", metavar=("H", "W"), help="resize model (pt)")
     format_group.add_argument("--resize-patch", type=int, help="resize model flexivit style model patch size (pt)")
+    format_group.add_argument(
+        "--input-channels", type=int, metavar="N", help="adapt model input channels, e.g. 1 for grayscale (pt)"
+    )
     format_group.add_argument(
         "--add-config", action=cli.FlexibleDictAction, help=("add custom configuration to existing model (pt)")
     )
@@ -548,6 +567,16 @@ def main(args: argparse.Namespace) -> None:
     if args.trace_size is not None and args.dynamic_size is False:
         raise cli.ValidationError("--trace-size requires --dynamic-size")
 
+    if args.input_channels is not None:
+        if args.rgb_mean is None or args.rgb_std is None:
+            raise cli.ValidationError("--input-channels requires --rgb-mean and --rgb-std")
+        if len(args.rgb_mean) != args.input_channels:
+            raise cli.ValidationError(f"--rgb-mean must have {args.input_channels} values, got {len(args.rgb_mean)}")
+        if len(args.rgb_std) != args.input_channels:
+            raise cli.ValidationError(f"--rgb-std must have {args.input_channels} values, got {len(args.rgb_std)}")
+    elif args.rgb_mean is not None or args.rgb_std is not None:
+        raise cli.ValidationError("--rgb-mean and --rgb-std apply only to --input-channels")
+
     # Load model
     device = torch.device("cpu")
     signature: SignatureType | DetectionSignatureType
@@ -589,6 +618,8 @@ def main(args: argparse.Namespace) -> None:
 
     if args.dynamic_batch is True and net.task == Task.OBJECT_DETECTION:
         raise cli.ValidationError("--dynamic-batch is not supported for detection models")
+    if args.input_channels is not None and args.input_channels == lib.get_channels_from_signature(signature):
+        raise cli.ValidationError(f"Model already has {args.input_channels} input channels")
 
     if args.resize is not None:
         network_name = f"{network_name}_{args.resize[0]}px"
@@ -596,6 +627,8 @@ def main(args: argparse.Namespace) -> None:
         network_name = f"{network_name}_custom_config"
     elif args.resize_patch is not None:
         network_name = f"{network_name}_ip{args.resize_patch}"
+    elif args.input_channels is not None:
+        network_name = f"{network_name}_ic{args.input_channels}"
 
     if args.reparameterize is True:
         network_name = lib.get_network_name(network_name, tag="reparameterized")
@@ -660,6 +693,29 @@ def main(args: argparse.Namespace) -> None:
             scaler=None,
             model_base=None,
             external_config=resized_config,
+            external_backbone_config=backbone_custom_config,
+        )
+
+    elif args.input_channels is not None:
+        net.adjust_input_channels(args.input_channels)
+        signature["inputs"][0]["data_shape"][1] = args.input_channels
+        rgb_stats = {"mean": tuple(args.rgb_mean), "std": tuple(args.rgb_std)}  # type: ignore[arg-type]
+        adapted_config = {
+            **(custom_config or {}),
+            **(args.model_config or {}),
+        }
+        fs_ops.checkpoint_model(
+            network_name,
+            args.epoch,
+            net,
+            signature,
+            class_to_idx,
+            rgb_stats,
+            optimizer=None,
+            scheduler=None,
+            scaler=None,
+            model_base=None,
+            external_config=adapted_config or None,
             external_backbone_config=backbone_custom_config,
         )
 

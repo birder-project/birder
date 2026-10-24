@@ -287,6 +287,33 @@ class BaseNet(nn.Module):
         logger.info(f"Adjusting model input resolution from {self.size} to {new_size}")
         self.size = new_size
 
+    def _get_input_conv(self) -> nn.Conv2d:
+        raise RuntimeError(f"{self.__class__.__name__} does not support input channel adjustment")
+
+    def adjust_input_channels(self, input_channels: int) -> None:
+        if input_channels == self.input_channels:
+            return
+
+        conv = self._get_input_conv()
+        if conv.groups != 1 or conv.in_channels != self.input_channels:
+            raise RuntimeError("Input channel adjustment requires an ungrouped input convolution")
+
+        weight = conv.weight.detach()
+        if weight.dtype in (torch.float16, torch.bfloat16):
+            weight = weight.float()
+
+        if input_channels == 1:
+            weight = weight.sum(dim=1, keepdim=True)
+        else:
+            repeats = (input_channels + self.input_channels - 1) // self.input_channels
+            weight = weight.repeat(1, repeats, 1, 1)[:, :input_channels]
+            weight = weight * (self.input_channels / input_channels)
+
+        logger.info(f"Adjusting model input channels from {self.input_channels} to {input_channels}")
+        conv.weight = nn.Parameter(weight.to(dtype=conv.weight.dtype), requires_grad=conv.weight.requires_grad)
+        conv.in_channels = input_channels
+        self.input_channels = input_channels
+
     def freeze(self, freeze_classifier: bool = True, unfreeze_features: bool = False) -> None:
         for param in self.parameters():
             param.requires_grad_(False)

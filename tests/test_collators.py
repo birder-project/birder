@@ -203,7 +203,7 @@ class TestNaFlexCollator(unittest.TestCase):
         conv = nn.Conv2d(2, 5, kernel_size=patch_size, stride=patch_size)
 
         (patches, _, valid_mask), _ = collator([(image_a, 0), (image_b, 1)])
-        projected = F.linear(patches, conv.weight.flatten(1), conv.bias)  # pylint: disable=not-callable
+        projected = F.linear(patches, conv.weight.flatten(1), conv.bias)
 
         for image, batch_projection, mask in zip((image_a, image_b), projected, valid_mask):
             expected = conv(image.unsqueeze(0)).flatten(2).transpose(1, 2).squeeze(0)

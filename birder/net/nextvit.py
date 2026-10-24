@@ -179,7 +179,7 @@ class E_MHSA(nn.Module):
         v = self.v(x)
         v = v.reshape(B, -1, self.num_heads, int(C // self.num_heads)).transpose(1, 2)
 
-        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint: disable=not-callable
+        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)
         x = x.transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
 

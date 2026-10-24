@@ -752,7 +752,10 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                             dst_size = (2 * attn.size[0] - 1, 2 * attn.size[1] - 1)
                             rel_pos_bias = attn.relative_position_bias_table.detach()
                             rel_pos_device = rel_pos_bias.device
-                            rel_pos_bias = rel_pos_bias.float().cpu()
+                            rel_pos_dtype = rel_pos_bias.dtype
+                            rel_pos_bias = rel_pos_bias.cpu()
+                            if rel_pos_dtype in (torch.float16, torch.bfloat16):
+                                rel_pos_bias = rel_pos_bias.float()
 
                             num_attn_heads = rel_pos_bias.size(1)
                             src_size = (2 * old_attn_size[0] - 1, 2 * old_attn_size[1] - 1)
@@ -792,16 +795,16 @@ class MaxViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                                 rgi = interpolate.RegularGridInterpolator(
                                     (x, y), z.numpy().T, method="cubic", bounds_error=False, fill_value=None
                                 )
-                                r = torch.tensor(
-                                    rgi(dxy), device=rel_pos_device, dtype=rel_pos_bias.dtype
-                                ).T.contiguous()
+                                r = torch.tensor(rgi(dxy), device=rel_pos_device, dtype=rel_pos_dtype).T.contiguous()
 
                                 r = r.view(-1, 1)
                                 all_rel_pos_bias.append(r)
 
                             rel_pos_bias = torch.concat(all_rel_pos_bias, dim=-1)
 
-                        attn.relative_position_bias_table = nn.Parameter(rel_pos_bias)
+                        attn.relative_position_bias_table = nn.Parameter(
+                            rel_pos_bias, requires_grad=attn.relative_position_bias_table.requires_grad
+                        )
 
 
 registry.register_model_config(

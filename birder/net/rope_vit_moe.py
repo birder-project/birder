@@ -871,6 +871,13 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
             if self.classifier[-1].bias is not None:
                 nn.init.constant_(self.classifier[-1].bias, head_bias_init)
 
+    def _get_input_conv(self) -> nn.Conv2d:
+        if isinstance(self.conv_proj, nn.Conv2d):
+            return self.conv_proj
+
+        conv = self.conv_proj[0]
+        return conv
+
     def _get_pos_embed(self, H: int, W: int) -> Optional[torch.Tensor]:
         if self.pos_embedding is None:
             return None
@@ -1220,7 +1227,7 @@ class RoPE_ViT_MoE(PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTokenRetenti
                     interpolation_mode=self.pos_embed_interpolation_mode,
                 )
 
-            self.pos_embedding = nn.Parameter(pos_embedding)
+            self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=self.pos_embedding.requires_grad)
 
         grid_size = (new_size[0] // self.patch_size, new_size[1] // self.patch_size)
         self.rope.set_grid_size(grid_size)

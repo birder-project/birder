@@ -27,21 +27,21 @@ def norm_targets(targets: torch.Tensor, patch_size: int) -> torch.Tensor:
     targets_count = torch.ones_like(targets)
     targets_square = targets**2.0
 
-    targets_mean = F.avg_pool2d(  # pylint: disable=not-callable
+    targets_mean = F.avg_pool2d(
         targets,
         kernel_size=(patch_size, patch_size),
         stride=(1, 1),
         padding=(patch_size // 2, patch_size // 2),
         count_include_pad=False,
     )
-    targets_square_mean = F.avg_pool2d(  # pylint: disable=not-callable
+    targets_square_mean = F.avg_pool2d(
         targets_square,
         kernel_size=(patch_size, patch_size),
         stride=(1, 1),
         padding=(patch_size // 2, patch_size // 2),
         count_include_pad=False,
     )
-    targets_count = F.avg_pool2d(  # pylint: disable=not-callable
+    targets_count = F.avg_pool2d(
         targets_count,
         kernel_size=(patch_size, patch_size),
         stride=(1, 1),

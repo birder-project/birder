@@ -676,8 +676,14 @@ class MViT_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                                 mode="linear",
                             )
 
-                        m.attn.rel_pos_h = nn.Parameter(rel_pos_h_resized.reshape(-1, rel_sp_dim_h).permute(1, 0))
-                        m.attn.rel_pos_w = nn.Parameter(rel_pos_w_resized.reshape(-1, rel_sp_dim_w).permute(1, 0))
+                        m.attn.rel_pos_h = nn.Parameter(
+                            rel_pos_h_resized.reshape(-1, rel_sp_dim_h).permute(1, 0),
+                            requires_grad=m.attn.rel_pos_h.requires_grad,
+                        )
+                        m.attn.rel_pos_w = nn.Parameter(
+                            rel_pos_w_resized.reshape(-1, rel_sp_dim_w).permute(1, 0),
+                            requires_grad=m.attn.rel_pos_w.requires_grad,
+                        )
 
                         if idx == 0:
                             input_size = (q_size_h, q_size_w)

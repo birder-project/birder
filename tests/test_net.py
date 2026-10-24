@@ -473,6 +473,26 @@ class TestBase(unittest.TestCase):
         self.assertIn("inputs", signature)
         self.assertIn("outputs", signature)
 
+    def test_adjust_input_channels(self) -> None:
+        class InputNet(base.BaseNet):  # pylint: disable=abstract-method
+            body: torch.nn.Conv2d
+
+            def _get_input_conv(self) -> torch.nn.Conv2d:
+                return self.body
+
+        base_net = InputNet(DEFAULT_NUM_CHANNELS, num_classes=2, size=(8, 8))
+        base_net.body = torch.nn.Conv2d(DEFAULT_NUM_CHANNELS, 10, kernel_size=3, bias=False)
+        x = torch.rand((1, 1, *base_net.size))
+
+        with torch.no_grad():
+            expected = base_net.body(x.repeat(1, 3, 1, 1))
+            base_net.adjust_input_channels(1)
+            output = base_net.body(x)
+
+        self.assertEqual(base_net.input_channels, 1)
+        self.assertEqual(base_net.body.in_channels, 1)
+        torch.testing.assert_close(output, expected)
+
     def test_base_net(self) -> None:
         base_net = base.BaseNet(DEFAULT_NUM_CHANNELS, num_classes=2, size=(128, 128))
         base_net.body = torch.nn.Linear(DEFAULT_NUM_CHANNELS, 10, bias=False)
@@ -1580,7 +1600,7 @@ class TestNaFlex(unittest.TestCase):
         input_embedding, encoded_features = stacked.unbind(dim=-1)
         with torch.no_grad():
             resampled_weight = interpolate_proj(n.conv_proj.weight, resampled_patch_size)
-            expected_input_embedding = torch.nn.functional.linear(  # pylint: disable=not-callable
+            expected_input_embedding = torch.nn.functional.linear(
                 patches,
                 resampled_weight.flatten(1),
                 n.conv_proj.bias,

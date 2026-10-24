@@ -261,7 +261,7 @@ class MaskUnitAttention(nn.Module):
             # Refer to Unroll to see how this performs a maxpool-Nd
             q = q.view(B, self.heads, num_windows, self.q_stride, -1, self.head_dim).amax(dim=3)
 
-        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint: disable=not-callable
+        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)
 
         x = x.transpose(1, 3).reshape(B, -1, self.dim_out)
         x = self.proj(x)
@@ -685,14 +685,19 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
         if self.pos_embed_win is not None:
             global_pos_size = (new_size[0] // 2**4, new_size[1] // 2**4)
             with torch.no_grad():
+                pos_embed = self.pos_embed
+                if pos_embed.dtype in (torch.float16, torch.bfloat16):
+                    pos_embed = pos_embed.float()
+
                 pos_embed = F.interpolate(
-                    self.pos_embed,
+                    pos_embed,
                     size=global_pos_size,
                     mode="bicubic",
                     antialias=True,
                 )
+                pos_embed = pos_embed.to(self.pos_embed.dtype)
 
-            self.pos_embed = nn.Parameter(pos_embed)
+            self.pos_embed = nn.Parameter(pos_embed, requires_grad=self.pos_embed.requires_grad)
 
         else:
             with torch.no_grad():
@@ -703,7 +708,7 @@ class Hiera(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin):
                     0,
                 )
 
-            self.pos_embed = nn.Parameter(pos_embed)
+            self.pos_embed = nn.Parameter(pos_embed, requires_grad=self.pos_embed.requires_grad)
 
         # Re-init vars
         self.tokens_spatial_shape = [i // s for i, s in zip(new_size, self.patch_stride)]

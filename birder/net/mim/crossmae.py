@@ -55,7 +55,7 @@ class CrossAttention(nn.Module):
         kv = self.kv(memory).reshape(B, n_kv, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         k, v = kv.unbind(0)
 
-        attn = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0)  # pylint: disable=not-callable
+        attn = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0)
         x = attn.transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
 

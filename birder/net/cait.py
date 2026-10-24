@@ -61,7 +61,7 @@ class ClassAttention(nn.Module):
         k = self.k(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         v = self.v(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
-        x_cls = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0)  # pylint: disable=not-callable
+        x_cls = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0)
 
         x_cls = x_cls.transpose(1, 2).reshape(B, 1, C)
         x_cls = self.proj(x_cls)
@@ -419,7 +419,7 @@ class CaiT(PreTrainEncoder, MaskedTokenRetentionMixin):
                 0,
             )
 
-        self.pos_embed = nn.Parameter(pos_embed)
+        self.pos_embed = nn.Parameter(pos_embed, requires_grad=self.pos_embed.requires_grad)
 
 
 registry.register_model_config(

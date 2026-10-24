@@ -498,7 +498,7 @@ class YOLO_v2(DetectionBaseNet):
             num_obj = 1
 
         # No-object loss
-        noobj_loss = F.softplus(predictions[..., 4][noobj_mask]).sum()  # pylint: disable=not-callable
+        noobj_loss = F.softplus(predictions[..., 4][noobj_mask]).sum()
 
         # Normalize by number of positive samples (average per object)
         num_obj = max(1, num_obj)

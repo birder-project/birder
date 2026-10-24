@@ -192,6 +192,10 @@ class ResNet_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         self.stem_width = filter_list[0]
         self.feature_dim = filter_list[-1]
 
+    def _get_input_conv(self) -> nn.Conv2d:
+        conv = self.stem[0][0]
+        return conv
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
 

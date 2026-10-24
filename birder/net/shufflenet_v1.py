@@ -109,9 +109,7 @@ class ShuffleUnit(nn.Module):
             x = F.relu(x)
 
         else:
-            residual = F.avg_pool2d(  # pylint: disable=not-callable
-                residual, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1)
-            )
+            residual = F.avg_pool2d(residual, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
             x = torch.concat((residual, F.relu(x)), dim=1)
 
         return x

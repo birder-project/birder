@@ -47,7 +47,7 @@ class GRN(nn.Module):
         self.beta = nn.Parameter(torch.zeros(1, 1, 1, dim))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        gx = torch.linalg.vector_norm(x, ord=2, dim=(1, 2), keepdim=True)  # pylint: disable=not-callable
+        gx = torch.linalg.vector_norm(x, ord=2, dim=(1, 2), keepdim=True)
         nx = gx / (gx.mean(dim=-1, keepdim=True) + 1e-6)
 
         return self.gamma * (x * nx) + self.beta + x
@@ -169,6 +169,10 @@ class ConvNeXt_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
         if isinstance(self.classifier, nn.Linear):
             self.classifier.weight.data.mul_(0.001)
             self.classifier.bias.data.mul_(0.001)
+
+    def _get_input_conv(self) -> nn.Conv2d:
+        conv = self.stem[0]
+        return conv
 
     def set_grad_checkpointing(
         self,

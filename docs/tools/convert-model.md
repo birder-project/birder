@@ -39,6 +39,7 @@ The Torch-TensorRT format requires CUDA and `torch-tensorrt` at conversion and r
 The tool also supports:
 
 - **Resizing models (--resize)**: Adjust the input dimensions of the model
+- **Adapting input channels (--input-channels)**: Adapt pretrained input weights and save a PyTorch checkpoint with a new channel count
 - **Adding configuration (--add-config)**: Add custom configurations to an existing model
 - **Adding backbone configuration (--add-backbone-config)**: Add custom configurations to an existing model's backbone
 - **Generating configuration files (--config)**: Create a JSON configuration file for the model

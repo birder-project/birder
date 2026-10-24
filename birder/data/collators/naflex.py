@@ -275,9 +275,7 @@ class NaFlexMixupTrainingCollator(NaFlexTrainingCollator):
             overlap_fraction = (overlap_h * overlap_w) / (grid_h * grid_w)
             effective_lambdas.append(1.0 - ((1.0 - lambda_param) * overlap_fraction))
 
-        targets = F.one_hot(targets, num_classes=self.num_classes).to(  # pylint: disable=not-callable
-            dtype=patch_sequences[0].dtype
-        )
+        targets = F.one_hot(targets, num_classes=self.num_classes).to(dtype=patch_sequences[0].dtype)
         donor_targets = targets.roll(1, dims=0)
         lambda_tensor = targets.new_tensor(effective_lambdas).unsqueeze(1)
         targets.mul_(lambda_tensor).add_(donor_targets * (1.0 - lambda_tensor))

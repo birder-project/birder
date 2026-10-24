@@ -135,7 +135,6 @@ class RandomMixup(nn.Module):
         target = target.clone()
 
         if target.ndim == 1:
-            # pylint: disable=not-callable
             target = nn.functional.one_hot(target, num_classes=self.num_classes).to(dtype=batch.dtype)
 
         if torch.rand(1).item() >= self.p:

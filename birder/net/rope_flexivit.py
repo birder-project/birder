@@ -167,7 +167,7 @@ class RoPE_FlexiViT(RoPE_ViT):
         with torch.no_grad():
             conv_proj_weight = interpolate_proj(self.conv_proj.weight, patch_size)
 
-        self.conv_proj.weight = nn.Parameter(conv_proj_weight)
+        self.conv_proj.weight = nn.Parameter(conv_proj_weight, requires_grad=self.conv_proj.weight.requires_grad)
         self.conv_proj.kernel_size = (patch_size, patch_size)
         self.conv_proj.stride = (patch_size, patch_size)
         if self.pos_embedding is not None:
@@ -186,7 +186,7 @@ class RoPE_FlexiViT(RoPE_ViT):
                     interpolation_mode=self.pos_embed_interpolation_mode,
                 )
 
-            self.pos_embedding = nn.Parameter(pos_embedding)
+            self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=self.pos_embedding.requires_grad)
 
         grid_size = (self.size[0] // patch_size, self.size[1] // patch_size)
         self.rope.set_grid_size(grid_size)

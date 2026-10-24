@@ -61,7 +61,7 @@ class Attention(nn.Module):
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)
 
-        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
+        x = F.scaled_dot_product_attention(
             q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, is_causal=self.is_causal, scale=self.scale
         )
 
@@ -648,7 +648,7 @@ class ViT_Parallel(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, 
                 self.num_special_tokens,
             )
 
-        self.pos_embedding = nn.Parameter(pos_embedding)
+        self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=self.pos_embedding.requires_grad)
 
 
 registry.register_model_config(

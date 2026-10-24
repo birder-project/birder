@@ -286,7 +286,7 @@ def update_annotation_table(_ctx):
     classes = pl.Series(column_class, class_list)
 
     annotations_status = pl.read_csv(settings.DATA_DIR.joinpath("annotations_status.csv"))
-    new_classes = classes.filter(~classes.is_in(annotations_status[column_class]))
+    new_classes = classes.filter(~classes.is_in(annotations_status[column_class].implode()))
     if len(new_classes) == 0:
         echo("No new species")
     else:
@@ -405,20 +405,21 @@ def convert_to_coco(ctx, class_file=None):
 
 
 @task
-def pack_intermediate(ctx, jobs=12, size=384, suffix="intermediate_packed"):
+def pack_intermediate(ctx, jobs=12, size=384, suffix="intermediate_packed", original=False):
     """
     Pack data for intermediate training
     """
 
+    image_args = "--format original" if original else f"--size {size}"
     ctx.run(
-        f"python tool.py pack -j {jobs} --shuffle --suffix {suffix} --target-path data/{suffix} --size {size} "
+        f"python tool.py pack -j {jobs} --shuffle --suffix {suffix} --target-path data/{suffix} {image_args} "
         "data/training data/raw_data",
         echo=True,
         pty=True,
         warn=True,
     )
     ctx.run(
-        f"python tool.py pack -j {jobs} --suffix {suffix} --target-path data/{suffix} --size {size} --split validation "
+        f"python tool.py pack -j {jobs} --suffix {suffix} --target-path data/{suffix} {image_args} --split validation "
         "--max-size 200 --append data/validation",
         echo=True,
         pty=True,

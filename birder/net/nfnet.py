@@ -74,9 +74,7 @@ class ScaledStdConv2d(nn.Conv2d):
             momentum=0.0,
             eps=self.eps,
         ).reshape_as(self.weight)
-        z = F.conv2d(  # pylint: disable=not-callable
-            x, weight, self.bias, self.stride, self.padding, self.dilation, self.groups
-        )
+        z = F.conv2d(x, weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
 
         return z
 

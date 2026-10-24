@@ -55,12 +55,8 @@ class HOGTarget(nn.Module):
         # HOG target construction is intentionally kept in float32, including during mixed-precision training
         with torch.amp.autocast(x.device.type, enabled=False):
             x = F.pad(x.float(), pad=(1, 1, 1, 1), mode="reflect")
-            grad_x = F.conv2d(  # pylint: disable=not-callable
-                x, self.weight_x.float(), bias=None, stride=1, padding=0, groups=self.input_channels
-            )
-            grad_y = F.conv2d(  # pylint: disable=not-callable
-                x, self.weight_y.float(), bias=None, stride=1, padding=0, groups=self.input_channels
-            )
+            grad_x = F.conv2d(x, self.weight_x.float(), bias=None, stride=1, padding=0, groups=self.input_channels)
+            grad_y = F.conv2d(x, self.weight_y.float(), bias=None, stride=1, padding=0, groups=self.input_channels)
 
             magnitude = torch.stack((grad_x, grad_y), dim=-1).norm(dim=-1)
             phase = torch.atan2(grad_x, grad_y)

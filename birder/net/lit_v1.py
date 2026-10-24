@@ -422,7 +422,9 @@ class LIT_v1(DetectorBackbone):
                         )
 
                     attn.input_resolution = out_resolution
-                    attn.relative_position_bias_table = nn.Parameter(bias_table)
+                    attn.relative_position_bias_table = nn.Parameter(
+                        bias_table, requires_grad=attn.relative_position_bias_table.requires_grad
+                    )
                     attn.relative_position_index = nn.Buffer(
                         build_relative_position_index(out_resolution, device=bias_table.device)
                     )

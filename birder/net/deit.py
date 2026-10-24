@@ -297,7 +297,7 @@ class DeiT(DetectorBackbone):
                 (new_size[0] // self.patch_size, new_size[1] // self.patch_size),
                 num_prefix_tokens,
             )
-        self.pos_embedding = nn.Parameter(pos_embedding)
+        self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=self.pos_embedding.requires_grad)
 
 
 registry.register_model_config(

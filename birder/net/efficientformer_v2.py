@@ -583,7 +583,8 @@ class EfficientFormer_v2(DetectorBackbone):
                         with torch.no_grad():
                             # Interpolate attention_biases
                             attn.attention_biases = nn.Parameter(
-                                interpolate_attention_bias(attn.attention_biases, old_base, new_base)
+                                interpolate_attention_bias(attn.attention_biases, old_base, new_base),
+                                requires_grad=attn.attention_biases.requires_grad,
                             )
 
                             device = attn.attention_biases.device
@@ -622,7 +623,8 @@ class EfficientFormer_v2(DetectorBackbone):
 
                             with torch.no_grad():
                                 m.token_mixer.attention_biases = nn.Parameter(
-                                    interpolate_attention_bias(m.token_mixer.attention_biases, c_old_base, c_new_base)
+                                    interpolate_attention_bias(m.token_mixer.attention_biases, c_old_base, c_new_base),
+                                    requires_grad=m.token_mixer.attention_biases.requires_grad,
                                 )
 
                                 device = m.token_mixer.attention_biases.device

@@ -148,6 +148,10 @@ class ConvNeXt_v1(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
+    def _get_input_conv(self) -> nn.Conv2d:
+        conv = self.stem[0]
+        return conv
+
     def set_grad_checkpointing(
         self,
         enable: bool = True,

@@ -243,7 +243,7 @@ class Attention(nn.Module):
                 # Average across heads: (B, num_heads, N, N) -> (B, N, N)
                 attn_weights = attn_weights.mean(dim=1)
         else:
-            x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
+            x = F.scaled_dot_product_attention(
                 q,
                 k,
                 v,
@@ -792,6 +792,13 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
             if self.classifier.bias is not None:
                 nn.init.zeros_(self.classifier.bias)
 
+    def _get_input_conv(self) -> nn.Conv2d:
+        if isinstance(self.conv_proj, nn.Conv2d):
+            return self.conv_proj
+
+        conv = self.conv_proj[0]
+        return conv
+
     def _get_pos_embed(self, H: int, W: int) -> Optional[torch.Tensor]:
         if self.pos_embedding is None:
             return None
@@ -1124,7 +1131,7 @@ class ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenOmissionMixin, MaskedTok
                 interpolation_mode=self.pos_embed_interpolation_mode,
             )
 
-        self.pos_embedding = nn.Parameter(pos_embedding)
+        self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=self.pos_embedding.requires_grad)
 
 
 # Register model configs (side effects)

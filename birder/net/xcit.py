@@ -207,7 +207,7 @@ class XCA(nn.Module):
 
         q = F.normalize(q, dim=-1) * self.temperature
         k = F.normalize(k, dim=-1)
-        x = F.scaled_dot_product_attention(q, k, v, scale=1.0)  # pylint: disable=not-callable
+        x = F.scaled_dot_product_attention(q, k, v, scale=1.0)
 
         x = x.permute(0, 3, 1, 2).reshape(B, N, C)
         x = self.proj(x)

@@ -36,5 +36,5 @@ class GeMPool2d(nn.Module):
         self.eps = eps
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        mean = F.avg_pool2d(x.clamp(min=self.eps).pow(self.p), (x.size(-2), x.size(-1)))  # pylint:disable=not-callable
+        mean = F.avg_pool2d(x.clamp(min=self.eps).pow(self.p), (x.size(-2), x.size(-1)))
         return mean.pow(1.0 / self.p).squeeze(dim=(-2, -1))

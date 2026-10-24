@@ -106,6 +106,10 @@ class DetectionBaseNet(nn.Module):
         self.size = new_size
         self.backbone.adjust_size(new_size)
 
+    def adjust_input_channels(self, input_channels: int) -> None:
+        self.backbone.adjust_input_channels(input_channels)
+        self.input_channels = self.backbone.input_channels
+
     def set_dynamic_size(self, dynamic_size: bool = True) -> None:
         self.backbone.set_dynamic_size(dynamic_size)
         self.dynamic_size = dynamic_size

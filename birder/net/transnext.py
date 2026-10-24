@@ -36,9 +36,9 @@ def get_relative_position_cpb(
         pretrain_size = query_size
 
     axis_qh = torch.arange(query_size[0], dtype=torch.float32, device=device)
-    axis_kh = F.adaptive_avg_pool1d(axis_qh.unsqueeze(0), key_size[0]).squeeze(0)  # pylint: disable=not-callable
+    axis_kh = F.adaptive_avg_pool1d(axis_qh.unsqueeze(0), key_size[0]).squeeze(0)
     axis_qw = torch.arange(query_size[1], dtype=torch.float32, device=device)
-    axis_kw = F.adaptive_avg_pool1d(axis_qw.unsqueeze(0), key_size[1]).squeeze(0)  # pylint: disable=not-callable
+    axis_kw = F.adaptive_avg_pool1d(axis_qw.unsqueeze(0), key_size[1]).squeeze(0)
     axis_kh, axis_kw = torch.meshgrid(axis_kh, axis_kw, indexing="ij")
     axis_qh, axis_qw = torch.meshgrid(axis_qh, axis_qw, indexing="ij")
 
@@ -215,9 +215,7 @@ class Attention(nn.Module):
 
         # Calculate attention map using sequence length scaled cosine attention and query embedding
         attn = (
-            (F.normalize(q, dim=-1) + self.query_embedding)
-            * F.softplus(self.temperature)  # pylint: disable=not-callable
-            * seq_length_scale
+            (F.normalize(q, dim=-1) + self.query_embedding) * F.softplus(self.temperature) * seq_length_scale
         ) @ F.normalize(k, dim=-1).transpose(-2, -1) + rel_bias
 
         attn = attn.softmax(dim=-1)
@@ -301,11 +299,7 @@ class AggregatedAttention(nn.Module):
         # and then magnify with sequence length scale and temperature.
         # Use softplus function ensuring that the temperature is not lower than 0.
         q_norm = F.normalize(self.q(x).reshape(B, N, self.num_heads, self.head_dim).permute(0, 2, 1, 3), dim=-1)
-        q_norm_scaled = (
-            (q_norm + self.query_embedding)
-            * F.softplus(self.temperature)  # pylint: disable=not-callable
-            * seq_length_scale
-        )
+        q_norm_scaled = (q_norm + self.query_embedding) * F.softplus(self.temperature) * seq_length_scale
 
         attn_local, v_local = self.swa_qk_rpb(
             self.kv(x),

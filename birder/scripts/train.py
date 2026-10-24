@@ -741,7 +741,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
             loss_targets = targets
             if args.bce_loss is True:
                 if loss_targets.ndim == 1:
-                    loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)  # pylint: disable=not-callable
+                    loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)
 
                 loss_targets = loss_targets.gt(args.bce_threshold).to(dtype=inputs.dtype)
 
@@ -969,7 +969,7 @@ def train(args: argparse.Namespace, overrides: Optional[TrainOverrides] = None) 
                 targets = targets.to(device, non_blocking=True)
                 loss_targets = targets
                 if args.bce_loss is True:
-                    loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)  # pylint: disable=not-callable
+                    loss_targets = F.one_hot(loss_targets, num_classes=num_outputs)
                     loss_targets = loss_targets.to(dtype=inputs.dtype)
 
                 with torch.amp.autocast(device.type, enabled=args.amp, dtype=amp_dtype):

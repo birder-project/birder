@@ -67,7 +67,7 @@ class Attention(nn.Module):
         kv = self.kv(x).reshape(B, -1, 2, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
         k, v = kv.unbind(0)
 
-        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
+        x = F.scaled_dot_product_attention(
             q, k, v, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
         )
         x = x.transpose(1, 2).reshape(B, N, C)
@@ -341,7 +341,7 @@ class PVT_v1(DetectorBackbone):
                 with torch.no_grad():
                     pos_embed = adjust_position_embedding(m.pos_embed, old_s, s, 0)
 
-                m.pos_embed = nn.Parameter(pos_embed)
+                m.pos_embed = nn.Parameter(pos_embed, requires_grad=m.pos_embed.requires_grad)
                 old_s = (old_s[0] // 2, old_s[1] // 2)
                 s = (s[0] // 2, s[1] // 2)
 

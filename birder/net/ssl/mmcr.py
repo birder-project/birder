@@ -59,7 +59,7 @@ class MMCRMomentumLoss(nn.Module):
         if self.lambda_coeff == 0:
             local_nuc = 0
         else:
-            local_nuc = torch.linalg.svdvals(z_local).sum()  # pylint: disable=not-callable
+            local_nuc = torch.linalg.svdvals(z_local).sum()
 
         centroids = (torch.mean(z_local, dim=-1) + torch.mean(z_m_local, dim=-1)) * 0.5
 
@@ -71,7 +71,7 @@ class MMCRMomentumLoss(nn.Module):
             # NaN filtered
             pass
 
-        global_nuc = torch.linalg.svdvals(centroids).sum()  # pylint: disable=not-callable
+        global_nuc = torch.linalg.svdvals(centroids).sum()
 
         loss = -1.0 * global_nuc + self.lambda_coeff * local_nuc / z_local.size(0)
 

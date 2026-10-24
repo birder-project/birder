@@ -223,7 +223,7 @@ class IdentityBasedConv1x1(nn.Conv2d):
         nn.init.zeros_(self.weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # pylint: disable=arguments-renamed
-        return F.conv2d(x, self._get_actual_kernel(), groups=self.groups)  # pylint: disable=not-callable
+        return F.conv2d(x, self._get_actual_kernel(), groups=self.groups)
 
     def _get_actual_kernel(self) -> torch.Tensor:
         return self.weight + self.identity
@@ -240,10 +240,8 @@ class BatchNormAndPad(nn.Module):
         if self.pad_pixels == 0:
             return x
 
-        pad_values = self.bn.bias.detach() - (  # pylint: disable=not-callable
-            self.bn.running_mean
-            * self.bn.weight.detach()  # pylint: disable=not-callable
-            / torch.sqrt(self.bn.running_var + self.bn.eps)
+        pad_values = self.bn.bias.detach() - (
+            self.bn.running_mean * self.bn.weight.detach() / torch.sqrt(self.bn.running_var + self.bn.eps)
         )
         x = F.pad(x, [self.pad_pixels] * 4)
         pad_values = pad_values.view(1, -1, 1, 1)
@@ -463,7 +461,7 @@ class DiverseBranchBlock(nn.Module):
         second_bias: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if self.groups == 1:
-            kernel = F.conv2d(second_kernel, first_kernel.permute(1, 0, 2, 3))  # pylint: disable=not-callable
+            kernel = F.conv2d(second_kernel, first_kernel.permute(1, 0, 2, 3))
             bias = (second_kernel * first_bias.reshape(1, -1, 1, 1)).sum((1, 2, 3))
         else:
             kernels = []
@@ -479,7 +477,7 @@ class DiverseBranchBlock(nn.Module):
                     group_idx * second_group_width : (group_idx + 1) * second_group_width, :, :, :
                 ]
                 bias_slice = first_bias[group_idx * first_group_width : (group_idx + 1) * first_group_width]
-                kernels.append(F.conv2d(second_slice, first_slice))  # pylint: disable=not-callable
+                kernels.append(F.conv2d(second_slice, first_slice))
                 biases.append((second_slice * bias_slice.reshape(1, -1, 1, 1)).sum((1, 2, 3)))
 
             kernel = torch.concat(kernels, dim=0)

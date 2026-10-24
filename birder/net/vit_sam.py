@@ -132,9 +132,7 @@ class Attention(nn.Module):
             else:
                 attn_bias = causal_bias
 
-        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
-            q, k, v, attn_mask=attn_bias, scale=self.scale
-        )
+        x = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias, scale=self.scale)
 
         x = x.view(B, self.num_heads, H, W, -1).permute(0, 2, 3, 1, 4).reshape(B, H, W, -1)
         x = self.proj(x)
@@ -545,8 +543,8 @@ class ViT_SAM(DetectorBackbone):
                     rel_pos_h = rel_pos_h.to(orig_dtype)
                     rel_pos_w = rel_pos_w.to(orig_dtype)
 
-                    m.attn.rel_pos_h = nn.Parameter(rel_pos_h)
-                    m.attn.rel_pos_w = nn.Parameter(rel_pos_w)
+                    m.attn.rel_pos_h = nn.Parameter(rel_pos_h, requires_grad=m.attn.rel_pos_h.requires_grad)
+                    m.attn.rel_pos_w = nn.Parameter(rel_pos_w, requires_grad=m.attn.rel_pos_w.requires_grad)
 
             orig_dtype = self.pos_embedding.dtype
             pos_embedding = self.pos_embedding.float()
@@ -557,7 +555,7 @@ class ViT_SAM(DetectorBackbone):
             pos_embedding = pos_embedding.permute(0, 2, 3, 1)
             pos_embedding = pos_embedding.to(orig_dtype)
 
-        self.pos_embedding = nn.Parameter(pos_embedding)
+        self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=self.pos_embedding.requires_grad)
 
     def load_vit_weights(self, state_dict: dict[str, Any]) -> None:
         """

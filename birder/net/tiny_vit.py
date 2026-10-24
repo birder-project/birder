@@ -213,9 +213,7 @@ class Attention(nn.Module):
         k = k.permute(0, 2, 1, 3)
         v = v.permute(0, 2, 1, 3)
 
-        x = F.scaled_dot_product_attention(  # pylint: disable=not-callable
-            q, k, v, attn_mask=attn_bias, scale=self.scale
-        )
+        x = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias, scale=self.scale)
         x = x.transpose(1, 2).reshape(B, N, self.out_dim)
         x = self.proj(x)
 
@@ -478,7 +476,8 @@ class Tiny_ViT(DetectorBackbone):
                             m.attn.attention_biases = nn.Parameter(
                                 interpolate_attention_bias(
                                     m.attn.attention_biases, old_window_sizes[idx], window_sizes[idx]
-                                )
+                                ),
+                                requires_grad=m.attn.attention_biases.requires_grad,
                             )
 
             idx += 1

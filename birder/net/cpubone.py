@@ -213,7 +213,7 @@ class ConvAttention(nn.Module):
         x = x.reshape(batch_size, self.num_heads, 3 * self.head_dim, proj_h * proj_w)
         x = x.permute(0, 1, 3, 2)
         query, key, value = x.chunk(3, dim=-1)
-        x = F.scaled_dot_product_attention(query, key, value, scale=self.scale)  # pylint: disable=not-callable
+        x = F.scaled_dot_product_attention(query, key, value, scale=self.scale)
         x = x.permute(0, 1, 3, 2).reshape(batch_size, self.num_heads * self.head_dim, proj_h, proj_w)
         x = self.out_proj(x)
         x = self.upsample(x)

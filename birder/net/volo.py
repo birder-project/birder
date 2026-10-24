@@ -91,7 +91,7 @@ class Attention(nn.Module):
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)
 
-        x = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0, scale=self.scale)  # pylint: disable=not-callable
+        x = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0, scale=self.scale)
         x = x.transpose(1, 2).reshape(B, H, W, C)
         x = self.proj(x)
 
@@ -149,7 +149,7 @@ class ClassAttention(nn.Module):
         kv = self.kv(x).reshape(B, N, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         k, v = kv.unbind(0)
 
-        x_cls = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0, scale=self.scale)  # pylint: disable=not-callable
+        x_cls = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0, scale=self.scale)
         x_cls = x_cls.transpose(1, 2).reshape(B, 1, C)
         x_cls = self.proj(x_cls)
 
@@ -406,7 +406,7 @@ class VOLO(BaseNet):
                 )
                 pos_embed = pos_embed.permute(0, 2, 3, 1).to(self.pos_embed.dtype)
 
-            self.pos_embed = nn.Parameter(pos_embed)
+            self.pos_embed = nn.Parameter(pos_embed, requires_grad=self.pos_embed.requires_grad)
 
 
 registry.register_model_config(

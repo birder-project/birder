@@ -143,6 +143,20 @@ def _read_verified_image(path: str, file_format: str) -> bytes:
     return sample
 
 
+def _read_original_image(path: str) -> tuple[bytes, str]:
+    with open(path, "rb") as stream:
+        sample = stream.read()
+
+    with Image.open(BytesIO(sample)) as image:
+        file_format = _canonical_image_format(image.format or "")
+        image.verify()
+
+    if file_format not in ("jpeg", "png", "webp"):
+        raise ValueError(f"Original image format '{file_format}' is not supported, expected JPEG, PNG, or WebP: {path}")
+
+    return sample, file_format
+
+
 def read_worker(q_in: Any, q_out: Any, error_event: Any, size: Optional[int], file_format: str) -> None:
     file_format = _canonical_image_format(file_format)
     while True:
@@ -152,7 +166,10 @@ def read_worker(q_in: Any, q_out: Any, error_event: Any, size: Optional[int], fi
 
         try:
             idx, path, target = deq
-            if size is None:
+            sample_format = file_format
+            if file_format == "original":
+                sample, sample_format = _read_original_image(path)
+            elif size is None:
                 suffix = _canonical_image_format(Path(path).suffix)
                 if file_format != suffix:
                     sample = _encode_image(path, file_format)
@@ -172,7 +189,7 @@ def read_worker(q_in: Any, q_out: Any, error_event: Any, size: Optional[int], fi
 
         while error_event.is_set() is False:
             try:
-                q_out.put((idx, sample, file_format, target), block=True, timeout=QUEUE_TIMEOUT)
+                q_out.put((idx, sample, sample_format, target), block=True, timeout=QUEUE_TIMEOUT)
                 break
             except queue.Full:
                 continue
@@ -604,7 +621,13 @@ def set_parser(subparsers: Any) -> None:
     )
     subparser.add_argument("--shuffle", default=False, action="store_true", help="shuffle the dataset during packing")
     subparser.add_argument("--size", type=int, help="resize image short dimension to size if bigger")
-    subparser.add_argument("--format", type=str, choices=["webp", "png", "jpeg"], default="webp", help="file format")
+    subparser.add_argument(
+        "--format",
+        type=str,
+        choices=["original", "webp", "png", "jpeg"],
+        default="webp",
+        help="output format, original preserves JPEG, PNG, and WebP bytes without resizing or re-encoding",
+    )
     subparser.add_argument("--class-file", type=str, help="class list file")
     subparser.add_argument("--no-cls", default=False, action="store_true", help="pack without class information")
     subparser.add_argument("--start-number", type=int, default=0, help="starting number for output file naming")
@@ -621,6 +644,9 @@ def set_parser(subparsers: Any) -> None:
 
 
 def main(args: argparse.Namespace) -> None:
+    if args.format == "original" and args.size is not None:
+        raise cli.ValidationError("--format original cannot be used with --size")
+
     if args.append is True and args.type != "wds":
         raise cli.ValidationError("--append requires --type wds to be set")
     if args.no_cls is True and args.type != "wds":

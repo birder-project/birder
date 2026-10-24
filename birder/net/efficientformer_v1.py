@@ -403,7 +403,8 @@ class EfficientFormer_v1(DetectorBackbone):
             if isinstance(m, Attention):
                 with torch.no_grad():
                     m.attention_biases = nn.Parameter(
-                        interpolate_attention_bias(m.attention_biases, old_resolution, resolution)
+                        interpolate_attention_bias(m.attention_biases, old_resolution, resolution),
+                        requires_grad=m.attention_biases.requires_grad,
                     )
 
                     device = m.attention_biases.device

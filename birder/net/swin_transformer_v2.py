@@ -89,7 +89,7 @@ class ShiftedWindowAttention(nn.Module):
             length = self.qkv.bias.numel() // 3
             self.qkv.bias[length : 2 * length].data.zero_()
 
-    def define_relative_position_bias_table(self) -> None:
+    def define_relative_position_bias_table(self, dtype: torch.dtype = torch.float32) -> None:
         # Get relative_coords_table
         device = self.qkv.weight.device
         relative_coords_h = torch.arange(
@@ -101,14 +101,14 @@ class ShiftedWindowAttention(nn.Module):
         relative_coords_table = torch.stack(torch.meshgrid([relative_coords_h, relative_coords_w], indexing="ij"))
         relative_coords_table = relative_coords_table.permute(1, 2, 0).contiguous().unsqueeze(0)  # 1, 2*Wh-1, 2*Ww-1, 2
 
-        relative_coords_table[:, :, :, 0] /= self.window_size[0] - 1
-        relative_coords_table[:, :, :, 1] /= self.window_size[1] - 1
+        relative_coords_table[:, :, :, 0] /= max(self.window_size[0] - 1, 1)
+        relative_coords_table[:, :, :, 1] /= max(self.window_size[1] - 1, 1)
 
         relative_coords_table *= 8  # Normalize to (-8, 8)
         relative_coords_table = (
             torch.sign(relative_coords_table) * torch.log2(torch.abs(relative_coords_table) + 1.0) / 3.0
         )
-        self.relative_coords_table = nn.Buffer(relative_coords_table)
+        self.relative_coords_table = nn.Buffer(relative_coords_table.to(dtype=dtype))
 
     def define_relative_position_index(self) -> None:
         # Get pair-wise relative position index for each token inside the window
@@ -304,6 +304,10 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
+    def _get_input_conv(self) -> nn.Conv2d:
+        conv = self.stem[0]
+        return conv
+
     def set_grad_checkpointing(
         self,
         enable: bool = True,
@@ -448,7 +452,7 @@ class Swin_Transformer_v2(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentio
 
                         m.attn.window_size = (window_size_h, window_size_w)
                         m.attn.shift_size = (shift_size_h, shift_size_w)
-                        m.attn.define_relative_position_bias_table()
+                        m.attn.define_relative_position_bias_table(dtype=m.attn.relative_coords_table.dtype)
                         m.attn.define_relative_position_index()
 
 

@@ -191,7 +191,7 @@ class CascadedGroupAttention(nn.Module):
 
             q = q * self.scale
             attn = q.transpose(-2, -1) @ k
-            attn = attn + attn_bias[head_idx]  # pylint: disable=unsubscriptable-object
+            attn = attn + attn_bias[head_idx]
             attn = attn.softmax(dim=-1)
 
             feat = v @ attn.transpose(-2, -1)
@@ -511,7 +511,8 @@ class EfficientViT_MSFT(DetectorBackbone):
                             m.mixer.m.attn.attention_biases = nn.Parameter(
                                 interpolate_attention_bias(
                                     m.mixer.m.attn.attention_biases, old_window_resolution, window_resolution
-                                )
+                                ),
+                                requires_grad=m.mixer.m.attn.attention_biases.requires_grad,
                             )
                             device = m.mixer.m.attn.attention_biases.device
                             m.mixer.m.attn.attention_bias_idxs = nn.Buffer(

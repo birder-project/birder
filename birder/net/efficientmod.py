@@ -62,7 +62,7 @@ class Attention(nn.Module):
         q, k, v = qkv.unbind(0)
         q = self.q_norm(q)
         k = self.k_norm(k)
-        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)  # pylint: disable=not-callable
+        x = F.scaled_dot_product_attention(q, k, v, scale=self.scale)
 
         x = x.transpose(1, 2).reshape(B, N, self.num_heads * self.head_dim)
         x = self.proj(x)

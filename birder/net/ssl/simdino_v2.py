@@ -71,7 +71,7 @@ class MCRLoss(nn.Module):
             dim = features.size(-1)
             identity = torch.eye(dim, device=features.device, dtype=features.dtype)
             matrix = identity + covariance * (dim / (num_samples * self.eps))
-            cholesky = torch.linalg.cholesky_ex(matrix)[0]  # pylint: disable=not-callable
+            cholesky = torch.linalg.cholesky_ex(matrix)[0]
             coding_rate = cholesky.diagonal(dim1=-2, dim2=-1).log().sum(dim=-1).mean()
             coding_rate = coding_rate * (dim + num_samples) / (dim * num_samples)
 
@@ -89,7 +89,7 @@ class CosinePatchLoss(nn.Module):
         masks_weight: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         with torch.amp.autocast(student_patch_tokens.device.type, enabled=False):
-            similarities = F.cosine_similarity(  # pylint: disable=not-callable
+            similarities = F.cosine_similarity(
                 student_patch_tokens.float(), teacher_patch_tokens.detach().float(), dim=-1
             )
             if masks_weight is None:

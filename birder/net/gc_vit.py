@@ -584,7 +584,9 @@ class GC_ViT(DetectorBackbone, PreTrainEncoder, MaskedTokenRetentionMixin):
                         )
 
                     rel_pos.window_size = new_window_size
-                    rel_pos.relative_position_bias_table = nn.Parameter(bias_table)
+                    rel_pos.relative_position_bias_table = nn.Parameter(
+                        bias_table, requires_grad=rel_pos.relative_position_bias_table.requires_grad
+                    )
                     rel_pos.relative_position_index = nn.Buffer(
                         build_relative_position_index(new_window_size, device=bias_table.device)
                     )

@@ -107,7 +107,7 @@ class EVA(MIMBaseNet):
 
         pred_masked = pred[loss_mask]
         target_masked = target[loss_mask]
-        loss = F.cosine_similarity(pred_masked.float(), target_masked.float(), dim=-1)  # pylint: disable=not-callable
+        loss = F.cosine_similarity(pred_masked.float(), target_masked.float(), dim=-1)
 
         return -loss.mean()
 

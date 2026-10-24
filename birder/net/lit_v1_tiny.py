@@ -342,7 +342,7 @@ class LIT_v1_Tiny(DetectorBackbone):
                 )
 
             stage.input_resolution = out_resolution
-            stage.pos_embed = nn.Parameter(pos_embed)
+            stage.pos_embed = nn.Parameter(pos_embed, requires_grad=stage.pos_embed.requires_grad)
 
 
 registry.register_model_config(

@@ -151,7 +151,7 @@ def infer_dataloader_iter(
     with tqdm(total=num_samples, initial=0, unit="images", unit_scale=True, leave=False) as progress:
         for file_paths, inputs, targets in dataloader:
             batch_kwargs = kwargs
-            if isinstance(inputs, tuple):  # Assumes NaFlex collator inputs
+            if isinstance(inputs, (tuple, list)):  # Assumes NaFlex collator inputs
                 inputs, grid_sizes, valid_mask = inputs
                 batch_kwargs = {
                     **kwargs,

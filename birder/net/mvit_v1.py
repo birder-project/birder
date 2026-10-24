@@ -442,7 +442,7 @@ class MViT_v1(DetectorBackbone):
                 self.num_special_tokens,
             )
 
-        self.pos_embedding = nn.Parameter(pos_embedding)
+        self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=self.pos_embedding.requires_grad)
 
 
 registry.register_model_config(

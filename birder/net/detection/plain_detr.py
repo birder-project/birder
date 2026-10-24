@@ -139,7 +139,7 @@ class MultiheadAttention(nn.Module):
             key_padding_bias = key_padding_bias.masked_fill(key_padding_mask[:, None, None, :], float("-inf"))
             attn_bias = key_padding_bias if attn_bias is None else attn_bias + key_padding_bias
 
-        attn = F.scaled_dot_product_attention(  # pylint: disable=not-callable
+        attn = F.scaled_dot_product_attention(
             q, k, v, attn_mask=attn_bias, dropout_p=self.attn_drop.p if self.training else 0.0, scale=self.scale
         )
 

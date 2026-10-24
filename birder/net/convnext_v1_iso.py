@@ -115,6 +115,9 @@ class ConvNeXt_v1_Isotropic(DetectorBackbone, PreTrainEncoder, MaskedTokenRetent
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
+    def _get_input_conv(self) -> nn.Conv2d:
+        return self.stem
+
     def detection_features(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         x = self.stem(x)
 

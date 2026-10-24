@@ -371,7 +371,7 @@ class Integral(nn.Module):
 
     def forward(self, x: torch.Tensor, project: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         probabilities = F.softmax(x.reshape(x.size(0), x.size(1), 4, self.reg_max + 1), dim=-1)
-        distances = F.linear(probabilities.reshape(-1, self.reg_max + 1), project)  # pylint: disable=not-callable
+        distances = F.linear(probabilities.reshape(-1, self.reg_max + 1), project)
         distances = distances.reshape(x.size(0), x.size(1), 4)
 
         return (distances, probabilities)

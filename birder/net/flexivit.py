@@ -51,7 +51,7 @@ def _get_resize_matrix_pinv(
         resize_matrix = resized_basis_vectors.squeeze(1).permute(1, 2, 0).reshape(new_size[0] * new_size[1], old_numel)
 
         # Its pseudoinverse (Moore-Penrose inverse) maps flattened kernels from old_size to new_size
-        return torch.linalg.pinv(resize_matrix)  # pylint: disable=not-callable
+        return torch.linalg.pinv(resize_matrix)
 
 
 def interpolate_proj(proj_weight: torch.Tensor, patch_size: int) -> torch.Tensor:
@@ -71,9 +71,9 @@ def flex_proj(
 ) -> torch.Tensor:
     if patch_size is not None and patch_size != proj_weight.shape[-1] and not torch.jit.is_scripting():
         weight_resampled = interpolate_proj(proj_weight, patch_size)
-        x = F.conv2d(x, weight_resampled, proj_bias, stride=(patch_size, patch_size))  # pylint: disable=not-callable
+        x = F.conv2d(x, weight_resampled, proj_bias, stride=(patch_size, patch_size))
     else:
-        x = F.conv2d(x, proj_weight, proj_bias, stride=proj_weight.shape[-2:])  # pylint: disable=not-callable
+        x = F.conv2d(x, proj_weight, proj_bias, stride=proj_weight.shape[-2:])
 
     return x
 
@@ -213,7 +213,7 @@ class FlexiViT(ViT):
         with torch.no_grad():
             conv_proj_weight = interpolate_proj(self.conv_proj.weight, patch_size)
 
-        self.conv_proj.weight = nn.Parameter(conv_proj_weight)
+        self.conv_proj.weight = nn.Parameter(conv_proj_weight, requires_grad=self.conv_proj.weight.requires_grad)
         self.conv_proj.kernel_size = (patch_size, patch_size)
         self.conv_proj.stride = (patch_size, patch_size)
         if self.pos_embedding is not None:
@@ -232,7 +232,7 @@ class FlexiViT(ViT):
                     interpolation_mode=self.pos_embed_interpolation_mode,
                 )
 
-            self.pos_embedding = nn.Parameter(pos_embedding)
+            self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=self.pos_embedding.requires_grad)
 
         self.patch_size = patch_size
         self.max_stride = patch_size

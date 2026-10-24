@@ -51,7 +51,7 @@ def naflex_proj(
             patch_size = math.isqrt(x.size(-1) // proj_weight.size(1))
             proj_weight = interpolate_proj(proj_weight, patch_size)
 
-    return F.linear(x, proj_weight.flatten(1), proj_bias)  # pylint: disable=not-callable
+    return F.linear(x, proj_weight.flatten(1), proj_bias)
 
 
 class GridSamplePosEmbed(nn.Module):
@@ -396,7 +396,7 @@ class NaFlex_ViT(ViT):
         with torch.no_grad():
             conv_proj_weight = interpolate_proj(self.conv_proj.weight, patch_size)
 
-        self.conv_proj.weight = nn.Parameter(conv_proj_weight)
+        self.conv_proj.weight = nn.Parameter(conv_proj_weight, requires_grad=self.conv_proj.weight.requires_grad)
         self.conv_proj.kernel_size = (patch_size, patch_size)
         self.conv_proj.stride = (patch_size, patch_size)
         if self.pos_embedding is not None:
@@ -414,7 +414,7 @@ class NaFlex_ViT(ViT):
                     interpolation_mode=self.pos_embed_interpolation_mode,
                 )
 
-            self.pos_embedding = nn.Parameter(pos_embedding)
+            self.pos_embedding = nn.Parameter(pos_embedding, requires_grad=self.pos_embedding.requires_grad)
 
         self.patch_size = patch_size
         self.max_stride = patch_size
